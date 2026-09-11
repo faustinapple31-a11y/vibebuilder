@@ -12,6 +12,7 @@ export default defineConfig({
       "@worldforge/quality": pkg("quality"),
       "@worldforge/roblox-export": pkg("roblox-export"),
       "@worldforge/roblox-cloud": pkg("roblox-cloud"),
+      "@worldforge/agents/node": path.resolve(__dirname, "packages/agents/src/node-runner.ts"),
       "@worldforge/agents": pkg("agents"),
     },
   },

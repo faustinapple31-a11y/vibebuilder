@@ -5,5 +5,12 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" }
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node-runner.ts"
+  },
+  "dependencies": {
+    "@worldforge/core": "*",
+    "@worldforge/world-gen": "*"
+  }
 }
