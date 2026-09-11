@@ -75,7 +75,7 @@ export function placeVegetation(ctx: GenContext): void {
     hash.insert({ position: p.position, radius: 4 });
   }
 
-  const spawnClear = 22;
+  const spawnClear = 42;
   const edgeMargin = 6;
 
   const densityAt = (x: number, z: number, biome: BiomeId, big: boolean): number => {
@@ -99,6 +99,7 @@ export function placeVegetation(ctx: GenContext): void {
     d *= 1 - smoothstep(0.45, 0.7, s) * 0.8;
     const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
     if (big && ds < spawnClear) return 0;
+    if (big) d *= smoothstep(spawnClear, spawnClear + 30, ds);
     return clamp(d, 0, 1);
   };
 

@@ -1,4 +1,4 @@
-mod commands;
+pub mod commands;
 
 use commands::process::ProcessRegistry;
 use tauri_plugin_sql::{Migration, MigrationKind};

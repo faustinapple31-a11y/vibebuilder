@@ -48,13 +48,13 @@ export function chooseSpawn(ctx: GenContext): void {
   } else {
     pos = [ctx.origin[0] + ctx.worldW * 0.5, ctx.origin[1] + ctx.worldD * 0.72];
   }
-  const y = flattenArea(ctx, pos, 22, 0.95);
+  const y = flattenArea(ctx, pos, 30, 0.95);
   const lookTarget: Vec3 = site ? [site.center[0], site.baseHeight, site.center[1]] : focal ? focal.position : [pos[0], y, pos[1] - 100];
   const facingId = spec.cameraComposition.spawnFacing;
   const facing = facingId ? ctx.landmarks.find((l) => l.id === facingId) ?? null : null;
   const facingSite = facingId ? ctx.sites.find((s) => s.id === facingId) ?? null : null;
   const lookAt: Vec3 = facing ? facing.position : facingSite ? [facingSite.center[0], facingSite.baseHeight, facingSite.center[1]] : lookTarget;
   ctx.spawn = { position: [pos[0], y, pos[1]], lookAt };
-  ctx.zones.push({ id: "spawn", kind: "spawn", polygon: circlePoly(pos, 22, 12), center: pos, radius: 22 });
-  ctx.occupants.push({ position: [pos[0], y, pos[1]], radius: 14, kind: "keep" });
+  ctx.zones.push({ id: "spawn", kind: "spawn", polygon: circlePoly(pos, 30, 12), center: pos, radius: 30 });
+  ctx.occupants.push({ position: [pos[0], y, pos[1]], radius: 24, kind: "keep" });
 }

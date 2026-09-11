@@ -14,7 +14,7 @@ pub fn which(name: &str) -> Option<PathBuf> {
         return Some(p.to_path_buf());
     }
     let path_var = std::env::var_os("PATH")?;
-    let exts: Vec<&str> = if cfg!(windows) { vec!["", ".exe", ".cmd", ".bat", ".com"] } else { vec![""] };
+    let exts: Vec<&str> = if cfg!(windows) { vec![".exe", ".cmd", ".bat", ".com"] } else { vec![""] };
     for dir in std::env::split_paths(&path_var) {
         for ext in &exts {
             let candidate = dir.join(format!("{name}{ext}"));
@@ -53,7 +53,7 @@ pub fn find_tool(name: &str) -> Option<PathBuf> {
     if let Some(p) = which(name) {
         return Some(p);
     }
-    let exts: Vec<&str> = if cfg!(windows) { vec![".exe", ".cmd", ".bat", ""] } else { vec![""] };
+    let exts: Vec<&str> = if cfg!(windows) { vec![".exe", ".cmd", ".bat", ".com"] } else { vec![""] };
     for dir in extra_tool_dirs() {
         for ext in &exts {
             let candidate = dir.join(format!("{name}{ext}"));

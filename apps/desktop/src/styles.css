@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+/* WorldForge AI — warm light workspace theme (reference: agent workspace with stacked terminals + Studio preview) */
+@theme {
+  --color-bg: #f4f1ea;
+  --color-bg-elev: #faf8f3;
+  --color-panel: #ffffff;
+  --color-panel-2: #f7f5ef;
+  --color-line: #e5dfd3;
+  --color-line-strong: #d3cbbd;
+  --color-ink: #1f1c18;
+  --color-ink-2: #4a453d;
+  --color-muted: #7d766b;
+  --color-faint: #a49c8e;
+  --color-brand: #6a4fd8;
+  --color-brand-2: #8b6cf5;
+  --color-brand-soft: #efeafe;
+  --color-ok: #2f9e5b;
+  --color-ok-soft: #e4f5ea;
+  --color-warn: #d97a06;
+  --color-warn-soft: #fdf1e0;
+  --color-err: #d8443c;
+  --color-err-soft: #fce8e6;
+  --color-term: #f6f2e8;
+  --color-term-ink: #2b2620;
+  --color-term-muted: #8a8378;
+  --color-claude: #c9722b;
+  --color-codex: #2f8f5b;
+  --color-gemini: #3b6fe0;
+  --color-opencode: #5b5b5b;
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --radius-panel: 12px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+::selection {
+  background: #d9cffc;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cfc7b8 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cfc7b8;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 1px 2px rgb(31 28 24 / 0.04);
+}
+
+.term {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-term-ink);
+  background: var(--color-term);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  font-size: 12px;
+  color: var(--color-ink-2);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-faint);
+  flex: none;
+}
+.dot-ok {
+  background: var(--color-ok);
+}
+.dot-warn {
+  background: var(--color-warn);
+}
+.dot-err {
+  background: var(--color-err);
+}
+.dot-busy {
+  background: var(--color-brand);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+}
+
+.term-input {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  width: 100%;
+  resize: none;
+  color: var(--color-term-ink);
+}
+.term-input::placeholder {
+  color: var(--color-term-muted);
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+}
