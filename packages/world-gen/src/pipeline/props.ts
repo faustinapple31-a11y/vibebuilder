@@ -1,0 +1,238 @@
+import { clamp, deriveSeed, smoothstep, type Placement, type Vec2 } from "@worldforge/core";
+import { Rng } from "@worldforge/core";
+import { SpatialHash } from "../grid";
+import { biomeAt, distanceToEdge, isWaterAt, progress, slopeAtWorld, type GenContext } from "../context";
+import { layerFor, poissonDisk } from "./vegetation";
+import { flattenArea } from "./sites";
+
+/**
+ * Stage 13: rocks and props.
+ * Rocks: Poisson pass biased to slopes, riverbanks and rocky biomes; cliff blocks on steep slopes.
+ * Props: contextual sets — village (lanterns along roads, crates/barrels/fences near houses, benches, signposts),
+ * forest (logs, stones), ruins (walls/arches near ruin landmarks), path slabs along stone paths.
+ */
+export function placeRocksAndProps(ctx: GenContext): void {
+  const { spec, style } = ctx;
+  const rng = new Rng(deriveSeed(ctx.seed, "props"));
+  const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
+  for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
+  for (const p of ctx.placements) {
+    if (p.category === "vegetation" && (p.prefab.includes("tree") || p.prefab === "giant_mushroom" || p.prefab === "pine_tree" || p.prefab === "willow" || p.prefab === "birch" || p.prefab === "palm")) {
+      hash.insert({ position: p.position, radius: 2.5 * p.scale });
+    }
+  }
+  let n = 0;
+  const add = (prefab: string, x: number, z: number, opts: { scale?: number; rotationY?: number; importance?: number; zone?: string; category?: Placement["category"]; margin?: number; sink?: boolean }): boolean => {
+    const variants = ctx.prefabs[prefab];
+    if (!variants || variants.length === 0) return false;
+    if (!inside(ctx, x, z) || isWaterAt(ctx, x, z)) return false;
+    const vi = rng.int(0, variants.length - 1);
+    const v = variants[vi]!;
+    const scale = opts.scale ?? 1;
+    const radius = v.footprintRadius * scale * 0.6;
+    if (hash.overlaps(x, z, radius, opts.margin ?? 0.5)) return false;
+    const y = ctx.heights.sample(x, z) - (opts.sink === false ? 0 : v.sinkDepth * scale);
+    const pos: [number, number, number] = [x, y, z];
+    hash.insert({ position: pos, radius });
+    ctx.placements.push({
+      id: `prop_${n++}`,
+      prefab,
+      variant: vi,
+      category: opts.category ?? v.category,
+      position: pos,
+      rotationY: opts.rotationY ?? rng.float(0, Math.PI * 2),
+      scale,
+      layer: layerFor(ctx, x, z, false),
+      biome: biomeAt(ctx, x, z),
+      zone: opts.zone,
+      importance: opts.importance ?? 3,
+    });
+    return true;
+  };
+
+  // ---- rocks
+  progress(ctx, "props:rocks", 0);
+  const rockCandidates = poissonDisk(ctx, rng, 16);
+  for (const [x, z] of rockCandidates) {
+    if (distanceToEdge(ctx, x, z) < 8) continue;
+    const biome = biomeAt(ctx, x, z);
+    const s = slopeAtWorld(ctx, x, z);
+    const wd = ctx.waterDistance.sample(x, z);
+    const rd = ctx.roadDistance.sample(x, z);
+    if (rd < 3) continue;
+    let d = 0.16;
+    if (biome === "rocky" || biome === "highlands") d += 0.35;
+    if (biome === "desert" || biome === "snow") d += 0.15;
+    d += smoothstep(0.15, 0.5, s) * 0.35;
+    if (wd < 18) d += 0.25;
+    d *= 0.6 + style.rock.clusterChance * 0.6;
+    if (s > 0.8) {
+      if (rng.chance(0.55)) add("cliff_block", x, z, { scale: rng.float(0.8, 1.6), importance: 5 });
+      continue;
+    }
+    if (rng.next() > d) continue;
+    const cluster = rng.chance(style.rock.clusterChance * 0.5);
+    add(cluster ? "rock_cluster" : "boulder", x, z, { scale: rng.float(0.7, 1.5), importance: 4 + s });
+  }
+
+  // ---- props per set
+  progress(ctx, "props:sets", 0.3);
+  const sets = new Set(spec.props.sets);
+  const density = spec.props.density * (0.5 + style.propDensity);
+
+  if (sets.has("village")) {
+    for (const site of ctx.sites) {
+      // lanterns along roads inside the settlement
+      for (const road of ctx.paths.filter((p) => p.kind === "road")) {
+        let acc = 0;
+        let side = 1;
+        for (let i = 1; i < road.points.length; i++) {
+          const a = road.points[i - 1]!;
+          const b = road.points[i]!;
+          acc += Math.hypot(b[0] - a[0], b[1] - a[1]);
+          const inSite = Math.hypot(b[0] - site.center[0], b[1] - site.center[1]) < site.radius * 1.15;
+          if (!inSite || acc < 30) continue;
+          acc = 0;
+          side = -side;
+          const nx = -(b[1] - a[1]);
+          const nz = b[0] - a[0];
+          const len = Math.hypot(nx, nz) || 1;
+          const off = road.width / 2 + 2.5;
+          const x = b[0] + (nx / len) * off * side;
+          const z = b[1] + (nz / len) * off * side;
+          add("lantern_post", x, z, { rotationY: Math.atan2(-(z - b[1]), x - b[0]) + Math.PI, importance: 5, zone: site.id, sink: true });
+        }
+      }
+      // crates / barrels / fences near houses
+      const houses = ctx.placements.filter((p) => p.zone === site.id && (p.prefab === "cottage" || p.prefab === "ruin_wall"));
+      for (const hse of houses) {
+        const foot = (ctx.prefabs[hse.prefab]?.[hse.variant]?.footprintRadius ?? 12) * hse.scale;
+        const count = Math.round(rng.float(1, 4) * density);
+        for (let i = 0; i < count; i++) {
+          const a = rng.float(0, Math.PI * 2);
+          const r = foot + 3.5 + rng.float(0, 5);
+          const x = hse.position[0] + Math.cos(a) * r;
+          const z = hse.position[2] + Math.sin(a) * r;
+          add(rng.chance(0.5) ? "crate" : "barrel", x, z, { importance: 2, zone: site.id, margin: 0.2 });
+        }
+        if (rng.chance(0.7 * density)) {
+          // fence line tangent to the house
+          const a = rng.float(0, Math.PI * 2);
+          const r = foot + 8 + rng.float(0, 5);
+          const cx = hse.position[0] + Math.cos(a) * r;
+          const cz = hse.position[2] + Math.sin(a) * r;
+          const segs = rng.int(2, 4);
+          const dir = a + Math.PI / 2;
+          for (let s = 0; s < segs; s++) {
+            const x = cx + Math.cos(dir) * (s - (segs - 1) / 2) * 8.5;
+            const z = cz + Math.sin(dir) * (s - (segs - 1) / 2) * 8.5;
+            add("fence", x, z, { rotationY: -dir, importance: 2, zone: site.id, margin: 0 });
+          }
+        }
+      }
+      // benches near the plaza, signpost at the plaza edge, cart wheel
+      const benches = Math.round(3 * density);
+      const plazaKeep = site.radius * 0.25;
+      for (let i = 0; i < benches; i++) {
+        const a = rng.float(0, Math.PI * 2);
+        const r = plazaKeep + 5 + rng.float(0, 6);
+        add("bench", site.center[0] + Math.cos(a) * r, site.center[1] + Math.sin(a) * r, { rotationY: -a + Math.PI / 2, importance: 3, zone: site.id, margin: 0 });
+      }
+      const sa = rng.float(0, Math.PI * 2);
+      add("signpost", site.center[0] + Math.cos(sa) * (site.radius * 0.55), site.center[1] + Math.sin(sa) * (site.radius * 0.55), { importance: 3, zone: site.id });
+      if (rng.chance(0.6)) {
+        const a = rng.float(0, Math.PI * 2);
+        add("cart_wheel", site.center[0] + Math.cos(a) * site.radius * 0.5, site.center[1] + Math.sin(a) * site.radius * 0.5, { importance: 1, zone: site.id });
+      }
+    }
+    // signposts at road junctions/ends
+    for (const road of ctx.paths.filter((p) => p.kind === "road")) {
+      const p = road.points[Math.min(road.points.length - 1, 4)]!;
+      add("signpost", p[0] + 5, p[1] + 3, { importance: 3 });
+    }
+  }
+
+  if (sets.has("forest")) {
+    const cands = poissonDisk(ctx, rng, 28);
+    for (const [x, z] of cands) {
+      const biome = biomeAt(ctx, x, z);
+      const forest = biome === "dark_forest" || biome === "forest" || biome === "pine_forest" || biome === "swamp" || biome === "mushroom_grove";
+      if (!forest) continue;
+      if (rng.next() > density * 0.5) continue;
+      if (ctx.roadDistance.sample(x, z) < 4) continue;
+      add("log", x, z, { importance: 2 });
+    }
+    // small stones along the paths (foreground)
+    for (const road of ctx.paths.filter((p) => p.kind === "road")) {
+      for (let i = 0; i < road.points.length; i += 3) {
+        if (rng.next() > density * 0.5) continue;
+        const p = road.points[i]!;
+        const a = rng.float(0, Math.PI * 2);
+        const r = road.width / 2 + rng.float(1, 6);
+        add("stone", p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r, { importance: 1.5, margin: 0 });
+      }
+    }
+  }
+
+  // stone path slabs along stone paths (sparse, foreground detail)
+  for (const road of ctx.paths.filter((p) => p.kind === "road" && (p.type === "stone_path" || p.type === "cobblestone_road"))) {
+    for (let i = 0; i < road.points.length; i += 3) {
+      if (rng.next() > 0.55) continue;
+      const p = road.points[i]!;
+      const j = rng.float(-road.width * 0.3, road.width * 0.3);
+      add("stone_path_slab", p[0] + j, p[1] + rng.float(-1.5, 1.5), { importance: 1.2, margin: 0, category: "path", sink: true });
+    }
+  }
+
+  if (sets.has("ruins")) {
+    const ruinLms = ctx.landmarks.filter((l) => l.type === "ruins" || l.type === "temple" || l.type === "castle" || l.type === "tower");
+    const centers: Vec2[] = ruinLms.map((l) => [l.position[0], l.position[2]]);
+    // also ruins_field biome patches
+    const cands = poissonDisk(ctx, rng, 40);
+    for (const [x, z] of cands) {
+      const biome = biomeAt(ctx, x, z);
+      const nearRuin = centers.some((c) => Math.hypot(c[0] - x, c[1] - z) < 110);
+      if (!nearRuin && biome !== "ruins_field") continue;
+      if (rng.next() > density * 0.6) continue;
+      const prefab = rng.chance(0.65) ? "ruin_wall" : "ruin_arch";
+      if (slopeAtWorld(ctx, x, z) > 0.45) continue;
+      const ok = add(prefab, x, z, { importance: 5, category: "building", scale: rng.float(0.8, 1.2) });
+      if (ok) {
+        const last = ctx.placements[ctx.placements.length - 1]!;
+        const foot = ctx.prefabs[prefab]![last.variant]!.footprintRadius * last.scale;
+        last.position[1] = flattenArea(ctx, [x, z], foot * 1.1, 0.85) - ctx.prefabs[prefab]![last.variant]!.sinkDepth * last.scale;
+        ctx.occupants.push({ position: last.position, radius: foot, kind: "building" });
+      }
+    }
+  }
+
+  if (sets.has("camp")) {
+    const cands = poissonDisk(ctx, rng, 120);
+    let camps = 0;
+    for (const [x, z] of cands) {
+      if (camps >= 3) break;
+      if (slopeAtWorld(ctx, x, z) > 0.2) continue;
+      if (ctx.roadDistance.sample(x, z) > 40 || ctx.roadDistance.sample(x, z) < 8) continue;
+      if (!add("campfire", x, z, { importance: 5, margin: 3 })) continue;
+      camps++;
+      for (let i = 0; i < 3; i++) {
+        const a = rng.float(0, Math.PI * 2);
+        add(rng.chance(0.5) ? "crate" : "log", x + Math.cos(a) * 7, z + Math.sin(a) * 7, { importance: 2 });
+      }
+    }
+  }
+
+  if (sets.has("graveyard")) {
+    const site = ctx.sites[0];
+    const c: Vec2 = site ? [site.center[0] + site.radius * 1.3, site.center[1]] : [ctx.origin[0] + ctx.worldW * 0.6, ctx.origin[1] + ctx.worldD * 0.6];
+    for (let i = 0; i < 12; i++) {
+      add("gravestone", c[0] + rng.float(-20, 20), c[1] + rng.float(-16, 16), { importance: 3 });
+    }
+  }
+  progress(ctx, "props:done", 1);
+  void clamp;
+}
+
+function inside(ctx: GenContext, x: number, z: number): boolean {
+  return x > ctx.origin[0] + 4 && x < ctx.origin[0] + ctx.worldW - 4 && z > ctx.origin[1] + 4 && z < ctx.origin[1] + ctx.worldD - 4;
+}

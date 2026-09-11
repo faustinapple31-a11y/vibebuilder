@@ -1,0 +1,30 @@
+{
+  "name": "worldforge-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WorldForge AI - describe your game, AI agents build a real Roblox project.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run tauri:dev -w @worldforge/desktop",
+    "build": "npm run build -w @worldforge/desktop",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "demo": "tsx scripts/demo-moonlit.ts",
+    "demo:build": "tsx scripts/demo-moonlit.ts --build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

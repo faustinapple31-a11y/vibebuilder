@@ -1,0 +1,266 @@
+import { clamp, deriveSeed, smoothstep, type BiomeId, type Placement, type PlacementLayer, type VegetationSpecies } from "@worldforge/core";
+import { Rng } from "@worldforge/core";
+import { Simplex2D, Worley2D } from "../noise";
+import { SpatialHash } from "../grid";
+import { biomeAt, distanceToEdge, isWaterAt, progress, slopeAtWorld, type GenContext } from "../context";
+
+/** Species mix per biome: [species, weight]. Filtered by spec.vegetation.species. */
+const BIOME_TREES: Record<BiomeId, [VegetationSpecies, number][]> = {
+  dark_forest: [["pine", 0.35], ["round_tree", 0.35], ["dead_tree", 0.15], ["giant_mushroom", 0.15], ["willow", 0.05]],
+  forest: [["round_tree", 0.5], ["pine", 0.3], ["birch", 0.15], ["dead_tree", 0.05]],
+  pine_forest: [["pine", 0.85], ["dead_tree", 0.1], ["birch", 0.05]],
+  mushroom_grove: [["giant_mushroom", 0.6], ["dead_tree", 0.2], ["round_tree", 0.15], ["willow", 0.05]],
+  meadow: [["round_tree", 0.5], ["birch", 0.35], ["pine", 0.15]],
+  swamp: [["willow", 0.4], ["dead_tree", 0.35], ["giant_mushroom", 0.25]],
+  rocky: [["pine", 0.6], ["dead_tree", 0.4]],
+  highlands: [["pine", 0.7], ["birch", 0.2], ["dead_tree", 0.1]],
+  desert: [["cactus", 0.75], ["palm", 0.1], ["dead_tree", 0.15]],
+  snow: [["pine", 0.9], ["dead_tree", 0.1]],
+  beach: [["palm", 0.9], ["bush", 0.1]],
+  ruins_field: [["dead_tree", 0.5], ["round_tree", 0.3], ["birch", 0.2]],
+};
+
+const BIOME_UNDERGROWTH: Record<BiomeId, [VegetationSpecies, number][]> = {
+  dark_forest: [["fern", 0.35], ["bush", 0.25], ["small_mushroom", 0.25], ["grass", 0.1], ["log", 0.05]],
+  forest: [["bush", 0.35], ["grass", 0.3], ["fern", 0.2], ["flower", 0.1], ["log", 0.05]],
+  pine_forest: [["bush", 0.3], ["fern", 0.25], ["grass", 0.25], ["small_mushroom", 0.1], ["log", 0.1]],
+  mushroom_grove: [["small_mushroom", 0.55], ["fern", 0.25], ["grass", 0.1], ["log", 0.1]],
+  meadow: [["grass", 0.45], ["flower", 0.35], ["bush", 0.2]],
+  swamp: [["fern", 0.4], ["small_mushroom", 0.3], ["grass", 0.2], ["log", 0.1]],
+  rocky: [["grass", 0.6], ["bush", 0.4]],
+  highlands: [["grass", 0.6], ["bush", 0.3], ["flower", 0.1]],
+  desert: [["bush", 0.5], ["grass", 0.5]],
+  snow: [["bush", 0.7], ["grass", 0.3]],
+  beach: [["grass", 0.6], ["bush", 0.4]],
+  ruins_field: [["grass", 0.4], ["bush", 0.3], ["fern", 0.2], ["small_mushroom", 0.1]],
+};
+
+const VEG_LEVEL: Record<string, number> = { none: 0, sparse: 0.28, medium: 0.6, dense: 1.0 };
+
+/** Prefab id for a species. */
+export const SPECIES_PREFAB: Record<VegetationSpecies, string> = {
+  pine: "pine_tree",
+  round_tree: "round_tree",
+  dead_tree: "dead_tree",
+  willow: "willow",
+  birch: "birch",
+  giant_mushroom: "giant_mushroom",
+  small_mushroom: "small_mushroom",
+  bush: "bush",
+  fern: "fern",
+  grass: "grass",
+  flower: "flower",
+  log: "log",
+  cactus: "cactus",
+  palm: "palm",
+};
+
+/**
+ * Stage 12: vegetation.
+ * Bridson Poisson-disk candidates → density acceptance (biome × spec × style × cluster noise × exclusions)
+ * → species by biome → scale/rotation variation → layer assignment.
+ */
+export function placeVegetation(ctx: GenContext): void {
+  const { spec, style } = ctx;
+  const rng = new Rng(deriveSeed(ctx.seed, "vegetation"));
+  const cluster = new Simplex2D(deriveSeed(ctx.seed, "veg-cluster"));
+  const clearings = new Worley2D(deriveSeed(ctx.seed, "veg-clearings"));
+  const allowed = new Set<VegetationSpecies>(spec.vegetation.species);
+  const globalDensity = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9);
+  const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
+  for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
+  const lockedPrev = ctx.previous?.placements.filter((p) => p.locked && p.category === "vegetation") ?? [];
+  for (const p of lockedPrev) {
+    ctx.placements.push({ ...p });
+    hash.insert({ position: p.position, radius: 4 });
+  }
+
+  const spawnClear = 22;
+  const edgeMargin = 6;
+
+  const densityAt = (x: number, z: number, biome: BiomeId, big: boolean): number => {
+    const b = spec.biomes.find((bb) => bb.id === biome);
+    const level = VEG_LEVEL[b?.vegetation ?? "medium"] ?? 0.6;
+    if (level === 0) return 0;
+    const cl = (cluster.fbm(x / 95, z / 95, 3) + 1) * 0.5;
+    const clearing = clearings.f1(x / 140, z / 140);
+    const clusterMix = spec.vegetation.clustering;
+    let d = level * globalDensity;
+    d *= 1 - clusterMix + clusterMix * smoothstep(0.25, 0.75, cl) * 1.6;
+    d *= 1 - clusterMix * 0.9 * (1 - smoothstep(0.08, 0.3, clearing)); // clearings
+    // exclusions
+    const rd = ctx.roadDistance.sample(x, z);
+    if (rd < (big ? 5 : 1.5)) return 0;
+    if (big) d *= smoothstep(4, 14, rd);
+    const wd = ctx.waterDistance.sample(x, z);
+    if (wd < (big ? 3 : 1)) return 0;
+    const s = slopeAtWorld(ctx, x, z);
+    if (s > (big ? 0.7 : 0.85)) return 0;
+    d *= 1 - smoothstep(0.45, 0.7, s) * 0.8;
+    const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
+    if (big && ds < spawnClear) return 0;
+    return clamp(d, 0, 1);
+  };
+
+  // ---- pass 1: trees & giant mushrooms (big)
+  progress(ctx, "vegetation:trees", 0);
+  const bigR = 9 - style.vegetationDensity * 2.5;
+  const treeCandidates = poissonDisk(ctx, rng, bigR);
+  let treeCount = 0;
+  for (const [x, z] of treeCandidates) {
+    if (distanceToEdge(ctx, x, z) < edgeMargin) continue;
+    if (isWaterAt(ctx, x, z)) continue;
+    const biome = biomeAt(ctx, x, z);
+    const d = densityAt(x, z, biome, true);
+    if (d <= 0 || rng.next() > d) continue;
+    const mix = BIOME_TREES[biome].filter(([sp]) => allowed.has(sp));
+    if (mix.length === 0) continue;
+    let species = rng.weighted(mix.map(([item, weight]) => ({ item, weight })));
+    // giant mushrooms controlled by the spec knob
+    if (species === "giant_mushroom" && rng.next() > spec.vegetation.giantMushrooms * 1.5) species = mix.find(([sp]) => sp !== "giant_mushroom")?.[0] ?? species;
+    else if (species !== "giant_mushroom" && allowed.has("giant_mushroom") && rng.chance(spec.vegetation.giantMushrooms * 0.18 * (biome === "dark_forest" || biome === "mushroom_grove" || biome === "swamp" ? 1 : 0.2))) species = "giant_mushroom";
+    const prefab = SPECIES_PREFAB[species];
+    const variants = ctx.prefabs[prefab];
+    if (!variants || variants.length === 0) continue;
+    const vi = rng.int(0, variants.length - 1);
+    const v = variants[vi]!;
+    const scaleBase = rng.range(style.tree.scale);
+    const sizeVar = 1 + (rng.next() * 2 - 1) * spec.vegetation.sizeVariation * 0.45;
+    // background trees are larger for silhouettes
+    const edgeD = distanceToEdge(ctx, x, z);
+    const bg = 1 + (1 - smoothstep(60, 260, edgeD)) * 0.35;
+    const scale = clamp(scaleBase * sizeVar * bg * (species === "giant_mushroom" ? 0.7 : 1), 0.55, 3.2);
+    const radius = v.footprintRadius * scale * 0.55;
+    if (hash.overlaps(x, z, radius, 1.5)) continue;
+    const y = ctx.heights.sample(x, z) - v.sinkDepth * scale;
+    const pos: [number, number, number] = [x, y, z];
+    hash.insert({ position: pos, radius });
+    ctx.placements.push({
+      id: `veg_${treeCount++}`,
+      prefab,
+      variant: vi,
+      category: "vegetation",
+      position: pos,
+      rotationY: rng.float(0, Math.PI * 2),
+      scale,
+      layer: layerFor(ctx, x, z, true),
+      biome,
+      importance: species === "giant_mushroom" ? 6 : 4 + scale,
+    });
+  }
+
+  // ---- pass 2: undergrowth (small) — denser near roads/spawn (foreground detail)
+  progress(ctx, "vegetation:undergrowth", 0.6);
+  const smallR = 4.2 - style.scaleRules.foregroundDetail * 0.8;
+  const smallCandidates = poissonDisk(ctx, rng, smallR);
+  let smallCount = 0;
+  for (const [x, z] of smallCandidates) {
+    if (distanceToEdge(ctx, x, z) < edgeMargin) continue;
+    if (isWaterAt(ctx, x, z)) continue;
+    const biome = biomeAt(ctx, x, z);
+    let d = densityAt(x, z, biome, false) * 0.75;
+    const rd = ctx.roadDistance.sample(x, z);
+    const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
+    const fg = Math.max(1 - smoothstep(2, 26, rd), 1 - smoothstep(6, 40, ds));
+    d = d * (0.5 + fg * 0.9) * style.scaleRules.foregroundDetail;
+    // in the background undergrowth is invisible: cull heavily
+    const edgeD = distanceToEdge(ctx, x, z);
+    d *= smoothstep(40, 160, edgeD);
+    if (d <= 0 || rng.next() > d) continue;
+    const mix = BIOME_UNDERGROWTH[biome].filter(([sp]) => allowed.has(sp) || sp === "grass");
+    if (mix.length === 0) continue;
+    const species = rng.weighted(mix.map(([item, weight]) => ({ item, weight })));
+    const prefab = SPECIES_PREFAB[species];
+    const variants = ctx.prefabs[prefab];
+    if (!variants || variants.length === 0) continue;
+    const vi = rng.int(0, variants.length - 1);
+    const v = variants[vi]!;
+    const scale = clamp(rng.float(0.8, 1.35) * (1 + (rng.next() * 2 - 1) * spec.vegetation.sizeVariation * 0.3), 0.5, 2);
+    const radius = v.footprintRadius * scale * 0.5;
+    if (hash.overlaps(x, z, radius, 0.3)) continue;
+    const y = ctx.heights.sample(x, z) - v.sinkDepth * scale;
+    const pos: [number, number, number] = [x, y, z];
+    if (species === "log" || species === "bush") hash.insert({ position: pos, radius });
+    ctx.placements.push({
+      id: `ug_${smallCount++}`,
+      prefab,
+      variant: vi,
+      category: "vegetation",
+      position: pos,
+      rotationY: rng.float(0, Math.PI * 2),
+      scale,
+      layer: layerFor(ctx, x, z, false),
+      biome,
+      importance: 1 + fg * 2 + (species === "small_mushroom" ? 0.5 : 0),
+    });
+  }
+  progress(ctx, "vegetation:done", 1);
+}
+
+export function layerFor(ctx: GenContext, x: number, z: number, big: boolean): PlacementLayer {
+  const rd = ctx.roadDistance.sample(x, z);
+  const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
+  const near = Math.min(rd, ds);
+  if (near < (big ? 26 : 18)) return "foreground";
+  const edgeD = distanceToEdge(ctx, x, z);
+  if (edgeD < Math.min(ctx.worldW, ctx.worldD) * 0.12) return "background";
+  return "midground";
+}
+
+/** Bridson Poisson-disk sampling over the whole world (world coords). */
+export function poissonDisk(ctx: GenContext, rng: Rng, r: number, k = 12): [number, number][] {
+  const cell = r / Math.SQRT2;
+  const gw = Math.ceil(ctx.worldW / cell);
+  const gd = Math.ceil(ctx.worldD / cell);
+  const grid = new Int32Array(gw * gd).fill(-1);
+  const pts: [number, number][] = [];
+  const active: number[] = [];
+  const ox = ctx.origin[0];
+  const oz = ctx.origin[1];
+  const push = (x: number, z: number) => {
+    const i = pts.length;
+    pts.push([x, z]);
+    active.push(i);
+    grid[Math.floor((z - oz) / cell) * gw + Math.floor((x - ox) / cell)] = i;
+  };
+  push(ox + rng.next() * ctx.worldW, oz + rng.next() * ctx.worldD);
+  while (active.length > 0) {
+    const ai = rng.int(0, active.length - 1);
+    const p = pts[active[ai]!]!;
+    let found = false;
+    for (let t = 0; t < k; t++) {
+      const a = rng.next() * Math.PI * 2;
+      const d = r * (1 + rng.next());
+      const x = p[0] + Math.cos(a) * d;
+      const z = p[1] + Math.sin(a) * d;
+      if (x < ox || z < oz || x >= ox + ctx.worldW || z >= oz + ctx.worldD) continue;
+      const gx = Math.floor((x - ox) / cell);
+      const gz = Math.floor((z - oz) / cell);
+      let ok = true;
+      for (let dz = -2; dz <= 2 && ok; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = gx + dx;
+          const nz = gz + dz;
+          if (nx < 0 || nz < 0 || nx >= gw || nz >= gd) continue;
+          const j = grid[nz * gw + nx]!;
+          if (j < 0) continue;
+          const q = pts[j]!;
+          if (Math.hypot(q[0] - x, q[1] - z) < r) {
+            ok = false;
+            break;
+          }
+        }
+      }
+      if (ok) {
+        push(x, z);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      active[ai] = active[active.length - 1]!;
+      active.pop();
+    }
+  }
+  return pts;
+}

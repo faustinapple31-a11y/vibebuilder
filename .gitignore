@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+build/
+target/
+*.log
+.DS_Store
+demo-output/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+*.rbxl
+!templates/**/*.rbxl
+.env
+.env.*

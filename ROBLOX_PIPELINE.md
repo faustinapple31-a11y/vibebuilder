@@ -1,0 +1,138 @@
+# WorldForge AI — Roblox Pipeline
+
+`TypeScript (roblox-ts) → Luau (rbxtsc) → Rojo (build/serve) → Roblox Studio → Open Cloud (publish)`
+
+Packages : `@worldforge/roblox-export`, `@worldforge/roblox-cloud`, template `templates/roblox-ts-project`,
+commandes Rust `studio.rs`, `opencloud.rs`, `process.rs`.
+
+---
+
+## 1. Projet généré
+
+```
+<project>/
+├── package.json            # devDependencies: roblox-ts, @rbxts/types, @rbxts/compiler-types, typescript
+├── tsconfig.json           # roblox-ts preset (jsx off, noLib, typeRoots @rbxts, outDir out, rootDir src)
+├── default.project.json    # Rojo tree (voir §2)
+├── worldforge.json         # métadonnées WorldForge
+├── src/
+│   ├── server/main.server.ts            # bootstrap serveur (systèmes + world)
+│   ├── client/main.client.ts            # bootstrap client (UI, atmosphère locale)
+│   ├── shared/
+│   │   ├── config.ts                    # constantes gameplay
+│   │   ├── net.ts                       # remotes typés
+│   │   └── world/
+│   │       ├── types.ts                 # types WorldBake côté Roblox
+│   │       ├── decode.ts                # base64 + buffer decode
+│   │       └── prefabFactory.ts         # PartList → Model
+│   ├── world/
+│   │   ├── WorldBuilder.ts              # terrain (WriteVoxels), placements, lighting, spawn
+│   │   ├── TerrainBuilder.ts
+│   │   └── Streaming.ts                 # LOD/cull, StreamingEnabled
+│   ├── systems/                         # gameplay généré (PlayerData, Survival, Collectibles, …)
+│   └── ui/                              # HUD, inventory, shop… (roblox-ts, Instances UI)
+├── assets/
+│   ├── world/WorldBake.json             # → ReplicatedStorage.WorldAssets.WorldBake (ModuleScript via Rojo)
+│   └── models/*.rbxmx                   # prefabs individuels (asset browser)
+├── worlds/main/world.spec.json
+└── out/                                 # Luau compilé
+```
+
+## 2. Rojo `default.project.json`
+
+```json
+{
+  "name": "<project>",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "rbxts_include": { "$path": "include", "node_modules": { "$className": "Folder", "@rbxts": { "$path": "node_modules/@rbxts" } } },
+      "Shared": { "$path": "out/shared" },
+      "WorldAssets": { "$path": "assets/world" }
+    },
+    "ServerScriptService": { "Server": { "$path": "out/server" }, "World": { "$path": "out/world" }, "Systems": { "$path": "out/systems" } },
+    "StarterPlayer": { "StarterPlayerScripts": { "Client": { "$path": "out/client" }, "UI": { "$path": "out/ui" } } },
+    "Workspace": { "$properties": { "StreamingEnabled": true, "StreamingMinRadius": 128, "StreamingTargetRadius": 768 } },
+    "Lighting": { "$properties": { ... } },
+    "SoundService": { "$properties": { "RespectFilteringEnabled": true } }
+  }
+}
+```
+
+Rojo transforme `assets/world/WorldBake.json` en ModuleScript retournant la table. Les tableaux volumineux
+(heights, materials, placements) sont encodés en base64 pour rester compacts et éviter les limites de
+constantes Luau ; ils sont décodés avec la librairie `buffer` de Luau.
+
+## 3. Build
+
+```
+npm install (première fois)        → node_modules/@rbxts/*
+rbxtsc                             → out/**/*.luau (erreurs TS parsées → panneau Logs + QA)
+rojo build -o build/<project>.rbxl → place binaire
+```
+
+Statuts affichés : `● Build successful` / `● Build failed (N erreurs)`.
+
+## 4. Roblox Studio
+
+- Détection : `%LOCALAPPDATA%\Roblox\Versions\version-*\RobloxStudioBeta.exe` (Windows),
+  `/Applications/RobloxStudio.app` (macOS), + registre `roblox-studio:` protocol.
+- `OPEN IN STUDIO` : ouvre `build/<project>.rbxl` avec l'exécutable Studio.
+- `SYNC PROJECT` : `rojo serve` (port 34872 par défaut) + installation du plugin Rojo (`rojo plugin install`)
+  dans `%LOCALAPPDATA%\Roblox\Plugins`. L'utilisateur clique "Connect" dans le plugin Rojo ; statut affiché
+  `● Project synced` quand un client est connecté (poll de `http://localhost:34872/api/rojo`).
+- `RUN` : Studio doit être en Play. Sans MCP, l'app ouvre la place et guide ; avec le **Roblox Studio MCP**
+  (serveur officiel `rbx-studio-mcp` + plugin), l'app peut exécuter `run_code` pour démarrer/arrêter le test,
+  déclencher le bake terrain en mode édition et lire l'output.
+- Logs : `%LOCALAPPDATA%\Roblox\logs\*_Studio_*.log` — tail en temps réel, extraction des erreurs Luau
+  (`stack traces`, `Infinite yield`, `attempt to index nil`, …) → QA.
+
+## 5. Terrain runtime
+
+`WorldBuilder` (serveur) au démarrage :
+1. Décode `heights`/`materials`/`water`.
+2. `Terrain:FillBlock` pour le socle (sous `minHeight`).
+3. Pour chaque chunk 16×16 cellules : construit `materials[x][y][z]` et `occupancy[x][y][z]` sur la bande
+   `[minH, maxH]` (matériau de surface sur 2 voxels, roche en dessous) puis `Terrain:WriteVoxels(region, 4, …)`.
+   Occupancy fractionnaire sur le voxel de surface pour des pentes douces.
+4. Eau : voxels `Water` jusqu'au niveau d'eau des cellules concernées.
+5. `task.wait()` entre chunks (≈ 256 chunks pour 1024×1024, ~2-4 s).
+6. Publie l'attribut `Workspace:SetAttribute("WorldReady", true)`.
+
+Alternative "Bake to place" : exécuter le builder en mode édition via MCP puis sauvegarder ; les voxels
+sont alors persistés dans la place et le script runtime se désactive (`WorldBake.prebaked = true`).
+
+## 6. Open Cloud
+
+Client `@worldforge/roblox-cloud` (fetch injectable). Dans l'app, les requêtes passent par la commande
+Rust `oc_request` qui lit la clé dans le keyring et ajoute `x-api-key` — la clé n'est jamais envoyée au webview.
+
+| Opération | Endpoint |
+|---|---|
+| Infos univers | `GET https://apis.roblox.com/cloud/v2/universes/{universeId}` |
+| Infos place | `GET https://apis.roblox.com/cloud/v2/universes/{universeId}/places/{placeId}` |
+| Publier une version | `POST https://apis.roblox.com/universes/v1/{universeId}/places/{placeId}/versions?versionType=Published` (body = `.rbxl`, `Content-Type: application/octet-stream`) |
+| Sauvegarder (non publié) | idem avec `versionType=Saved` |
+| Developer products | `GET/POST/PATCH https://apis.roblox.com/developer-products/v1/universes/{universeId}/developerproducts…` |
+| Game passes | `GET https://apis.roblox.com/game-passes/v1/…` (création : Creator Dashboard ; l'app ouvre le lien) |
+| Datastores (debug) | `https://apis.roblox.com/cloud/v2/universes/{u}/data-stores` |
+
+Permissions requises sur la clé : `universe-places:write`, `universe.place:write`, `universe:read`,
+`universe.developer-product:*` selon les fonctions utilisées.
+
+## 7. Publication
+
+```
+BUILD → VALIDATE → PREVIEW → TEST → PUBLISH
+```
+
+`VALIDATE` produit un rapport :
+- ✓ World : WorldSpec valide, bake présent, budgets respectés
+- ✓ Scripts : `rbxtsc` OK, pas de `TODO_AGENT` restant, pas de `print` de debug massif
+- ✓ Assets : références du manifest résolues, fichiers présents, tailles
+- ✓ UI : modules UI compilent, pas de ScreenGui sans ResetOnSpawn défini
+- ✓ Audio : ids/assets audio présents (ou manifest vide)
+- ✓ Build : `.rbxl` produit, taille < limite
+- ✓ Roblox connection : clé Open Cloud présente, universe/place accessibles
+
+Puis `PUBLISH` envoie le `.rbxl` et affiche `versionNumber` retourné.

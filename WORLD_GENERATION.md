@@ -1,0 +1,246 @@
+# WorldForge AI — World Generation
+
+Le générateur de monde est le cœur artistique du produit. Il raisonne comme un level designer :
+composition, profondeur (foreground / midground / background), landmarks, view corridors, variation contrôlée.
+
+Packages concernés : `@worldforge/core` (schémas), `@worldforge/world-gen` (pipeline), `@worldforge/prefabs`
+(géométrie procédurale), `@worldforge/quality` (critic).
+
+---
+
+## 1. Représentations intermédiaires
+
+### 1.1 WorldSpec (produite par l'IA ou par l'interpréteur local)
+
+Source de vérité éditable, versionnée. Validée par Zod (`packages/core/src/schemas/world-spec.ts`).
+
+```jsonc
+{
+  "id": "main",
+  "name": "Moonlit Forest Village",
+  "seed": 1337,
+  "theme": "mysterious_forest",
+  "stylePreset": "stylized_mystical",
+  "size": { "width": 1024, "depth": 1024 },
+  "terrain": {
+    "baseHeight": 40, "relief": 0.6, "roughness": 0.45, "erosion": 0.5,
+    "features": [
+      { "type": "mountains", "placement": "edge", "edges": ["north", "west"], "intensity": 0.9 },
+      { "type": "hills", "intensity": 0.5 },
+      { "type": "valley", "center": [0.5, 0.55], "radius": 0.28 }
+    ]
+  },
+  "biomes": [
+    { "id": "dark_forest", "weight": 0.5, "vegetation": "dense" },
+    { "id": "mushroom_grove", "weight": 0.2, "vegetation": "medium" },
+    { "id": "meadow", "weight": 0.3, "vegetation": "sparse" }
+  ],
+  "rivers": [{ "id": "river_1", "from": "north", "to": "south-east", "width": 14, "meander": 0.6 }],
+  "lakes": [],
+  "landmarks": [
+    { "id": "giant_tree", "type": "giant_tree", "role": "focal", "preferredZone": "hill" },
+    { "id": "old_ruins", "type": "ruins", "role": "secondary", "preferredZone": "forest_edge" }
+  ],
+  "settlements": [
+    { "id": "village", "type": "abandoned_village", "buildings": 7, "layout": "organic", "near": "river_1" }
+  ],
+  "roads": [{ "id": "main_path", "type": "stone_path", "connects": ["spawn", "village", "giant_tree"] }],
+  "vegetation": { "density": 0.7, "clustering": 0.6, "species": ["pine", "round_tree", "dead_tree", "giant_mushroom", "bush", "fern", "grass"] },
+  "props": { "density": 0.5, "sets": ["village", "forest", "ruins"] },
+  "lighting": { "timeOfDay": 20.5, "mood": "moonlit", "brightness": 0.6 },
+  "atmosphere": { "fogDensity": 0.45, "fogColor": "#7d8aa3", "haze": 0.6 },
+  "colorPalette": { "primary": "#3e5a45", "secondary": "#6d7a8c", "accent": "#7b4f8f", "ground": "#4a3b2c", "stone": "#7c7f86", "wood": "#5c3a2a" },
+  "cameraComposition": { "spawnFacing": "giant_tree", "spawnZone": "meadow" },
+  "locks": { "terrain": false, "buildings": false, "landmarks": false, "vegetation": false, "lighting": false, "props": false },
+  "gameplayHints": ["survival", "exploration"]
+}
+```
+
+### 1.2 StyleBible (art direction procédurale)
+
+Produite par le preset choisi ou par l'analyse d'une image de référence. Consommée par le générateur et les prefabs.
+
+```jsonc
+{
+  "id": "stylized_mystical",
+  "geometry": "chunky_low_poly",
+  "palette": { ... },                  // couleurs nommées
+  "materials": { "trunk": "Wood", "canopy": "Grass", "rock": "Slate", "wall": "WoodPlanks", "roof": "Slate", "path": "Cobblestone" },
+  "tree": { "style": "chunky_fantasy", "scale": [1.0, 1.8], "rotationJitterDeg": 25, "canopyLayers": [2, 4], "trunkTaper": 0.7 },
+  "mushroom": { "scaleMultiplier": [2, 6], "capColors": ["#7b4f8f", "#8a3f5f", "#5f4b8b"], "glow": 0.35 },
+  "rock": { "variation": "high", "clusterChance": 0.6 },
+  "architecture": { "style": "medieval_cottage", "roofPitch": 0.9, "weathering": 0.7, "scaleVariance": 0.25 },
+  "vegetationDensity": 0.72,
+  "propDensity": 0.5,
+  "lighting": { "ambient": "#5d6b85", "outdoorAmbient": "#6b7690", "sunColor": "#cfd6e6", "brightness": 1.2, "shadowSoftness": 0.7 },
+  "fog": { "start": 60, "end": 520, "color": "#7d8aa3", "atmosphereDensity": 0.42, "haze": 0.7, "glare": 0.1 },
+  "biomeTransition": 0.35,
+  "scaleRules": { "landmarkMultiplier": 3.5, "foregroundDetail": 1.0 }
+}
+```
+
+### 1.3 WorldBake (sortie du générateur, déterministe)
+
+```ts
+interface WorldBake {
+  meta: { specId: string; seed: number; version: string; generatedAt: string; generatorVersion: string };
+  terrain: {
+    cellSize: 4;                    // studs par cellule
+    width: number; depth: number;   // cellules
+    heights: Float32Array;          // hauteur (studs) par cellule
+    materials: Uint8Array;          // index matériau Roblox par cellule
+    waterLevel: Float32Array | null;// hauteur d'eau (NaN si pas d'eau)
+    origin: [number, number];       // offset monde
+  };
+  prefabs: Record<string, PrefabVariant[]>;   // prefabId → variantes (PartList)
+  placements: Placement[];          // { prefab, variant, position, rotationY, scale, layer, biome, locked, lod }
+  zones: Zone[];                    // village, clearing, grove… (polygones) pour l'édition et le critic
+  paths: PathPolyline[];            // routes, rivières
+  landmarks: LandmarkPlacement[];   // avec corridors de vue calculés
+  lighting: RobloxLightingSettings;
+  spawn: { position: [number, number, number]; lookAt: [number, number, number] };
+  stats: BakeStats;                 // compteurs par catégorie, variance, couverture, budgets
+}
+```
+
+### 1.4 PartList (format universel d'asset low-poly)
+
+Un prefab est une liste de primitives (`box | sphere | cylinder | wedge | cornerWedge`) avec CFrame relatif,
+taille, couleur, matériau, transparence, éventuelles lumières. Le même PartList est :
+- rendu dans le viewer Three.js (BufferGeometry fusionnée + InstancedMesh par variante),
+- instancié dans Roblox (Parts natives, groupées dans un Model, clonées à partir d'un cache),
+- exporté en `.rbxmx` pour l'asset browser et l'insertion dans Studio.
+
+Le "chunky low-poly" du style cible se marie naturellement avec les primitives Roblox.
+
+---
+
+## 2. Pipeline
+
+```
+seed
+ ↓ 1. Rng déterministe (xoshiro128**)
+heightmap de base
+ ↓ 2. fBm simplex avec domain warping (grandes formes) + curves (relief/plateaux/vallées)
+grandes formes de terrain
+ ↓ 3. features de la spec : montagnes en bordure (ridged noise masqué), collines, vallée centrale, falaises, plateaux
+bruit secondaire
+ ↓ 4. détail (petites bosses, roughness), jamais seul : masqué par la pente
+passe d'érosion
+ ↓ 5. érosion thermique (talus) + lissage hydraulique simplifié : adoucit les pentes, creuse les vallées
+masques de biomes
+ ↓ 6. hauteur + humidité (bruit) + distance à l'eau + weights de la spec → biome par cellule + matériaux
+rivières & lacs
+ ↓ 7. source haute → A* descendant → lit creusé + berges + eau ; lacs par remplissage de bassins
+sites & aplanissement
+ ↓ 8. sélection du site de village (score de planéité intégral) + aplanissement progressif
+routes
+ ↓ 9. A* (coût = pente² + eau + bâtiments) entre spawn/village/landmarks, lissage Chaikin, marquage cellules
+landmarks
+ ↓ 10. placement par rôle (focal sur colline, secondaires en périphérie) + view corridors (raycast heightmap)
+bâtiments
+ ↓ 11. layout organique autour d'une place, orientation vers le centre/route, contrainte de pente, non-chevauchement
+végétation
+ ↓ 12. Poisson-disk par biome, clusters/clairières (bruit), évitement routes/bâtiments/eau/pentes, variation espèce/échelle/rotation
+props
+ ↓ 13. sets contextuels : village (lanternes, caisses, tonneaux, clôtures, bancs), forêt (troncs, pierres, champignons), ruines (débris, colonnes)
+optimisation
+ ↓ 14. budgets par catégorie, tri par importance visuelle, LOD, groupement par variante
+WorldBake
+```
+
+Chaque étape est une fonction pure `(context) => context` dans `packages/world-gen/src/pipeline/`.
+Les locks de la WorldSpec (`locks.terrain`, …) court-circuitent les étapes correspondantes en réutilisant
+les données du bake précédent (régénération partielle).
+
+---
+
+## 3. Contraintes de level design (imposées, pas suggérées)
+
+| Règle | Implémentation |
+|---|---|
+| Une route ne traverse pas une falaise | coût A* infini si pente > `maxRoadSlope` |
+| Une maison n'est pas sur une pente impossible | site rejeté si pente locale > `maxBuildingSlope`, sinon terrain aplani sous l'empreinte + socle |
+| Un village est relativement plat | site choisi par minimum de variance de hauteur dans une fenêtre, puis aplani (blend gaussien) |
+| Une rivière a un lit cohérent | tracé descendant monotone (A* avec coût de montée), lit creusé, berges adoucies |
+| Les arbres évitent les chemins | distance min aux polylignes de route (SDF rasterisé) |
+| Pas de végétation dans les bâtiments | exclusion par bounding box + marge |
+| Les landmarks sont visibles | view corridors : raycast heightmap depuis spawn/village/routes ; repositionnement si occlusion |
+| Pas d'objets flottants | Y = hauteur terrain échantillonnée bilinéairement + enfoncement selon prefab (`sinkDepth`) |
+| Pas de répétition évidente | ≥ 8 variantes par espèce, jitter échelle/rotation/teinte, pas de grille (Poisson-disk + bruit de cluster) |
+| Pas de terrain plat | garde-fou : si variance de hauteur < seuil, ajout de relief secondaire |
+
+---
+
+## 4. Composition : foreground / midground / background
+
+- **Background** : montagnes en bordure (ridged noise, silhouettes larges), forêt dense de grands arbres
+  simplifiés (LOD bas) en anneau extérieur, brume épaisse.
+- **Midground** : village, landmarks secondaires, rivière, lisières de forêt, murs/ruines.
+- **Foreground** : autour des routes et du spawn : herbes, fleurs, petits champignons, pierres, lanternes.
+
+Le générateur assigne à chaque placement un `layer` (`foreground|midground|background`) selon la distance
+aux routes/spawn et la taille de l'objet. Le critic vérifie que chaque couche est peuplée.
+
+---
+
+## 5. Landmark system
+
+Types : `giant_tree`, `ruins`, `tower`, `castle`, `statue`, `windmill`, `temple`, `portal`, `mountain_peak`, `volcano`.
+
+Rôles : `focal` (un seul, visible depuis le spawn et le village), `secondary` (visibles depuis les routes),
+`hidden` (découverte, cachés derrière un relief).
+
+Algorithme :
+1. Candidats : cellules satisfaisant `preferredZone` (hill, ridge, forest_edge, riverbank, plateau, clearing).
+2. Score = visibilité (depuis spawn/village/routes via raycast heightmap) × isolation (distance aux autres landmarks) × cohérence de zone.
+3. Meilleur candidat retenu, corridors de vue enregistrés (`landmark.viewCorridors`).
+4. Le tracé des routes est ajusté pour passer dans un corridor (le joueur voit le landmark en marchant).
+
+---
+
+## 6. Prefabs procéduraux (`@worldforge/prefabs`)
+
+Chaque prefab est `(rng, style, params) => PartList` et produit N variantes au bake.
+
+| Catégorie | Prefabs |
+|---|---|
+| Végétation | `pine_tree`, `round_tree`, `dead_tree`, `giant_mushroom`, `small_mushroom`, `bush`, `fern`, `grass_tuft`, `flower`, `log` |
+| Rochers | `boulder`, `rock_cluster`, `stone` |
+| Architecture | `cottage`, `ruin_wall`, `ruin_arch`, `watchtower`, `well`, `bridge`, `fence`, `stone_path_slab` |
+| Props | `lantern_post`, `crate`, `barrel`, `bench`, `signpost` |
+| Landmarks | `giant_tree` (échelle ×3.5, racines), `ancient_ruins` (colonnes + arches), `tower` |
+
+Règles de style (StyleBible) : taper des troncs, nombre de couches de canopée, jitter, palettes par espèce,
+matériaux, pitch des toits, weathering (planches manquantes, murs cassés).
+
+---
+
+## 7. Analyse d'image → StyleBible
+
+L'outil "Analyser une image" envoie l'image à l'agent vision (Claude Code lit les images ; providers image
+optionnels) avec un prompt structuré demandant une `StyleBible` JSON validée par schéma. Sans agent, un
+analyseur local extrait la palette dominante (k-means sur pixels) et propose un preset proche.
+
+---
+
+## 8. Régénération partielle & locks
+
+`regenerate(spec, previousBake, { layers: ['vegetation'] })` :
+- réutilise `terrain`, `paths`, `landmarks`, `buildings` du bake précédent,
+- ré-exécute seulement `vegetation` (avec le même seed dérivé `seed ^ hash('vegetation')` ou un nouveau),
+- respecte `placement.locked === true` (conservés tels quels),
+- produit une nouvelle version (`v0.N+1`) avec `parentVersion`.
+
+Le "KEEP THIS AREA" verrouille tous les placements dans un polygone/cercle (`zoneLocks`).
+
+---
+
+## 9. Performance
+
+- Budgets par défaut (1024×1024) : végétation ≤ 2 200, rochers ≤ 450, props ≤ 500, bâtiments ≤ 40, total Parts ≤ 30 000.
+- Prefabs mis en cache dans `ReplicatedStorage.WorldAssets.Prefabs` et clonés (Instances partagées).
+- LOD : `full` (< 250 studs), `simple` (canopée 1 bloc, pas de détails), `silhouette` (> 600 studs, 1-2 blocs).
+- `StreamingEnabled = true`, `StreamingMinRadius/TargetRadius` selon la taille du monde.
+- `CanCollide = false`, `CanQuery = false`, `CanTouch = false` sur le feuillage et petits props ; `Anchored = true` partout.
+- Terrain : voxels 4 studs, bande écrite par `WriteVoxels`, socle rempli par `FillBlock`.
