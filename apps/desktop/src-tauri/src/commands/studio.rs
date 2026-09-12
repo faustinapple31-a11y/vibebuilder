@@ -13,6 +13,8 @@ pub struct StudioInfo {
     pub rojo_plugin: bool,
     pub mcp_plugin: bool,
     pub running: bool,
+    /// Built-in Studio MCP server executable (StudioMCP.exe / StudioMCP), when present.
+    pub mcp_server: Option<String>,
 }
 
 fn studio_running() -> bool {
@@ -37,6 +39,11 @@ pub fn studio_info() -> StudioInfo {
     };
     let rojo_plugin = has("rojo");
     let mcp_plugin = has("mcp");
+    let mcp_server = path.as_ref().and_then(|exe| {
+        let dir = exe.parent()?;
+        let candidates = [dir.join("StudioMCP.exe"), dir.join("StudioMCP")];
+        candidates.into_iter().find(|c| c.is_file())
+    });
     StudioInfo {
         found: path.is_some(),
         path: path.map(|p| p.to_string_lossy().to_string()),
@@ -44,6 +51,7 @@ pub fn studio_info() -> StudioInfo {
         rojo_plugin,
         mcp_plugin,
         running: studio_running(),
+        mcp_server: mcp_server.map(|p| p.to_string_lossy().to_string()),
     }
 }
 

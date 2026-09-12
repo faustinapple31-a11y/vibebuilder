@@ -30,19 +30,20 @@ export function computeLighting(ctx: GenContext): RobloxLightingSettings {
   const outdoor = mixHex(L.outdoorAmbient, m.ambientShift, 0.25);
   return {
     clockTime: spec.lighting.timeOfDay,
-    brightness,
-    ambient: night ? mixHex(ambient, "#1c2340", 0.2) : ambient,
-    outdoorAmbient: night ? mixHex(outdoor, "#2a3358", 0.15) : outdoor,
+    brightness: night ? Math.max(brightness, 1.6) : brightness,
+    // Night scenes must stay readable: Roblox ambient terms carry the moonlight look, not darkness.
+    ambient: night ? mixHex(ambient, "#8a97c4", 0.35) : ambient,
+    outdoorAmbient: night ? mixHex(outdoor, "#9aa8d4", 0.4) : outdoor,
     colorShiftTop: mixHex(L.sunColor, m.ambientShift, 0.3),
     colorShiftBottom: mixHex(fogColor, "#000000", 0.4),
-    exposureCompensation: L.exposure + (night ? 0.15 : 0),
+    exposureCompensation: L.exposure + (night ? 0.9 : 0),
     globalShadows: spec.lighting.shadows,
     shadowSoftness: L.shadowSoftness,
     fogStart: F.start / fogMul,
     fogEnd: clamp(F.end / fogMul, 120, 5000),
     fogColor,
     atmosphere: {
-      density: clamp(F.atmosphereDensity * lerp(0.6, 1.4, spec.atmosphere.fogDensity), 0, 1),
+      density: clamp(F.atmosphereDensity * lerp(0.6, 1.4, spec.atmosphere.fogDensity), 0, 0.38),
       offset: clamp(0.15 + spec.atmosphere.haze * 0.5, 0, 1),
       color: fogColor,
       decay: mixHex(fogColor, spec.atmosphere.skyTint, 0.5),

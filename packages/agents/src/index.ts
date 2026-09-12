@@ -11,3 +11,5 @@ export { OpenCodeProvider, OPENCODE_MODELS } from "./providers/opencode";
 export { GeminiCliProvider, GEMINI_MODELS } from "./providers/gemini";
 export { AntigravityProvider } from "./providers/antigravity";
 export { LocalRulesProvider, buildConfigTs } from "./providers/local-rules";
+export * from "./mcp/client";
+export * from "./mcp/studio";

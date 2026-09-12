@@ -1,4 +1,4 @@
-import { Lighting, ReplicatedStorage, Workspace } from "@rbxts/services";
+import { HttpService, Lighting, ReplicatedStorage, Workspace } from "@rbxts/services";
 import { base64ToBuffer, hexToColor3, readF32 } from "shared/world/decode";
 import { PrefabCache } from "shared/world/prefabFactory";
 import type { LightingData, WorldBakeData } from "shared/world/types";
@@ -28,6 +28,14 @@ export interface BuildReport {
 export function loadBake(): WorldBakeData {
 	const assets = ReplicatedStorage.WaitForChild("WorldAssets", 10) as Folder | undefined;
 	if (!assets) error("WorldForge: ReplicatedStorage.WorldAssets not found (is the project synced with Rojo?)");
+	// Live push from WorldForge (MCP): JSON chunks in StringValues take precedence over the Rojo ModuleScript.
+	const pushed = assets.FindFirstChild("WorldBakeJson");
+	if (pushed) {
+		const chunks = pushed.GetChildren().filter((c): c is StringValue => c.IsA("StringValue"));
+		chunks.sort((a, b) => a.Name < b.Name);
+		const json = chunks.map((c) => c.Value).join("");
+		if (json.size() > 0) return HttpService.JSONDecode(json) as WorldBakeData;
+	}
 	const module = assets.WaitForChild("WorldBake", 10) as ModuleScript | undefined;
 	if (!module) error("WorldForge: WorldAssets.WorldBake ModuleScript not found");
 	return require(module) as WorldBakeData;

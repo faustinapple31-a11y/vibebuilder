@@ -8,12 +8,13 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run tauri:dev -w @worldforge/desktop",
-    "build": "npm run build -w @worldforge/desktop",
+    "dev": "npm run sync-template && npm run tauri:dev -w @worldforge/desktop",
+    "build": "npm run sync-template && npm run build -w @worldforge/desktop",
     "typecheck": "tsc -b tsconfig.json",
     "test": "vitest run",
     "demo": "tsx scripts/demo-moonlit.ts",
-    "demo:build": "tsx scripts/demo-moonlit.ts --build"
+    "demo:build": "tsx scripts/demo-moonlit.ts --build",
+    "sync-template": "tsx scripts/sync-template.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

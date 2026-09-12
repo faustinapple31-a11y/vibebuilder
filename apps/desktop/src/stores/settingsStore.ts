@@ -74,6 +74,12 @@ export const useSettings = create<SettingsState>((set, get) => ({
     try {
       const paths = await fs.appPaths();
       initProviders(paths.home);
+      // kill child processes left behind by a previous webview session (dev reloads, crashes)
+      try {
+        for (const id of await proc.list()) if (/^(studio_mcp|rojo_serve|claude-code_|codex_|opencode_|gemini-cli_|npm_|rbxtsc_|rojo_build_)/.test(id)) await proc.kill(id);
+      } catch {
+        /* ignore */
+      }
       const defaults = { ...DEFAULTS, ...(await settingsRepo.get<Partial<AgentDefaults>>("agentDefaults", {})) };
       set({ paths, defaults, ready: true });
       await Promise.all([get().detectTools(), get().refreshKeys()]);

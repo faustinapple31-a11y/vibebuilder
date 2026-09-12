@@ -63,6 +63,7 @@ export interface StudioInfo {
   rojo_plugin: boolean;
   mcp_plugin: boolean;
   running: boolean;
+  mcp_server: string | null;
 }
 export interface LogFile {
   path: string;

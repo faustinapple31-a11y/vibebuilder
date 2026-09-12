@@ -228,18 +228,25 @@ export function bytesToBase64(bytes: Uint8Array): string {
 }
 
 export function base64ToBytes(str: string): Uint8Array {
-  const clean = str.replace(/[^A-Za-z0-9+/]/g, "");
-  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  const out = new Uint8Array(Math.floor((str.length * 3) / 4) + 3);
   let o = 0;
-  for (let i = 0; i + 3 < clean.length + 1; i += 4) {
-    const a = B64.indexOf(clean[i]!);
-    const b = B64.indexOf(clean[i + 1]!);
-    const c = i + 2 < clean.length ? B64.indexOf(clean[i + 2]!) : -1;
-    const d = i + 3 < clean.length ? B64.indexOf(clean[i + 3]!) : -1;
-    const n = (a << 18) | (b << 12) | ((c < 0 ? 0 : c) << 6) | (d < 0 ? 0 : d);
-    if (o < out.length) out[o++] = (n >> 16) & 255;
-    if (c >= 0 && o < out.length) out[o++] = (n >> 8) & 255;
-    if (d >= 0 && o < out.length) out[o++] = n & 255;
+  let acc = 0;
+  let bits = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    let v: number;
+    if (c >= 65 && c <= 90) v = c - 65;
+    else if (c >= 97 && c <= 122) v = c - 71;
+    else if (c >= 48 && c <= 57) v = c + 4;
+    else if (c === 43 || c === 45) v = 62;
+    else if (c === 47 || c === 95) v = 63;
+    else continue; // '=' padding, whitespace
+    acc = ((acc << 6) | v) & 0xffffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[o++] = (acc >> bits) & 255;
+    }
   }
   return out.subarray(0, o);
 }

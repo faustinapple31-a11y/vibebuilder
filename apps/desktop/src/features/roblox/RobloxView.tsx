@@ -18,6 +18,7 @@ export function RobloxView() {
   const [universeId, setUniverseId] = useState(String(project.meta.roblox.universeId ?? ""));
   const [placeId, setPlaceId] = useState(String(project.meta.roblox.placeId ?? ""));
   const [tab, setTab] = useState<"build" | "logs" | "qa">("build");
+  const [luau, setLuau] = useState("print(\"hello from WorldForge\")\nreturn workspace:GetAttribute(\"WorldReady\")");
 
   useEffect(() => {
     void r.refreshStudio();
@@ -47,8 +48,27 @@ export function RobloxView() {
             <Status ok={!!r.studio?.rojo_plugin} label="Rojo plugin installed" detail={r.studio?.plugins_dir ?? ""} warn />
             <Status ok={r.rojo.connected} label="Project synced" detail={r.rojo.serving ? (r.rojo.connected ? `rojo serve :${r.rojo.port} connected` : `rojo serve :${r.rojo.port} — press Connect in the Rojo plugin`) : "rojo serve stopped"} warn />
             <Status ok={r.build.step === "ok"} label="Build successful" detail={r.build.lastAt ? `${timeAgo(r.build.lastAt)}${r.build.rbxlPath ? " · " + r.build.rbxlPath.split(/[\\/]/).pop() : ""}` : "not built yet"} warn />
-            <Status ok={!!r.studio?.mcp_plugin} label="Studio MCP plugin" detail={r.studio?.mcp_plugin ? "installed — run_code available" : "optional: install Roblox Studio MCP for automated play-tests"} warn />
+            <Status ok={r.mcp.connected} label="Studio MCP bridge" detail={r.mcp.connected ? `connected · ${r.mcp.studios.length} studio instance(s)${r.mcp.studios[0] ? " · " + String(r.mcp.studios[0].name ?? r.mcp.studios[0].id) : ""}` : r.mcp.available ? "available — enable “Studio as MCP server” in Studio (Assistant → Manage MCP Servers)" : "not found (update Roblox Studio)"} warn />
           </div>
+          {r.mcp.available && (
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <Button size="sm" variant={r.mcp.connected ? "outline" : "brand"} loading={r.mcp.connecting} onClick={() => (r.mcp.connected ? void r.refreshStudios() : void r.connectMcp())}>
+                {r.mcp.connected ? "Refresh studios" : "Connect MCP"}
+              </Button>
+              <Button size="sm" variant="brand" data-testid="deploy-studio" disabled={!r.mcp.connected || r.mcp.studios.length === 0} onClick={() => void r.deployToStudio()}>
+                Deploy to Studio
+              </Button>
+              <Button size="sm" variant="outline" disabled={!r.mcp.connected || r.mcp.studios.length === 0} onClick={() => void r.bakeInStudio()}>
+                Bake world only
+              </Button>
+              <Button size="sm" variant="outline" disabled={!r.mcp.connected || r.mcp.studios.length === 0} onClick={() => void r.playTest(20)}>
+                Play-test 20s
+              </Button>
+              <Button size="sm" variant="outline" disabled={!r.mcp.connected || r.mcp.studios.length === 0} onClick={() => void r.captureViaMcp()}>
+                Screenshot (Studio)
+              </Button>
+            </div>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             <Button size="sm" variant="primary" icon={<Hammer size={12} />} loading={busy} onClick={() => void r.buildAll()}>
               Build
@@ -206,7 +226,25 @@ export function RobloxView() {
                   ))}
                 </div>
               )}
-              {r.logs.raw.length === 0 ? <div className="text-term-muted">Studio output appears here while a place is open (log file tail). Press ▶ Play in Studio.</div> : r.logs.raw.slice(-300).map((l, i) => <div key={i} className="whitespace-pre-wrap text-term-muted">{l}</div>)}
+              {r.mcp.log.length > 0 && (
+                <div className="mb-2 rounded-md border border-brand/30 bg-brand-soft/40 p-2">
+                  <div className="mb-1 text-[11px] font-semibold uppercase text-brand">Studio MCP</div>
+                  {r.mcp.log.slice(-20).map((l, i) => (
+                    <div key={i} className="whitespace-pre-wrap">{l}</div>
+                  ))}
+                </div>
+              )}
+              {r.mcp.available && (
+                <div className="mb-2 rounded-md border border-line bg-panel p-2">
+                  <div className="mb-1 text-[11px] font-semibold uppercase text-muted">Luau console (runs in Studio via MCP)</div>
+                  <textarea data-testid="luau-console" className="term-input h-16 w-full rounded border border-line bg-term p-1" value={luau} onChange={(e) => setLuau(e.target.value)} spellCheck={false} />
+                  <div className="mt-1 flex gap-1.5">
+                    <Button size="xs" variant="primary" data-testid="luau-run-edit" disabled={!r.mcp.connected} onClick={() => void r.runLuau(luau, "Edit")}>Run (Edit)</Button>
+                    <Button size="xs" variant="outline" data-testid="luau-run-server" disabled={!r.mcp.connected} onClick={() => void r.runLuau(luau, "Server")}>Run (Server)</Button>
+                  </div>
+                </div>
+              )}
+              {r.logs.raw.length === 0 ? <div className="text-term-muted">Studio output appears here while a place is open (log file tail or MCP play-test). Press ▶ Play in Studio.</div> : r.logs.raw.slice(-300).map((l, i) => <div key={i} className="whitespace-pre-wrap text-term-muted">{l}</div>)}
             </>
           )}
           {tab === "qa" && (

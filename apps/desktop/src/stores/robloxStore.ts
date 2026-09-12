@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { newId, slugify } from "@worldforge/core";
 import { OpenCloudClient, OpenCloudError, type CloudTransport, type PlaceInfo, type UniverseInfo } from "@worldforge/roblox-cloud";
 import { parseRbxtscOutput, parseStudioLog, validateBakeForPublish, type DiagnosticEntry, type PublishCheck } from "@worldforge/quality";
+import { BAKE_WORLD_LUAU, StudioMcp, VERIFY_BAKE_JSON_LUAU, WORLD_STATS_LUAU, outFileToInstance, pushBakeChunkLuau, pushScriptLuau, type StudioInstance } from "@worldforge/agents";
+import { serializeBake } from "@worldforge/core";
 import { runsRepo } from "@/lib/db";
 import { createTauriProcessRunner } from "@/lib/runner";
 import { fs, opencloud, path, proc, studio as studioApi, capture, type StudioInfo } from "@/lib/tauri";
@@ -19,6 +21,17 @@ interface RobloxState {
   publish: { status: "idle" | "validating" | "publishing" | "ok" | "error"; checks: PublishCheck[]; message: string | null; versionNumber: number | null };
   cloud: { hasKey: boolean; universe: UniverseInfo | null; place: PlaceInfo | null; error: string | null; loading: boolean };
   qa: { running: boolean; iteration: number; max: number; log: string[]; screenshots: string[] };
+  mcp: { available: boolean; connected: boolean; connecting: boolean; studios: StudioInstance[]; activeStudioId: string | null; log: string[]; lastResult: string | null };
+  connectMcp: () => Promise<boolean>;
+  disconnectMcp: () => Promise<void>;
+  refreshStudios: () => Promise<void>;
+  bakeInStudio: () => Promise<boolean>;
+  pushBakeToStudio: () => Promise<boolean>;
+  pushScriptsToStudio: () => Promise<number>;
+  deployToStudio: () => Promise<boolean>;
+  playTest: (seconds?: number) => Promise<{ errors: DiagnosticEntry[]; output: string }>;
+  captureViaMcp: () => Promise<string | null>;
+  runLuau: (code: string, datamodel?: "Edit" | "Server" | "Client") => Promise<string>;
   refreshStudio: () => Promise<void>;
   installDeps: () => Promise<boolean>;
   compile: () => Promise<boolean>;
@@ -41,6 +54,7 @@ interface RobloxState {
 }
 
 let tailTimer: ReturnType<typeof setInterval> | null = null;
+let studioMcp: StudioMcp | null = null;
 let rojoPoll: ReturnType<typeof setInterval> | null = null;
 let qaAbort = false;
 const runner = createTauriProcessRunner();
@@ -76,12 +90,213 @@ export const useRoblox = create<RobloxState>((set, get) => ({
   publish: { status: "idle", checks: [], message: null, versionNumber: null },
   cloud: { hasKey: false, universe: null, place: null, error: null, loading: false },
   qa: { running: false, iteration: 0, max: 3, log: [], screenshots: [] },
+  mcp: { available: false, connected: false, connecting: false, studios: [], activeStudioId: null, log: [], lastResult: null },
 
   async refreshStudio() {
     try {
-      set({ studio: await studioApi.info() });
+      const info = await studioApi.info();
+      set((s) => ({ studio: info, mcp: { ...s.mcp, available: !!info.mcp_server } }));
     } catch {
       /* ignore */
+    }
+  },
+
+  async connectMcp() {
+    const info = get().studio ?? (await studioApi.info());
+    if (!info.mcp_server) {
+      set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log, "Studio MCP server not found (enable it in Studio: Assistant → Manage MCP Servers)"] } }));
+      return false;
+    }
+    if (studioMcp?.connected) {
+      await get().refreshStudios();
+      return true;
+    }
+    set((s) => ({ mcp: { ...s.mcp, connecting: true } }));
+    try {
+      studioMcp = new StudioMcp(runner, `studio_mcp_${newId("", 6)}`);
+      studioMcp.client.onLog = (line) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), line] } }));
+      await studioMcp.connect(info.mcp_server);
+      set((s) => ({ mcp: { ...s.mcp, connected: true, connecting: false, log: [...s.mcp.log, `MCP connected: ${studioMcp?.client.serverInfo.name ?? "Roblox Studio"} (${studioMcp?.tools.length ?? 0} tools)`] } }));
+      await get().refreshStudios();
+      return true;
+    } catch (e) {
+      set((s) => ({ mcp: { ...s.mcp, connected: false, connecting: false, log: [...s.mcp.log, `MCP connection failed: ${(e as Error).message ?? e}`] } }));
+      return false;
+    }
+  },
+  async disconnectMcp() {
+    await studioMcp?.close();
+    studioMcp = null;
+    set((s) => ({ mcp: { ...s.mcp, connected: false, studios: [], activeStudioId: null } }));
+  },
+  async refreshStudios() {
+    if (!studioMcp?.connected) return;
+    try {
+      const studios = await studioMcp.listStudios();
+      set((s) => ({ mcp: { ...s.mcp, studios, activeStudioId: studioMcp?.activeStudioId ?? null } }));
+    } catch (e) {
+      set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log, `list studios failed: ${(e as Error).message ?? e}`] } }));
+    }
+  },
+
+  /** Push the current WorldBake JSON into the open Studio place (no Rojo round-trip needed). */
+  async pushBakeToStudio() {
+    const bake = useWorld.getState().bake;
+    if (!bake) return false;
+    if (!(await get().connectMcp())) return false;
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) return false;
+    const log = (m: string) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), m] } }));
+    try {
+      const json = JSON.stringify(serializeBake(bake));
+      const CHUNK = 150000;
+      const total = Math.ceil(json.length / CHUNK);
+      log(`pushing WorldBake ${bake.meta.version} to Studio (${(json.length / 1024).toFixed(0)} KB in ${total} chunks)…`);
+      for (let i = 0; i < total; i++) {
+        await studioMcp.executeLuau(pushBakeChunkLuau(i, total, json.slice(i * CHUNK, (i + 1) * CHUNK)), "Edit", 120000);
+      }
+      const verify = await studioMcp.executeLuau(VERIFY_BAKE_JSON_LUAU, "Edit", 60000);
+      log(verify.trim());
+      return verify.includes("pushed bake ok");
+    } catch (e) {
+      log(`push failed: ${(e as Error).message ?? e}`);
+      return false;
+    }
+  },
+
+  /** Push compiled scripts (out/**\/*.luau) into the open place through MCP — Rojo-free sync. */
+  async pushScriptsToStudio() {
+    const cur = useProjects.getState().current;
+    if (!cur) return 0;
+    if (!(await get().connectMcp())) return 0;
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) return 0;
+    const log = (m: string) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), m] } }));
+    const outDir = path.join(cur.path, "out");
+    const files = (await fs.walk(outDir, 2000).catch(() => [] as string[])).filter((f) => f.endsWith(".luau") || f.endsWith(".lua"));
+    let n = 0;
+    for (const rel of files) {
+      const target = outFileToInstance(rel);
+      if (!target) continue;
+      try {
+        const source = await fs.readText(path.join(outDir, rel));
+        await studioMcp.executeLuau(pushScriptLuau(target.path, target.className, source), "Edit", 60000);
+        n++;
+      } catch (e) {
+        log(`push ${rel} failed: ${(e as Error).message ?? e}`);
+      }
+    }
+    log(`synced ${n}/${files.length} script(s) into Studio`);
+    return n;
+  },
+
+  /** Compile → push scripts → push bake → build world in Studio. */
+  async deployToStudio() {
+    const ok = await get().compile();
+    if (!ok) return false;
+    const n = await get().pushScriptsToStudio();
+    if (n === 0) return false;
+    return get().bakeInStudio();
+  },
+
+  /** Build the world inside the open Studio place (edit mode) through execute_luau. */
+  async bakeInStudio() {
+    if (!(await get().connectMcp())) return false;
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) {
+      set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log, "No Studio instance is connected — open the place in Studio first"] } }));
+      return false;
+    }
+    const log = (m: string) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), m] } }));
+    await get().pushBakeToStudio();
+    try {
+      log("execute_luau: building world in the edit DataModel…");
+      const t0 = Date.now();
+      const out = await studioMcp.executeLuau(BAKE_WORLD_LUAU, "Edit", 600000);
+      const stats = await studioMcp.executeLuau(WORLD_STATS_LUAU, "Edit", 60000);
+      log(`${out.trim()} · ${stats.trim()} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+      set((s) => ({ mcp: { ...s.mcp, lastResult: stats.trim() } }));
+      return true;
+    } catch (e) {
+      log(`bake failed: ${(e as Error).message ?? e}`);
+      return false;
+    }
+  },
+
+  /** Start play mode, wait, collect the console output, stop. */
+  async playTest(seconds = 20) {
+    const empty = { errors: [] as DiagnosticEntry[], output: "" };
+    if (!(await get().connectMcp())) return empty;
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) return empty;
+    const log = (m: string) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), m] } }));
+    try {
+      log(`start_stop_play: starting play test (${seconds}s)…`);
+      await studioMcp.startStopPlay(true);
+      await new Promise((r) => setTimeout(r, seconds * 1000));
+      const output = await studioMcp.getConsoleOutput();
+      await studioMcp.startStopPlay(false);
+      const lines = output.split(/\r?\n/).filter(Boolean);
+      const parsed = parseStudioLog(output);
+      const errors = parsed.filter((e) => e.severity === "error");
+      log(`play test done: ${lines.length} console lines, ${errors.length} error(s)`);
+      set((s) => ({ logs: { ...s.logs, raw: [...s.logs.raw, ...lines].slice(-600), entries: [...s.logs.entries, ...parsed].slice(-300) } }));
+      return { errors, output };
+    } catch (e) {
+      log(`play test failed: ${(e as Error).message ?? e}`);
+      try {
+        await studioMcp.startStopPlay(false);
+      } catch {
+        /* ignore */
+      }
+      return empty;
+    }
+  },
+
+  /** Execute a Luau snippet in Studio and log the output (Luau console). */
+  async runLuau(code, datamodel = "Edit") {
+    if (!(await get().connectMcp())) return "";
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) return "";
+    const log = (m: string) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), m] } }));
+    try {
+      const out = await studioMcp.executeLuau(code, datamodel, 300000);
+      log(`[luau/${datamodel}] ${out.trim().slice(0, 4000)}`);
+      return out;
+    } catch (e) {
+      const msg = (e as Error).message ?? String(e);
+      log(`[luau/${datamodel}] error: ${msg.slice(0, 2000)}`);
+      return `error: ${msg}`;
+    }
+  },
+
+  /** Screenshot through Studio's own capture (camera at the spawn looking at the village). */
+  async captureViaMcp() {
+    const cur = useProjects.getState().current;
+    if (!cur || !(await get().connectMcp())) return null;
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) return null;
+    const bake = useWorld.getState().bake;
+    try {
+      if (bake) {
+        // position the Studio camera at the spawn, looking at the composition target (village / focal landmark)
+        const [sx, sy, sz] = bake.spawn.position;
+        const [lx, ly, lz] = bake.spawn.lookAt;
+        await studioMcp.executeLuau(`local cam = workspace.CurrentCamera; cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = CFrame.lookAt(Vector3.new(${sx.toFixed(1)}, ${(sy + 7).toFixed(1)}, ${sz.toFixed(1)}), Vector3.new(${lx.toFixed(1)}, ${(ly + 12).toFixed(1)}, ${lz.toFixed(1)})); cam.FieldOfView = 70; return "camera set"`, "Edit", 30000);
+        await new Promise((r) => setTimeout(r, 800));
+      }
+      const res = await studioMcp.screenCapture(`WorldForge_${Date.now()}`);
+      if (!res.image) {
+        set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log, `screen_capture returned no image: ${res.text.slice(0, 200)}`] } }));
+        return null;
+      }
+      const out = path.join(cur.path, "qa", "screens", `studio_mcp_${Date.now()}.png`);
+      await fs.writeBinaryBase64(out, res.image.data);
+      set((s) => ({ qa: { ...s.qa, screenshots: [...s.qa.screenshots, out] }, mcp: { ...s.mcp, log: [...s.mcp.log, `screenshot saved ${out}`] } }));
+      return out;
+    } catch (e) {
+      set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log, `screen_capture failed: ${(e as Error).message ?? e}`] } }));
+      return null;
     }
   },
 
@@ -339,13 +554,27 @@ export const useRoblox = create<RobloxState>((set, get) => ({
       const world = useWorld.getState();
       const report = world.report;
       const runtimeErrors = get().logs.entries.filter((e) => e.severity === "error").slice(-30);
-      log(`build ${ok ? "ok" : `failed (${diags.length} errors)`}, world score ${report?.score ?? "–"}, runtime errors ${runtimeErrors.length}`);
-      if (ok && get().studio?.running) {
+      let runtimeFromPlay: DiagnosticEntry[] = [];
+      if (ok && get().studio?.running && get().mcp.available) {
+        // real play-test through the Studio MCP server: rebuild the place, run, collect console
+        if (get().mcp.connected || (await get().connectMcp())) {
+          const baked = await get().bakeInStudio();
+          log(baked ? "world baked in Studio (edit mode)" : "bake in Studio skipped");
+          const pt = await get().playTest(20);
+          runtimeFromPlay = pt.errors;
+          if (settings.useVision) {
+            const shot = await get().captureViaMcp();
+            if (shot) log(`screenshot: ${shot}`);
+          }
+        }
+      } else if (ok && get().studio?.running) {
         const shot = settings.useVision ? await get().captureStudio() : null;
         if (shot) log(`screenshot: ${shot}`);
       }
+      const allRuntime = [...runtimeErrors, ...runtimeFromPlay].slice(-30);
+      log(`build ${ok ? "ok" : `failed (${diags.length} errors)`}, world score ${report?.score ?? "–"}, runtime errors ${allRuntime.length}`);
       const problems = report?.problems ?? [];
-      const nothingToFix = ok && runtimeErrors.length === 0 && (report?.score ?? 0) >= settings.stopOnScore;
+      const nothingToFix = ok && allRuntime.length === 0 && (report?.score ?? 0) >= settings.stopOnScore;
       if (nothingToFix) {
         log(`✓ target reached (score ${report?.score})`);
         break;
@@ -356,9 +585,9 @@ export const useRoblox = create<RobloxState>((set, get) => ({
         await world.applyReportFixes();
       }
       // 2) agent fixes for code/runtime errors
-      const diagText = [...diags.map((d) => `${d.file ?? ""}:${d.line ?? ""} ${d.code ?? ""} ${d.message}`), ...runtimeErrors.map((e) => `[studio] ${e.message}`)].join("\n");
+      const diagText = [...diags.map((d) => `${d.file ?? ""}:${d.line ?? ""} ${d.code ?? ""} ${d.message}`), ...allRuntime.map((e) => `[studio] ${e.message}`)].join("\n");
       if (diagText || (problems.length && settings.useVision && get().qa.screenshots.length)) {
-        log(`dispatching QA agent (${diags.length} compile, ${runtimeErrors.length} runtime)`);
+        log(`dispatching QA agent (${diags.length} compile, ${allRuntime.length} runtime)`);
         await useAgents.getState().runQa(diagText || "(no compiler errors)", report ? JSON.stringify({ score: report.score, problems: report.problems }, null, 1) : undefined, settings.useVision ? get().qa.screenshots.slice(-1) : undefined);
       } else if (!ok) {
         log("no agent available to fix compile errors");

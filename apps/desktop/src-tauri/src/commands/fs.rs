@@ -119,6 +119,9 @@ pub fn fs_walk(root: String, max_entries: Option<usize>) -> Result<Vec<String>, 
     let root_path = PathBuf::from(&root);
     let mut out = Vec::new();
     for entry in walkdir::WalkDir::new(&root_path).into_iter().filter_entry(|e| {
+        if e.depth() == 0 {
+            return true;
+        }
         let n = e.file_name().to_string_lossy();
         !(n == "node_modules" || n == ".git" || n == "out" || n == "build" || n == "target")
     }) {
