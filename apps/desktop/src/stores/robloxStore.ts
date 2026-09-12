@@ -30,7 +30,7 @@ interface RobloxState {
   pushScriptsToStudio: () => Promise<number>;
   deployToStudio: () => Promise<boolean>;
   playTest: (seconds?: number) => Promise<{ errors: DiagnosticEntry[]; output: string }>;
-  captureViaMcp: () => Promise<string | null>;
+  captureViaMcp: (view?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number }) => Promise<string | null>;
   runLuau: (code: string, datamodel?: "Edit" | "Server" | "Client") => Promise<string>;
   refreshStudio: () => Promise<void>;
   installDeps: () => Promise<boolean>;
@@ -271,18 +271,18 @@ export const useRoblox = create<RobloxState>((set, get) => ({
   },
 
   /** Screenshot through Studio's own capture (camera at the spawn looking at the village). */
-  async captureViaMcp() {
+  async captureViaMcp(view) {
     const cur = useProjects.getState().current;
     if (!cur || !(await get().connectMcp())) return null;
     await get().refreshStudios();
     if (!studioMcp?.activeStudioId) return null;
     const bake = useWorld.getState().bake;
     try {
-      if (bake) {
-        // position the Studio camera at the spawn, looking at the composition target (village / focal landmark)
-        const [sx, sy, sz] = bake.spawn.position;
-        const [lx, ly, lz] = bake.spawn.lookAt;
-        await studioMcp.executeLuau(`local cam = workspace.CurrentCamera; cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = CFrame.lookAt(Vector3.new(${sx.toFixed(1)}, ${(sy + 7).toFixed(1)}, ${sz.toFixed(1)}), Vector3.new(${lx.toFixed(1)}, ${(ly + 12).toFixed(1)}, ${lz.toFixed(1)})); cam.FieldOfView = 70; return "camera set"`, "Edit", 30000);
+      const v = view ?? (bake ? { position: [bake.spawn.position[0], bake.spawn.position[1] + 7, bake.spawn.position[2]] as [number, number, number], lookAt: [bake.spawn.lookAt[0], bake.spawn.lookAt[1] + 12, bake.spawn.lookAt[2]] as [number, number, number], fov: 70 } : null);
+      if (v) {
+        // position the Studio camera (default: at the spawn, looking at the composition target)
+        const f = (n: number) => n.toFixed(1);
+        await studioMcp.executeLuau(`local cam = workspace.CurrentCamera; cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = CFrame.lookAt(Vector3.new(${f(v.position[0])}, ${f(v.position[1])}, ${f(v.position[2])}), Vector3.new(${f(v.lookAt[0])}, ${f(v.lookAt[1])}, ${f(v.lookAt[2])})); cam.FieldOfView = ${v.fov ?? 70}; return "camera set"`, "Edit", 30000);
         await new Promise((r) => setTimeout(r, 800));
       }
       const res = await studioMcp.screenCapture(`WorldForge_${Date.now()}`);

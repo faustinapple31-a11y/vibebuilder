@@ -143,8 +143,16 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   }
   addLandmarkPlacements(ctx);
 
-  // ---- spawn
-  chooseSpawn(ctx);
+  // ---- spawn (reused when nothing that defines it changed, so locked layers stay consistent)
+  const spawnInputsChanged = ["terrain", "water", "landmarks", "buildings"].some((l) => regenerate.has(l as GenLayer));
+  if (compatiblePrevious && !spawnInputsChanged) {
+    ctx.spawn = { position: [...compatiblePrevious.spawn.position] as [number, number, number], lookAt: [...compatiblePrevious.spawn.lookAt] as [number, number, number] };
+    const prevZone = compatiblePrevious.zones.find((z) => z.kind === "spawn");
+    if (prevZone) ctx.zones.push({ ...prevZone });
+    ctx.occupants.push({ position: ctx.spawn.position, radius: 24, kind: "keep" });
+  } else {
+    chooseSpawn(ctx);
+  }
 
   // ---- roads (handles reuse internally)
   generateRoads(ctx);
@@ -179,6 +187,16 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
 
   // ---- lighting
   ctx.lighting = regenerate.has("lighting") || !compatiblePrevious ? computeLighting(ctx) : compatiblePrevious.lighting;
+
+  // ---- keep the spawn clearing clear (reused layers may predate a moved spawn)
+  const [spx, , spz] = ctx.spawn.position;
+  ctx.placements = ctx.placements.filter((p) => {
+    if (p.locked || p.category === "landmark" || p.category === "path") return true;
+    const d = Math.hypot(p.position[0] - spx, p.position[2] - spz);
+    const v = ctx.prefabs[p.prefab]?.[p.variant];
+    const big = (v?.bounds.max[1] ?? 0) * p.scale > 6 || p.category === "building";
+    return !(big && d < 36) && !(d < 8);
+  });
 
   // ---- snap everything to the final terrain (no floating objects)
   for (const p of ctx.placements) {

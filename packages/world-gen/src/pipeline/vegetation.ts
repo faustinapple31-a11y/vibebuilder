@@ -100,6 +100,13 @@ export function placeVegetation(ctx: GenContext): void {
     const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
     if (big && ds < spawnClear) return 0;
     if (big) d *= smoothstep(spawnClear, spawnClear + 30, ds);
+    // settlements sit in a clearing: no trees inside, thinning ring around (houses stay readable)
+    for (const site of ctx.sites) {
+      const dv = Math.hypot(x - site.center[0], z - site.center[1]);
+      if (big && dv < site.radius * 0.95) return 0;
+      if (big) d *= smoothstep(site.radius * 0.95, site.radius * 1.5, dv) * 0.85 + 0.15 * smoothstep(site.radius * 1.5, site.radius * 2, dv);
+      else d *= 0.55 + 0.45 * smoothstep(site.radius * 0.5, site.radius * 1.1, dv);
+    }
     return clamp(d, 0, 1);
   };
 
