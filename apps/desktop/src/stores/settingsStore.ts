@@ -27,7 +27,7 @@ export interface AgentDefaults {
 
 const DEFAULTS: AgentDefaults = {
   provider: "claude-code",
-  models: { "claude-code": "fable", codex: "", opencode: "", "gemini-cli": "" },
+  models: { "claude-code": "opus", codex: "", opencode: "", "gemini-cli": "" },
   efforts: { "claude-code": "high", codex: "high" },
   permissionMode: "acceptEdits",
   runtime: "host",

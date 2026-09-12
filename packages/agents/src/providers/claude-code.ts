@@ -3,8 +3,8 @@ import type { AgentEvent, AgentSession, PermissionMode, PromptOptions } from "..
 import { BaseCliProvider, summarizeToolInput, tryJson, type SpawnPlan } from "./base";
 
 export const CLAUDE_MODELS = [
-  { id: "fable", label: "Fable 5.1", description: "claude-fable-5-1 — most capable" },
-  { id: "opus", label: "Opus 5", description: "claude-opus-5" },
+  { id: "opus", label: "Opus 5", description: "claude-opus-5 — default, included in Claude plans" },
+  { id: "fable", label: "Fable 5.1 (usage credits)", description: "claude-fable-5-1 — most capable; needs usage credits at claude.ai/settings/usage" },
   { id: "sonnet", label: "Sonnet 5", description: "claude-sonnet-5 — fast & capable" },
   { id: "haiku", label: "Haiku 4.5", description: "claude-haiku-4-5 — fastest" },
 ];
