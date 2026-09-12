@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { creatorDashboardUrls } from "@worldforge/roblox-cloud";
 import { Button, Input, Label, Pill } from "@/components/ui";
 import { cn, timeAgo } from "@/lib/utils";
+import { secrets } from "@/lib/tauri";
 import { useProjects } from "@/stores/projectStore";
 import { useRoblox } from "@/stores/robloxStore";
 import { useSettings } from "@/stores/settingsStore";
@@ -25,6 +26,16 @@ export function RobloxView() {
   useEffect(() => {
     void r.refreshStudio();
     void r.refreshCloud();
+    // ids kept in .env (ROBLOX_CREATOR_USER_ID, ROBLOX_UNIVERSE_ID, ROBLOX_PLACE_ID) prefill an unconfigured project
+    void secrets
+      .envConfig()
+      .then((env) => {
+        if (!project.meta.roblox.universeId && env.universe_id) setUniverseId(String(env.universe_id));
+        if (!project.meta.roblox.placeId && env.place_id) setPlaceId(String(env.place_id));
+        if (!project.meta.roblox.creatorUserId && env.creator_user_id) setCreatorUserId(String(env.creator_user_id));
+        if (!project.meta.roblox.creatorGroupId && env.creator_group_id) setCreatorGroupId(String(env.creator_group_id));
+      })
+      .catch(() => {});
   }, []);
 
   const saveIds = async () => {

@@ -12,3 +12,4 @@ apps/desktop/src-tauri/target/
 !templates/**/*.rbxl
 .env
 .env.*
+!.env.example

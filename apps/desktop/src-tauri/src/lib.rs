@@ -38,6 +38,8 @@ pub fn run() {
             commands::secrets::secret_get,
             commands::secrets::secret_exists,
             commands::secrets::secret_delete,
+            commands::secrets::secret_source,
+            commands::secrets::env_config,
             // studio
             commands::studio::studio_info,
             commands::studio::open_place_in_studio,

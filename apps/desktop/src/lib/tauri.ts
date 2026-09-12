@@ -118,11 +118,24 @@ export const proc = {
   onExit: (cb: (e: { id: string; code: number }) => void): Promise<UnlistenFn> => listen<{ id: string; code: number }>("process-exit", (ev) => cb(ev.payload)),
 };
 
+export type SecretSource = "keyring" | "env" | "none";
+export interface EnvConfig {
+  creator_user_id: number | null;
+  creator_group_id: number | null;
+  universe_id: number | null;
+  place_id: number | null;
+  dotenv_loaded: boolean;
+}
+
 export const secrets = {
   set: (key: string, value: string) => invoke<void>("secret_set", { key, value }),
   get: (key: string) => invoke<string | null>("secret_get", { key }),
   exists: (key: string) => invoke<boolean>("secret_exists", { key }),
+  /** "keyring" (OS secure storage), "env" (environment / .env file) or "none". */
+  source: (key: string) => invoke<SecretSource>("secret_source", { key }),
   delete: (key: string) => invoke<void>("secret_delete", { key }),
+  /** Non-secret ids that may live in .env (ROBLOX_CREATOR_USER_ID, ROBLOX_UNIVERSE_ID, ROBLOX_PLACE_ID…). */
+  envConfig: () => invoke<EnvConfig>("env_config"),
 };
 
 export const studio = {

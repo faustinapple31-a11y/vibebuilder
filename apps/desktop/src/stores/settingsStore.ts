@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { PROVIDER_ORDER, type AgentDetection, type AgentProviderId, type PermissionMode } from "@worldforge/agents";
 import { settingsRepo } from "@/lib/db";
 import { getProviders, initProviders } from "@/lib/agents";
-import { fs, proc, secrets, tools, type AppPaths, type ToolsReport } from "@/lib/tauri";
+import { fs, proc, secrets, tools, type AppPaths, type SecretSource, type ToolsReport } from "@/lib/tauri";
 
 export const SECRET_KEYS = {
   openCloud: "roblox_open_cloud_api_key",
@@ -45,6 +45,8 @@ interface SettingsState {
   providers: Partial<Record<AgentProviderId, AgentDetection>>;
   defaults: AgentDefaults;
   keys: Record<SecretName, boolean>;
+  /** Where each configured key comes from (keyring vs .env / environment). */
+  keySources: Record<SecretName, SecretSource>;
   installing: Record<string, "running" | "done" | "error">;
   installLog: string[];
   error: string | null;
@@ -66,6 +68,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   providers: {},
   defaults: DEFAULTS,
   keys: { openCloud: false, gemini: false, meshy: false, elevenlabs: false },
+  keySources: { openCloud: "none", gemini: "none", meshy: "none", elevenlabs: "none" },
   installing: {},
   installLog: [],
   error: null,
@@ -154,8 +157,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
     await get().refreshKeys();
   },
   async refreshKeys() {
-    const entries = await Promise.all((Object.keys(SECRET_KEYS) as SecretName[]).map(async (n) => [n, await secrets.exists(SECRET_KEYS[n]).catch(() => false)] as const));
-    set({ keys: Object.fromEntries(entries) as Record<SecretName, boolean> });
+    const entries = await Promise.all((Object.keys(SECRET_KEYS) as SecretName[]).map(async (n) => [n, await secrets.source(SECRET_KEYS[n]).catch((): SecretSource => "none")] as const));
+    set({
+      keys: Object.fromEntries(entries.map(([n, s]) => [n, s !== "none"])) as Record<SecretName, boolean>,
+      keySources: Object.fromEntries(entries) as Record<SecretName, SecretSource>,
+    });
   },
 }));
 

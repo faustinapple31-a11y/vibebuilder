@@ -88,5 +88,9 @@ Studio* la construit dans Roblox Studio.
 
 Les clés (Open Cloud, Gemini, Meshy, ElevenLabs) sont dans le secure storage de l'OS et ne transitent jamais par
 l'interface : les requêtes sont signées par le backend Rust (`oc_request`, `ai_request`) avec allow-list d'hôtes.
+Alternative fichier : copier `.env.example` en `.env` (racine du dépôt, à côté de l'exécutable ou
+`%APPDATA%\WorldForge\.env`) et y mettre `ROBLOX_OPEN_CLOUD_API_KEY=…` (+ `ROBLOX_CREATOR_USER_ID`,
+`ROBLOX_UNIVERSE_ID`, `ROBLOX_PLACE_ID`, et les clés IA optionnelles). Le fichier est git-ignoré, lu uniquement
+par le backend Rust, jamais loggé ; le secure storage garde la priorité s'il contient aussi la clé.
 Les agents sont lancés avec `cwd = projet`, environnement filtré et mode de permission configurable ; les credentials
 des agents restent gérés par leurs CLIs officiels.
