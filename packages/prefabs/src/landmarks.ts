@@ -94,10 +94,11 @@ export function ancientRuins(ctx: PrefabContext, variant: number): PrefabVariant
   // columns
   const cols = rng.int(8, 12);
   const brokenFlags = Array.from({ length: cols }, () => rng.chance(0.4));
+  const colH = rng.float(14, 18); // intact columns share a height so the lintels rest on their capitals
   for (let i = 0; i < cols; i++) {
     const a = (i / cols) * Math.PI * 2;
     const broken = brokenFlags[i]!;
-    const h = broken ? rng.float(4, 10) : rng.float(14, 18);
+    const h = broken ? rng.float(4, 10) : colH;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     b.cylinder([x, 2.8 + h / 2, z], 2.6, h, jitterHex(stone, 0, 0, jitter(rng, 0.04)), { material: style.materials.stoneWall, rotation: [jitter(rng, broken ? 6 : 1), 0, jitter(rng, broken ? 6 : 1)], collide: true, lod: 2 });
@@ -114,7 +115,8 @@ export function ancientRuins(ctx: PrefabContext, variant: number): PrefabVariant
     // lintels between intact neighbors
     if (!broken && !brokenFlags[(i + 1) % cols] && rng.chance(0.7)) {
       const a2 = ((i + 1) / cols) * Math.PI * 2;
-      b.beam([x, 2.8 + 17.2, z], [Math.cos(a2) * r, 2.8 + 17.2, Math.sin(a2) * r], 1.8, 2.6, stone, { material: style.materials.stoneWall, collide: false, lod: 1, overlap: 1.2 });
+      const ly = 2.8 + colH + 1.2 + 0.9; // on top of the capitals
+      b.beam([x, ly, z], [Math.cos(a2) * r, ly, Math.sin(a2) * r], 1.8, 2.6, stone, { material: style.materials.stoneWall, collide: false, lod: 1, overlap: 1.2 });
     }
     // moss at the column foot
     if (rng.chance(style.rock.mossChance * 0.6)) {

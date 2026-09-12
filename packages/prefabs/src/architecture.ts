@@ -305,10 +305,11 @@ export function watchtower(ctx: PrefabContext, variant: number): PrefabVariant {
       b.beam([Math.cos(a) * r, bodyH + 2.2, Math.sin(a) * r], [Math.cos(a2) * r, bodyH + 2.2, Math.sin(a2) * r], 0.4, 0.4, bCol, { material: style.materials.trunk, collide: false, lod: 0 });
     }
     b.pyramidRoof([0, bodyH + 6.5 + (d * 0.55) / 2, 0], d + 4, d + 4, d * 0.55, rCol, { material: style.materials.roof, collide: true, lod: 2 });
-    // brazier light under the roof
+    // brazier on a pedestal under the roof
     const glow = mixHex("#ffb866", style.palette.glow, 0.3);
-    b.box([0, bodyH + 2.2, 0], [1.6, 1.6, 1.6], glow, { material: "Neon", transparency: 0.2, collide: false, lod: 1, light: { type: "point", color: glow, brightness: 2, range: 40 } });
-    b.effect([0, bodyH + 3.2, 0], [1.2, 1, 1.2], { kind: "embers", rate: 4 }, { lod: 1 });
+    b.cylinder([0, bodyH + 1.4, 0], 1.4, 1.8, jitterHex(sCol, 0, 0, -0.1), { material: style.materials.metal, collide: false, lod: 1 });
+    b.box([0, bodyH + 2.7, 0], [1.6, 1.6, 1.6], glow, { material: "Neon", transparency: 0.2, collide: false, lod: 1, light: { type: "point", color: glow, brightness: 2, range: 40 } });
+    b.effect([0, bodyH + 3.7, 0], [1.2, 1, 1.2], { kind: "embers", rate: 4 }, { lod: 1 });
     // flag
     b.box([0, bodyH + 6.5 + d * 0.55 + 2.5, 0], [0.3, 5, 0.3], bCol, { material: style.materials.trunk, collide: false, lod: 0 });
     b.box([1.4, bodyH + 6.5 + d * 0.55 + 4.2, 0], [2.8, 1.6, 0.15], style.palette.accent, { material: "Fabric", collide: false, castShadow: false, lod: 0 });
@@ -317,7 +318,9 @@ export function watchtower(ctx: PrefabContext, variant: number): PrefabVariant {
     for (let i = 0; i < 8; i++) {
       if (rng.chance(0.35)) continue;
       const a = (i / 8) * Math.PI * 2;
-      b.box([Math.cos(a) * (d / 2 - 0.6), bodyH + rng.float(0.8, 2.5), Math.sin(a) * (d / 2 - 0.6)], [2.2, rng.float(1.5, 4), 1.6], sCol, { material: style.materials.stoneWall, rotation: [0, (-a * 180) / Math.PI, jitter(rng, 8)], collide: false, lod: 1 });
+      const ch = rng.float(1.5, 4);
+      // merlons stand on the broken rim (body top = bodyH + 0.5)
+      b.box([Math.cos(a) * (d / 2 - 0.6), bodyH + 0.2 + ch / 2, Math.sin(a) * (d / 2 - 0.6)], [2.2, ch, 1.6], sCol, { material: style.materials.stoneWall, rotation: [0, (-a * 180) / Math.PI, jitter(rng, 8)], collide: false, lod: 1 });
     }
     for (let i = 0; i < 5; i++) {
       const a = rng.float(0, Math.PI * 2);
