@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ProjectMetaSchema, newId, nowIso, slugify, type ProjectMeta, type StylePresetId } from "@worldforge/core";
-import { scaffoldProjectFiles } from "@worldforge/roblox-export";
+import { TEMPLATE_VERSION, scaffoldProjectFiles } from "@worldforge/roblox-export";
+import { upgradeProjectTemplate } from "@/lib/templateUpgrade";
 import { projectsRepo, settingsRepo, type ProjectRow } from "@/lib/db";
 import { readJsonFile, writeJsonFile } from "@/lib/files";
 import { fs, path } from "@/lib/tauri";
@@ -74,9 +75,19 @@ export const useProjects = create<ProjectState>((set, get) => ({
       : ProjectMetaSchema.parse({ id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at, stylePreset: row.style_preset });
     const current = { row, meta, path: row.path };
     set({ current });
+    // projects from an older template get the current gameplay framework before any agent runs
+    try {
+      const log = await upgradeProjectTemplate(current);
+      if (log.length) {
+        console.info("[worldforge] " + log.join("; "));
+        await get().updateMeta({ templateVersion: TEMPLATE_VERSION });
+      }
+    } catch (e) {
+      console.warn("template upgrade failed", e);
+    }
     await projectsRepo.touch(id);
     await settingsRepo.set("lastProjectId", id);
-    return current;
+    return get().current ?? current;
   },
 
   async importFolder(folder) {

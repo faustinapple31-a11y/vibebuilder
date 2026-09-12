@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { newId, slugify } from "@worldforge/core";
 import { OpenCloudClient, OpenCloudError, type CloudTransport, type PlaceInfo, type UniverseInfo } from "@worldforge/roblox-cloud";
-import { TEMPLATE_VERSION, runtimeTemplateFiles, templateUpgradeFiles } from "@worldforge/roblox-export";
+import { TEMPLATE_VERSION, runtimeTemplateFiles } from "@worldforge/roblox-export";
+import { upgradeProjectTemplate } from "@/lib/templateUpgrade";
 import { updateMeshAsset, type MeshAssetRecord } from "@/lib/meshAssets";
 import { parseRbxtscOutput, parseStudioLog, validateBakeForPublish, type DiagnosticEntry, type PublishCheck } from "@worldforge/quality";
 import { BAKE_WORLD_LUAU, StudioMcp, VERIFY_BAKE_JSON_LUAU, WORLD_STATS_LUAU, outFileToInstance, pushBakeChunkLuau, pushScriptLuau, type StudioInstance } from "@worldforge/agents";
@@ -413,24 +414,9 @@ return string.format("inserted %s (%d parts, %.1f studs tall) at %s", model.Name
     const scaffold = { projectName: cur.row.name, projectId: cur.row.id, stylePreset: cur.meta.stylePreset };
     const runtime = runtimeTemplateFiles(scaffold);
     await fs.writeFiles(cur.path, runtime.map((f) => [f.path, f.content]));
-    const upgradeLog: string[] = [];
-    if ((cur.meta.templateVersion ?? 1) < TEMPLATE_VERSION) {
-      // one-time framework upgrade (shop/NPC/audio systems…): diverging files are backed up first
-      const existing = new Set((await fs.walk(path.join(cur.path, "src"), 5000)).map((p) => `src/${p}`));
-      const files = templateUpgradeFiles(scaffold, existing);
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      for (const f of files) {
-        if (!existing.has(f.path)) continue;
-        const current = await fs.readText(path.join(cur.path, f.path)).catch(() => "");
-        if (current && current !== f.content) {
-          await fs.writeText(path.join(cur.path, ".wf-backup", stamp, f.path), current);
-          upgradeLog.push(`backup ${f.path} → .wf-backup/${stamp}/`);
-        }
-      }
-      await fs.writeFiles(cur.path, files.map((f) => [f.path, f.content]));
-      upgradeLog.push(`template upgraded to v${TEMPLATE_VERSION} (${files.length} files)`);
-      await useProjects.getState().updateMeta({ templateVersion: TEMPLATE_VERSION });
-    }
+    // safety net: the framework upgrade normally runs when the project is opened
+    const upgradeLog = await upgradeProjectTemplate(cur);
+    if (upgradeLog.length) await useProjects.getState().updateMeta({ templateVersion: TEMPLATE_VERSION });
     set((s) => ({ build: { ...s.build, step: "compiling", log: [...s.build.log, `runtime synced (${runtime.length} files)`, ...upgradeLog, "$ rbxtsc"], diagnostics: [] } }));
     const lines: string[] = [];
     const rbxtsc = (await fs.exists(path.join(cur.path, "node_modules", ".bin", "rbxtsc.cmd"))) ? path.join(cur.path, "node_modules", ".bin", "rbxtsc.cmd") : (await fs.exists(path.join(cur.path, "node_modules", ".bin", "rbxtsc"))) ? path.join(cur.path, "node_modules", ".bin", "rbxtsc") : "rbxtsc";
