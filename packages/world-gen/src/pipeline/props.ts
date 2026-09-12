@@ -294,6 +294,60 @@ export function placeRocksAndProps(ctx: GenContext): void {
     }
   }
 
+  // ---- waterfalls: where the river drops steeply between two polyline points.
+  // Roblox water renders the carved bed as a smooth slope, so the sheet only reads when the bed has a real
+  // ledge; until the water stage carves stepped drops this stays opt-in (spec.props.sets includes "waterfalls").
+  progress(ctx, "props:waterfalls", 0.82);
+  for (const river of (sets.has("waterfalls" as never) ? ctx.paths : []).filter((p) => p.kind === "river")) {
+    let lastFall: Vec2 | null = null;
+    for (let i = 1; i < river.points.length - 1; i++) {
+      const a = river.points[i - 1]!;
+      const c = river.points[i + 1]!;
+      const wa = ctx.water.sample(a[0], a[1]);
+      const wc = ctx.water.sample(c[0], c[1]);
+      if (Number.isNaN(wa) || Number.isNaN(wc)) continue;
+      const run = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      const drop = wa - wc;
+      if (drop < 5 || run < 1 || drop / run < 0.35) continue;
+      const p = river.points[i]!;
+      // inside the playable area only (the river leaving the map is not a waterfall), and the bed must drop too
+      if (distanceToEdge(ctx, p[0], p[1]) < 48) continue;
+      if (ctx.heights.sample(a[0], a[1]) - ctx.heights.sample(c[0], c[1]) < 4) continue;
+      if (lastFall && Math.hypot(p[0] - lastFall[0], p[1] - lastFall[1]) < 60) continue;
+      // downstream direction (+Z of the prefab must point downstream)
+      const dir = Math.atan2(c[0] - a[0], c[1] - a[1]);
+      const variants = ctx.prefabs["waterfall"];
+      if (!variants) break;
+      const vi = rng.int(0, variants.length - 1);
+      const scale = Math.max(0.6, Math.min(1.6, drop / 12));
+      ctx.placements.push({
+        id: `fall_${river.id}_${i}`,
+        prefab: "waterfall",
+        variant: vi,
+        category: "prop",
+        position: [p[0], wc, p[1]],
+        rotationY: dir,
+        scale,
+        layer: layerFor(ctx, p[0], p[1], false),
+        importance: 6,
+      });
+      lastFall = p;
+      i += 4;
+    }
+  }
+
+  // ---- flower beds in meadows / clearings (undergrowth pass is grass-heavy, beds add colour at a distance)
+  {
+    const cands = poissonDisk(ctx, rng, 30);
+    for (const [x, z] of cands) {
+      const biome = biomeAt(ctx, x, z);
+      if (biome !== "meadow" && biome !== "highlands" && biome !== "forest") continue;
+      if (isWaterAt(ctx, x, z) || slopeAtWorld(ctx, x, z) > 0.35 || ctx.roadDistance.sample(x, z) < 3) continue;
+      if (rng.next() > (biome === "meadow" ? 0.5 : 0.18) * (0.5 + style.vegetationDensity)) continue;
+      add("flower_patch", x, z, { importance: 2.4, margin: 0, scale: rng.float(0.8, 1.3) });
+    }
+  }
+
   // ---- village extras: dry-stone boundary walls, market stalls, lantern strings across the street
   if (sets.has("village")) {
     for (const site of ctx.sites) {
@@ -309,6 +363,20 @@ export function placeRocksAndProps(ctx: GenContext): void {
         if (ctx.roadDistance.sample(x, z) < 9 || ctx.waterDistance.sample(x, z) < 6 || slopeAtWorld(ctx, x, z) > 0.45) continue;
         if (rng.chance(inhabited ? 0.18 : 0.45)) continue;
         add("stone_wall", x, z, { rotationY: -a + Math.PI / 2, importance: 2.5, zone: site.id, margin: 0, sink: true });
+      }
+      // vegetable plots beside the houses of an inhabited settlement
+      if (inhabited) {
+        const houses = ctx.placements.filter((p) => p.zone === site.id && p.prefab === "cottage");
+        for (const hse of houses) {
+          if (!rng.chance(0.55)) continue;
+          const foot = (ctx.prefabs.cottage?.[hse.variant]?.footprintRadius ?? 12) * hse.scale;
+          const a = hse.rotationY + rng.pick([Math.PI / 2, -Math.PI / 2]) + rng.float(-0.3, 0.3);
+          const r = foot + 9;
+          const x = hse.position[0] + Math.sin(a) * r;
+          const z = hse.position[2] + Math.cos(a) * r;
+          if (slopeAtWorld(ctx, x, z) > 0.2) continue;
+          add("crop_plot", x, z, { rotationY: hse.rotationY, importance: 3, zone: site.id, margin: 0.5 });
+        }
       }
       // market stalls at the plaza edge, facing the centre
       const stalls = inhabited ? rng.int(1, 3) : rng.chance(0.4) ? 1 : 0;

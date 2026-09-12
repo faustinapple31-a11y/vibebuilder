@@ -406,3 +406,80 @@ export function lanternString(ctx: PrefabContext, variant: number): PrefabVarian
   }
   return b.build({ id: `lantern_string/${variant}`, prefab: "lantern_string", category: "prop", sinkDepth: 0.4, footprintRadius: len / 2, tags: ["village", "light"] });
 }
+
+
+/**
+ * Waterfall dressing for a steep river drop: translucent water sheet, foam at the foot, spray + mist.
+ * Local +Z is downstream (the sheet hangs from y=height at z≈0 down to the pool at y=0).
+ */
+export function waterfall(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const height = rng.float(8, 16);
+  const width = rng.float(8, 14);
+  const water = mixHex(style.palette.water, "#dff4ff", 0.55);
+  // sheet: slightly tilted forward so it reads as falling water
+  b.box([0, height / 2, 0], [width, height, 0.8], water, { material: "Glass", transparency: 0.35, rotation: [-6, 0, 0], collide: false, castShadow: false, lod: 2, reflectance: 0.2 });
+  b.box([0, height / 2, -0.5], [width * 0.6, height, 0.5], "#f3fbff", { material: "Neon", transparency: 0.7, rotation: [-6, 0, 0], collide: false, castShadow: false, lod: 1 });
+  // foam ring at the foot
+  b.cylinder([0, 0.3, 2.5], width * 1.1, 0.6, "#eef7ff", { material: "SmoothPlastic", transparency: 0.25, collide: false, castShadow: false, lod: 1 });
+  b.effect([0, 1.5, 2.5], [width * 1.2, 2, 6], { kind: "mist", color: "#e8f4ff", rate: 3 }, { lod: 1 });
+  b.effect([0, 2.5, 2], [width, 3, 3], { kind: "sparkle", color: "#ffffff", rate: 10 }, { lod: 1 });
+  // wet rocks at the sides
+  for (const sx of [-1, 1]) {
+    b.box([sx * (width / 2 + 1.2), 1.4, 0.5], [3, 3.2, 3], jitterHex(style.palette.stone, 0, -0.1, -0.15), { material: style.materials.rock, rotation: [jitter(rng, 10), rng.float(0, 360), jitter(rng, 10)], collide: true, lod: 1 });
+  }
+  return b.build({ id: `waterfall/${variant}`, prefab: "waterfall", category: "prop", sinkDepth: 0, footprintRadius: width / 2 + 2, baseRadius: 1, tags: ["water", "floating", "ambience"] });
+}
+
+/** Vegetable plot beside a cottage: tilled rows with leafy plants and a stick fence corner. */
+export function cropPlot(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const w = rng.float(9, 13);
+  const d = rng.float(7, 10);
+  const rows = rng.int(3, 4);
+  const soil = jitterHex("#5a4030", jitter(rng, 5), 0, jitter(rng, 0.05));
+  b.box([0, 0.1, 0], [w, 0.7, d], soil, { material: "Mud", collide: false, castShadow: false, lod: 2 });
+  const leaf = jitterHex(mixHex(style.palette.foliageAlt, "#7fb04a", 0.4), jitter(rng, 8), 0, jitter(rng, 0.06));
+  for (let r = 0; r < rows; r++) {
+    const z = -d / 2 + (r + 0.5) * (d / rows);
+    b.box([0, 0.45, z], [w - 1, 0.5, 1.2], jitterHex(soil, 0, 0, 0.08), { material: "Ground", collide: false, castShadow: false, lod: 1 });
+    const plants = Math.floor((w - 2) / 1.6);
+    for (let i = 0; i < plants; i++) {
+      const x = -w / 2 + 1.5 + i * 1.6;
+      const s = rng.float(0.7, 1.2);
+      b.box([x, 0.9 + s * 0.3, z], [s, s * 0.7, s], jitterHex(leaf, jitter(rng, 6), 0, jitter(rng, 0.06)), { material: style.materials.canopy, rotation: [0, rng.float(0, 90), 0], collide: false, castShadow: false, lod: i % 2 === 0 ? 1 : 0 });
+      if (rng.chance(0.25)) b.sphere([x, 1.0 + s * 0.6, z], 0.45, rng.pick(["#d9743a", "#c9a24a", "#b03a3a"]), { collide: false, castShadow: false, lod: 0 });
+    }
+  }
+  // stick fence along two sides
+  const wood = jitterHex(style.palette.wood, 0, 0, -0.05);
+  for (let i = 0; i <= 3; i++) b.box([-w / 2 + (i * w) / 3, 1.0, -d / 2 - 0.3], [0.35, 2.2, 0.35], wood, { material: style.materials.trunk, collide: false, lod: 0 });
+  b.box([0, 1.6, -d / 2 - 0.3], [w, 0.25, 0.25], wood, { material: style.materials.trunk, collide: false, lod: 0 });
+  for (let i = 0; i <= 2; i++) b.box([-w / 2 - 0.3, 1.0, -d / 2 + (i * d) / 2], [0.35, 2.2, 0.35], wood, { material: style.materials.trunk, collide: false, lod: 0 });
+  b.box([-w / 2 - 0.3, 1.6, 0], [0.25, 0.25, d], wood, { material: style.materials.trunk, collide: false, lod: 0 });
+  return b.build({ id: `crop_plot/${variant}`, prefab: "crop_plot", category: "prop", sinkDepth: 0.35, footprintRadius: Math.max(w, d) / 2 + 0.5, tags: ["village", "farm"] });
+}
+
+/** Dense flower patch for meadows and clearings (one placement = a whole bed). */
+export function flowerPatch(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const r = rng.float(3, 5);
+  const palette = [style.palette.accent, style.palette.glow, "#e8c46a", "#d96c8a", "#8fd0e8", "#f2f0e6"];
+  const main = rng.pick(palette);
+  const second = rng.pick(palette);
+  const n = rng.int(7, 11);
+  for (let i = 0; i < n; i++) {
+    const a = rng.float(0, Math.PI * 2);
+    const rr = Math.sqrt(rng.next()) * r;
+    const x = Math.cos(a) * rr;
+    const z = Math.sin(a) * rr;
+    const h = rng.float(0.9, 1.8);
+    b.box([x, h / 2 - 0.15, z], [0.18, h + 0.3, 0.18], style.palette.foliageAlt, { material: style.materials.canopy, collide: false, castShadow: false, lod: i < 4 ? 1 : 0 });
+    b.box([x, h + 0.15, z], [0.8, 0.35, 0.8], jitterHex(rng.chance(0.7) ? main : second, jitter(rng, 8), 0, jitter(rng, 0.08)), { rotation: [0, rng.float(0, 90), 0], collide: false, castShadow: false, lod: i < 4 ? 1 : 0 });
+  }
+  b.box([0, 0.25, 0], [r * 1.6, 0.5, r * 1.6], jitterHex(style.palette.foliageAlt, 0, 0.05, 0.08), { material: "Grass", rotation: [0, rng.float(0, 360), 0], collide: false, castShadow: false, lod: 2 });
+  return b.build({ id: `flower_patch/${variant}`, prefab: "flower_patch", category: "vegetation", sinkDepth: 0.3, footprintRadius: r, tags: ["undergrowth", "flower"] });
+}

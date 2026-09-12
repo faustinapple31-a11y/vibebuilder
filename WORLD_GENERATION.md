@@ -186,6 +186,9 @@ les données du bake précédent (régénération partielle).
 | Pas d'objets flottants | rochers, props, chemins et sous-bois sont **inclinés sur la normale du terrain** (`Placement.up`, sérialisé, appliqué par le viewer et le runtime Roblox) ; arbres inclinés à 30 % ; bâtiments/landmarks sur terrain aplani ; sinon Y = min du terrain sous le disque `baseRadius` (plafonné) − `sinkDepth` |
 | Pas de répétition évidente | ≥ 8 variantes par espèce, jitter échelle/rotation/teinte, pas de grille (Poisson-disk + bruit de cluster) |
 | Pas de terrain plat | garde-fou : si variance de hauteur < seuil, ajout de relief secondaire |
+| Falaises lisibles | strates : sur les pentes > 0,55 les hauteurs sont terrassées (pas de 6–10 studs, ondulés par du bruit) et mélangées selon la pente → falaises stratifiées stylisées, plats intacts |
+| Sol varié | matériaux : sous-bois terre/mousse (bruit fin), éboulis sur pentes moyennes, berges sable/boue, basalte/rock/slate sur les falaises, accotements de terre le long des routes, place du village pavée (cobblestone + anneau de terre battue) |
+| Terrain Roblox fidèle | voxels calibrés (biais d'une demi-voxel, échantillonnage au centre) + snap runtime par raycast — voir ROBLOX_PIPELINE §5 |
 
 ---
 
@@ -225,7 +228,9 @@ Chaque prefab est `(rng, style, params) => PartList` et produit N variantes au b
 | Végétation | `pine_tree` (cônes empilés), `round_tree` (grappes sur branches), `dead_tree` (tronc noueux, coudes), `willow`, `birch`, `giant_mushroom` (chapeau étagé, anneau lumineux, spores), `small_mushroom`, `bush`, `fern`, `grass`, `flower`, `log`, `cactus`, `palm` |
 | Rochers | `boulder`, `rock_cluster`, `stone`, `cliff_block`, `crystal_cluster` (éclats Neon + lumière + sparkle) |
 | Architecture | `cottage` (bardeaux, volets, porche, lanterne, cheminée + fumée), `ruin_wall`, `ruin_arch`, `watchtower` (brasero, drapeau), `well`, `bridge` (arc, garde-corps, lanternes), `fence`, `stone_path_slab` |
-| Props | `lantern_post`, `crate`, `barrel`, `bench`, `signpost`, `campfire` (braises + fumée), `cart_wheel`, `gravestone`, `wisp`, `tent`, `hay_bale`, `cart`, `firefly_swarm`, `mist_patch` |
+| Props | `lantern_post`, `crate`, `barrel`, `bench`, `signpost`, `campfire` (braises + fumée), `cart_wheel`, `gravestone`, `wisp`, `tent`, `hay_bale`, `cart`, `firefly_swarm`, `mist_patch`, `stone_wall` (anneau de murets autour du village, trous aux routes), `market_stall` (étals sur la place, villages habités), `lantern_string` (guirlandes de lanternes en travers des rues), `crop_plot` (potagers près des maisons habitées), `waterfall` (opt-in `props.sets: waterfalls`) |
+| Bord de l'eau | `reeds` (roseaux sur les berges), `lily_pad` (nénuphars au niveau de l'eau, jamais inclinés), `flower_patch` (massifs de fleurs dans les prairies/clairières) |
+| Eau | couleur, transparence, réflexion et vagues de `Workspace.Terrain` réglées par bake (`lighting.terrain`), nuit vs jour |
 | Landmarks | `giant_tree` (racines contreforts, branches + lanternes suspendues, spores), `ancient_ruins` (colonnes, linteaux, fûts tombés, cristal flottant, brume), `tower`, `portal` (runes, disque, sparkle), `statue`, `windmill`, `temple` (braseros) |
 
 Ambiance nocturne : lanternes tous les ~55 studs le long des routes hors village, nuées de lucioles dans les clairières

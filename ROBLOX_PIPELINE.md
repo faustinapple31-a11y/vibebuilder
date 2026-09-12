@@ -89,6 +89,20 @@ Statuts affichés : `● Build successful` / `● Build failed (N erreurs)`.
 
 ## 5. Terrain runtime
 
+**Calibration (mesurée dans Studio par raycast).** Le terrain lisse de Roblox affiche sa surface une demi-voxel
+(2 studs) *au-dessus* de `voxelBottom + occupancy × 4`. `TerrainBuilder` décale donc les hauteurs de
+`SURFACE_BIAS = 2` avant la voxelisation et échantillonne la heightmap au centre de chaque voxel (moyenne des
+4 cellules) : la surface rendue correspond à la heightmap à ±0,05 stud sur le plat. Sur les pentes raides le
+lissage peut encore dévier : `WorldBuilder` fait un raycast terrain (eau ignorée) au pivot de chaque modèle et
+applique l'écart mesuré entre la surface rendue et la heightmap, ce qui conserve l'intention du générateur
+(enfoncement, inclinaison, contact de la base) par rapport au sol *réel*. Avant ces corrections les modèles
+s'enfonçaient de 2 à 6 studs. Les prefabs `floating` (nénuphars) restent au niveau de l'eau.
+
+**Stabilité Studio.** Un bake de ~40 000 parts avec `Lighting.Technology = Future` et 800 PointLights a fait
+tomber le pilote GPU (`DXGI_ERROR_DEVICE_HUNG`, Studio se ferme). Par défaut : `ShadowMap` (option `technology`
+du bake), lumières réservées aux éléments qui comptent (~400), historique d'annulation désactivé pendant le bake.
+Studio est lancé détaché du job de l'app (un redémarrage de l'app ne le ferme plus).
+
 `WorldBuilder` (serveur) au démarrage :
 1. Décode `heights`/`materials`/`water`.
 2. `Terrain:FillBlock` pour le socle (sous `minHeight`).
