@@ -3,6 +3,7 @@ export * from "./math";
 export * from "./color";
 export * from "./ids";
 export * from "./partlist";
+export * from "./effects";
 export * from "./bake";
 export * from "./schemas/world-spec";
 export * from "./schemas/style-bible";

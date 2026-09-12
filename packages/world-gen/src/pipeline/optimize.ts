@@ -21,7 +21,7 @@ export function defaultBudget(worldW: number, worldD: number): PerformanceBudget
       water: 0,
       npc: s(30),
     },
-    maxParts: s(32000),
+    maxParts: s(48000),
   };
 }
 

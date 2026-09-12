@@ -61,6 +61,11 @@ export interface Placement {
   /** Y rotation in radians. */
   rotationY: number;
   scale: number;
+  /**
+   * Local up axis (unit vector) when the prefab conforms to the terrain slope; omitted = world up.
+   * The final rotation is alignUp(up) · Ry(rotationY), so the base sits flush on the ground.
+   */
+  up?: Vec3;
   layer: PlacementLayer;
   biome?: BiomeId;
   zone?: string;
@@ -277,7 +282,7 @@ export interface WorldBakeJSON {
     maxHeight: number;
   };
   prefabs: Record<string, PrefabVariant[]>;
-  /** Flat float32 buffer: [prefabIndex, variant, x, y, z, rotY, scale] per placement. */
+  /** Flat float32 buffer: [prefabIndex, variant, x, y, z, rotY, scale, upX, upZ] per placement (PLACEMENT_STRIDE floats). */
   placementsB64: string;
   placementCount: number;
   prefabIndex: string[];
@@ -290,14 +295,19 @@ export interface WorldBakeJSON {
   stats: BakeStats;
 }
 
+/** Floats per placement in the serialized buffer (see WorldBakeJSON.placementsB64). */
+export const PLACEMENT_STRIDE = 9;
+
 export function serializeBake(bake: WorldBake): WorldBakeJSON {
   const prefabIndex = Object.keys(bake.prefabs);
   const pIdx = new Map(prefabIndex.map((p, i) => [p, i]));
-  const buf = new Float32Array(bake.placements.length * 7);
+  const buf = new Float32Array(bake.placements.length * PLACEMENT_STRIDE);
   bake.placements.forEach((p, i) => {
-    const o = i * 7;
+    const o = i * PLACEMENT_STRIDE;
     buf[o] = pIdx.get(p.prefab) ?? 0;
     buf[o + 1] = p.variant;
+    buf[o + 7] = p.up ? p.up[0] : 0;
+    buf[o + 8] = p.up ? p.up[2] : 0;
     buf[o + 2] = p.position[0];
     buf[o + 3] = p.position[1];
     buf[o + 4] = p.position[2];
@@ -351,10 +361,16 @@ export function serializeBake(bake: WorldBake): WorldBakeJSON {
 export function deserializeBake(json: WorldBakeJSON): WorldBake {
   const placements: Placement[] = [];
   const buf = base64ToF32(json.placementsB64);
+  // older bakes were written with 7 floats per placement (no up vector)
+  const stride = buf.length >= json.placementCount * PLACEMENT_STRIDE ? PLACEMENT_STRIDE : 7;
   for (let i = 0; i < json.placementCount; i++) {
-    const o = i * 7;
+    const o = i * stride;
     const meta = json.placementMeta[i]!;
+    const ux = stride > 7 ? buf[o + 7]! : 0;
+    const uz = stride > 7 ? buf[o + 8]! : 0;
+    const up: Vec3 | undefined = ux !== 0 || uz !== 0 ? [ux, Math.sqrt(Math.max(0, 1 - ux * ux - uz * uz)), uz] : undefined;
     placements.push({
+      up,
       id: meta.id,
       prefab: json.prefabIndex[buf[o]!]!,
       variant: buf[o + 1]!,

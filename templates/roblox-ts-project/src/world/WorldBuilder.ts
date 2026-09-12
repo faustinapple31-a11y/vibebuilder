@@ -135,8 +135,9 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 		const buf = base64ToBuffer(bake.placementsB64);
 		const total = bake.placementCount;
 		const yieldEvery = options.yieldEvery ?? 150;
+		const stride = math.floor(buffer.len(buf) / 4 / math.max(1, total)) >= 9 ? 9 : 7;
 		for (let i = 0; i < total; i++) {
-			const o = i * 7;
+			const o = i * stride;
 			const prefabName = bake.prefabIndex[readF32(buf, o)];
 			const variantIndex = readF32(buf, o + 1);
 			const variants = bake.prefabs[prefabName];
@@ -148,7 +149,19 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 			const z = readF32(buf, o + 4);
 			const rotY = readF32(buf, o + 5);
 			const scale = readF32(buf, o + 6);
-			const cf = new CFrame(x, y, z).mul(CFrame.Angles(0, rotY, 0));
+			let cf = new CFrame(x, y, z);
+			if (stride >= 9) {
+				const ux = readF32(buf, o + 7);
+				const uz = readF32(buf, o + 8);
+				if (ux !== 0 || uz !== 0) {
+					// tilt the model so its local up follows the terrain normal
+					const up = new Vector3(ux, math.sqrt(math.max(0, 1 - ux * ux - uz * uz)), uz);
+					const axis = new Vector3(0, 1, 0).Cross(up);
+					const angle = math.acos(math.clamp(up.Y, -1, 1));
+					if (axis.Magnitude > 1e-5) cf = cf.mul(CFrame.fromAxisAngle(axis.Unit, angle));
+				}
+			}
+			cf = cf.mul(CFrame.Angles(0, rotY, 0));
 			const simple = meta?.layer === "background";
 			const model = cache.spawn(variant, cf, scale, simple, folderFor(meta?.category ?? variant.category));
 			model.Name = meta?.id ?? variant.id;

@@ -198,12 +198,21 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     return !(big && d < 36) && !(d < 8);
   });
 
-  // ---- snap everything to the final terrain (no floating objects)
+  // ---- snap everything to the final terrain (no floating objects) and conform small things to the slope
   for (const p of ctx.placements) {
     const v = ctx.prefabs[p.prefab]?.[p.variant];
     if (!v) continue;
     if (p.prefab === "bridge") continue;
-    p.position[1] = ctx.heights.sample(p.position[0], p.position[2]) - v.sinkDepth * p.scale;
+    const conform = conformFactor(p, v);
+    if (conform > 0) {
+      const n = terrainNormal(ctx, p.position[0], p.position[2], Math.max(2, (v.baseRadius ?? 2) * p.scale));
+      // blend between world up and the terrain normal (trees only lean a little with the slope)
+      const blended: [number, number, number] = [n[0] * conform, n[1] * conform + (1 - conform), n[2] * conform];
+      const len = Math.hypot(blended[0], blended[1], blended[2]) || 1;
+      const up: [number, number, number] = [blended[0] / len, blended[1] / len, blended[2] / len];
+      p.up = up[1] > 0.9995 ? undefined : up;
+    }
+    p.position[1] = groundHeightFor(ctx, v, p.position[0], p.position[2], p.scale, p.rotationY, conform);
   }
 
   // ---- optimize + stats
@@ -242,6 +251,54 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   };
   ctx.onProgress("done", 1);
   return bake;
+}
+
+/**
+ * Ground height for a prefab base: the terrain is sampled over the disk of parts that touch the
+ * ground (`baseRadius`), and the lowest sample wins so the whole base rests on or in the terrain on
+ * slopes — the uphill side sinks a little instead of the downhill side floating. The extra sink is
+ * capped relative to the prefab height so tall slim objects are never buried.
+ */
+export function groundHeightFor(ctx: GenContext, v: PrefabVariant, x: number, z: number, scale: number, rotationY: number, conform = 0): number {
+  const center = ctx.heights.sample(x, z);
+  const r = (v.baseRadius ?? Math.min(v.footprintRadius, 2)) * scale;
+  const sink = v.sinkDepth * scale;
+  // a prefab tilted onto the terrain normal already has its base flush with the slope
+  if (r < 1.5 || conform >= 0.99) return center - sink;
+  let min = center;
+  const rings = r > 8 ? 2 : 1;
+  for (let ring = 1; ring <= rings; ring++) {
+    const rr = (r * ring) / rings;
+    for (let i = 0; i < 8; i++) {
+      const a = rotationY + (i / 8) * Math.PI * 2;
+      const h = ctx.heights.sample(x + Math.cos(a) * rr, z + Math.sin(a) * rr);
+      if (h < min) min = h;
+    }
+  }
+  const height = Math.max(1, v.bounds.max[1]) * scale;
+  const maxExtra = Math.max(1.2, Math.min(height * 0.3, r * 0.9));
+  const drop = Math.min(center - min, maxExtra) * (1 - conform);
+  return center - drop - sink;
+}
+
+/** How much a placement follows the terrain normal: 1 = flush with the slope, 0 = always upright. */
+function conformFactor(p: Placement, v: PrefabVariant): number {
+  if (p.category === "building" || p.category === "landmark") return 0;
+  if (p.category === "rock" || p.category === "path") return 1;
+  if (p.category === "prop") return v.tags.includes("ambience") || v.tags.includes("glow") ? 0 : 1;
+  if (p.category === "vegetation") {
+    if (v.tags.includes("tree") || v.tags.includes("giant")) return 0.3;
+    return 0.85;
+  }
+  return 0;
+}
+
+/** Unit terrain normal at (x, z) from central differences over `r` studs. */
+function terrainNormal(ctx: GenContext, x: number, z: number, r: number): [number, number, number] {
+  const dx = (ctx.heights.sample(x + r, z) - ctx.heights.sample(x - r, z)) / (2 * r);
+  const dz = (ctx.heights.sample(x, z + r) - ctx.heights.sample(x, z - r)) / (2 * r);
+  const len = Math.hypot(dx, 1, dz);
+  return [-dx / len, 1 / len, -dz / len];
 }
 
 function restoreSites(ctx: GenContext, prev: WorldBake): void {
@@ -285,7 +342,7 @@ function addLandmarkPlacements(ctx: GenContext): void {
 export function requiredPrefabs(spec: WorldSpec): string[] {
   const ids = new Set<string>();
   for (const s of spec.vegetation.species) ids.add(SPECIES_PREFAB[s]);
-  for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone"]) ids.add(base);
+  for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone", "crystal_cluster", "wisp", "tent", "hay_bale", "cart", "firefly_swarm", "mist_patch"]) ids.add(base);
   for (const l of spec.landmarks) ids.add(LANDMARK_PREFAB[l.type].prefab);
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
 }

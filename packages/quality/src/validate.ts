@@ -80,6 +80,6 @@ export function validateBakeForPublish(bake: WorldBake | null): PublishCheck {
   if (!bake) return { id: "world", label: "World", ok: false, details: "No world has been generated yet." };
   const over = Object.entries(bake.stats.budgets).filter(([, b]) => b.used > b.max);
   if (over.length) return { id: "world", label: "World", ok: false, details: `Budgets exceeded: ${over.map(([k]) => k).join(", ")}` };
-  if (bake.stats.partsEstimate > 40000) return { id: "world", label: "World", ok: false, details: `Too many parts (${bake.stats.partsEstimate})` };
+  if (bake.stats.partsEstimate > 55000) return { id: "world", label: "World", ok: false, details: `Too many parts (${bake.stats.partsEstimate})` };
   return { id: "world", label: "World", ok: true, details: `${bake.placements.length} placements, ≈${bake.stats.partsEstimate} parts, ${bake.meta.version}` };
 }

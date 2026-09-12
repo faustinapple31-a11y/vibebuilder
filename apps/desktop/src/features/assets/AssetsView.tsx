@@ -169,14 +169,19 @@ export function AssetsView() {
 
 function VariantPreview({ variant }: { variant: PrefabVariant }) {
   const geo = useMemo(() => variantGeometry(variant, 0), [variant]);
-  const h = variant.bounds.max[1];
-  const r = Math.max(variant.footprintRadius, h * 0.6, 6);
+  const { min, max } = variant.bounds;
+  const extent = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2], 4);
+  const dist = extent * 1.7 + 6;
+  const r = Math.max(variant.footprintRadius, extent * 0.5, 4);
+  const target: [number, number, number] = [(min[0] + max[0]) / 2, Math.max(0, min[1]) + (max[1] - Math.max(0, min[1])) * 0.45, (min[2] + max[2]) / 2];
   return (
-    <Canvas camera={{ position: [r * 1.8, h * 0.7 + r * 0.6, r * 1.8], fov: 45, near: 0.5, far: 2000 }} gl={{ antialias: true }} onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace; }}>
-      <hemisphereLight args={["#ffffff", "#8899aa", 0.9]} />
-      <directionalLight position={[60, 120, 40]} intensity={1.4} castShadow />
+    <Canvas camera={{ position: [target[0] + dist * 0.75, target[1] + dist * 0.5, target[2] + dist * 0.75], fov: 42, near: 0.5, far: 4000 }} gl={{ antialias: true }} onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace; }}>
+      <hemisphereLight args={["#fff6e6", "#8a97ab", 1.6]} />
+      <directionalLight position={[60, 120, 40]} intensity={2.4} castShadow />
+      <directionalLight position={[-40, 30, -60]} intensity={0.7} color="#b8c8ff" />
+      <ambientLight intensity={0.35} />
       <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[r * 1.6, 32]} />
+        <circleGeometry args={[r * 1.8, 40]} />
         <meshStandardMaterial color={new THREE.Color(...hexToRgb("#5d7a55"))} />
       </mesh>
       {geo.opaque && (
@@ -189,7 +194,7 @@ function VariantPreview({ variant }: { variant: PrefabVariant }) {
           <meshBasicMaterial vertexColors toneMapped={false} />
         </mesh>
       )}
-      <OrbitControls target={[0, h / 2, 0]} autoRotate autoRotateSpeed={1.2} />
+      <OrbitControls target={target} autoRotate autoRotateSpeed={1.2} />
     </Canvas>
   );
 }

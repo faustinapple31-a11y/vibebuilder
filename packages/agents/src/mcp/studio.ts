@@ -221,6 +221,14 @@ if inst and not inst:IsA(${JSON.stringify(className)}) then
   inst:Destroy()
   inst = replacement
   inst.Parent = parent
+elseif inst then
+  -- \`require\` caches by instance in the edit VM: always replace the instance so the pushed Source is what gets loaded
+  local replacement = Instance.new(${JSON.stringify(className)})
+  replacement.Name = name
+  for _, c in ipairs(inst:GetChildren()) do c.Parent = replacement end
+  inst:Destroy()
+  inst = replacement
+  inst.Parent = parent
 elseif not inst then
   inst = Instance.new(${JSON.stringify(className)})
   inst.Name = name

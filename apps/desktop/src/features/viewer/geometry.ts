@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { TERRAIN_MATERIAL_COLORS, TERRAIN_MATERIALS, hexToRgb, type Part, type PrefabVariant, type TerrainData } from "@worldforge/core";
+import { EFFECT_PRESETS, GLOWING_EFFECTS, TERRAIN_MATERIAL_COLORS, TERRAIN_MATERIALS, hashString, hexToRgb, type Part, type PrefabVariant, type TerrainData } from "@worldforge/core";
 
 /** Unit primitives matching the PartList conventions (see packages/core/src/partlist.ts). */
 const unit = {
@@ -60,6 +60,8 @@ function makeCornerWedge(): THREE.BufferGeometry {
 export interface VariantGeometry {
   opaque: THREE.BufferGeometry | null;
   emissive: THREE.BufferGeometry | null;
+  /** The variant object the geometry was built from (a new bake produces new objects → rebuild). */
+  source?: PrefabVariant;
 }
 
 const cache = new Map<string, VariantGeometry>();
@@ -87,25 +89,62 @@ function partGeometry(p: Part): THREE.BufferGeometry {
   return g;
 }
 
+function effectMotes(p: Part, seed: number): THREE.BufferGeometry[] {
+  const preset = EFFECT_PRESETS[p.effect!.kind];
+  const color = p.effect!.color ?? preset.color;
+  const count = p.effect!.kind === "embers" ? 5 : 7;
+  let s = seed >>> 0 || 1;
+  const rnd = () => {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    return ((s >>> 0) % 10000) / 10000;
+  };
+  const out: THREE.BufferGeometry[] = [];
+  const size = Math.max(0.18, preset.size[1] * 0.9);
+  for (let i = 0; i < count; i++) {
+    const mote: Part = {
+      shape: "sphere",
+      position: [p.position[0] + (rnd() - 0.5) * p.size[0], p.position[1] + (rnd() - 0.5) * p.size[1], p.position[2] + (rnd() - 0.5) * p.size[2]],
+      rotation: [0, 0, 0],
+      size: [size, size, size],
+      color,
+      material: "Neon",
+    };
+    out.push(partGeometry(mote));
+  }
+  return out;
+}
+
 /** Merged geometry for a prefab variant at a LOD tier (0 = full, 1 = simple). */
 export function variantGeometry(variant: PrefabVariant, minLod = 0): VariantGeometry {
   const key = `${variant.id}#${minLod}`;
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit && hit.source === variant) return hit;
+  if (hit) {
+    // same id, different bake/style: drop the stale geometry
+    hit.opaque?.dispose();
+    hit.emissive?.dispose();
+    cache.delete(key);
+  }
   const opaqueParts: THREE.BufferGeometry[] = [];
   const emissiveParts: THREE.BufferGeometry[] = [];
-  for (const p of variant.parts) {
-    if ((p.lod ?? 0) < minLod) continue;
-    if ((p.transparency ?? 0) > 0.85) continue;
+  variant.parts.forEach((p, i) => {
+    if ((p.lod ?? 0) < minLod) return;
+    if (p.effect && GLOWING_EFFECTS.includes(p.effect.kind)) {
+      // static stand-ins for the Roblox particles: a few glowing motes inside the emitter volume
+      emissiveParts.push(...effectMotes(p, hashString(`${variant.id}#${i}`)));
+    }
+    if ((p.transparency ?? 0) > 0.85) return;
     (p.material === "Neon" ? emissiveParts : opaqueParts).push(partGeometry(p));
-  }
+  });
   const merge = (list: THREE.BufferGeometry[]) => {
     if (list.length === 0) return null;
     const merged = mergeGeometries(list, false);
     list.forEach((l) => l.dispose());
     return merged;
   };
-  const out = { opaque: merge(opaqueParts), emissive: merge(emissiveParts) };
+  const out: VariantGeometry = { opaque: merge(opaqueParts), emissive: merge(emissiveParts), source: variant };
   cache.set(key, out);
   return out;
 }

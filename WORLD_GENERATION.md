@@ -106,10 +106,22 @@ interface WorldBake {
 ### 1.4 PartList (format universel d'asset low-poly)
 
 Un prefab est une liste de primitives (`box | sphere | cylinder | wedge | cornerWedge`) avec CFrame relatif,
-taille, couleur, matériau, transparence, éventuelles lumières. Le même PartList est :
-- rendu dans le viewer Three.js (BufferGeometry fusionnée + InstancedMesh par variante),
+taille, couleur, matériau, transparence, éventuelles lumières et **effets de particules** (`fireflies`, `spores`,
+`embers`, `smoke`, `sparkle`, `mist` → `ParticleEmitter` Roblox avec textures intégrées `rbxasset://`). Le même PartList est :
+- rendu dans le viewer Three.js (BufferGeometry fusionnée + InstancedMesh par variante, motes émissifs pour les effets),
 - instancié dans Roblox (Parts natives, groupées dans un Model, clonées à partir d'un cache),
 - exporté en `.rbxmx` pour l'asset browser et l'insertion dans Studio.
+
+Conventions vérifiées dans Studio par raycast : rotation Euler XYZ = `CFrame.Angles` (Rx·Ry·Rz), `WedgePart` haut en +Z,
+`CornerWedgePart` sommet au coin (+X, −Z). Les couleurs `Neon` sont atténuées (`NEON_COLOR_SCALE`) côté Roblox pour
+que la teinte survive au bloom.
+
+**Construction connectée.** Le `PartListBuilder` place les primitives *entre deux points* (`segment`, `beam`, `chain`,
+`transform`) : troncs = chaînes de cylindres coniques, branches et racines partent d'un point du tronc, grappes de
+feuillage posées sur la pointe des branches, racines finissant sous le sol, cônes de conifères = vraies pyramides de
+4 `CornerWedgePart`. Aucune pièce n'est positionnée par une formule séparée de sa rotation : c'est ce qui éliminait
+les parts décalées ou flottantes des premières versions. Chaque variante expose `baseRadius` (rayon des pièces qui
+touchent le sol) et `bounds` exacts (coins tournés).
 
 Le "chunky low-poly" du style cible se marie naturellement avec les primitives Roblox.
 
@@ -166,7 +178,7 @@ les données du bake précédent (régénération partielle).
 | Les arbres évitent les chemins | distance min aux polylignes de route (SDF rasterisé) |
 | Pas de végétation dans les bâtiments | exclusion par bounding box + marge |
 | Les landmarks sont visibles | view corridors : raycast heightmap depuis spawn/village/routes ; repositionnement si occlusion |
-| Pas d'objets flottants | Y = hauteur terrain échantillonnée bilinéairement + enfoncement selon prefab (`sinkDepth`) |
+| Pas d'objets flottants | rochers, props, chemins et sous-bois sont **inclinés sur la normale du terrain** (`Placement.up`, sérialisé, appliqué par le viewer et le runtime Roblox) ; arbres inclinés à 30 % ; bâtiments/landmarks sur terrain aplani ; sinon Y = min du terrain sous le disque `baseRadius` (plafonné) − `sinkDepth` |
 | Pas de répétition évidente | ≥ 8 variantes par espèce, jitter échelle/rotation/teinte, pas de grille (Poisson-disk + bruit de cluster) |
 | Pas de terrain plat | garde-fou : si variance de hauteur < seuil, ajout de relief secondaire |
 
@@ -205,11 +217,14 @@ Chaque prefab est `(rng, style, params) => PartList` et produit N variantes au b
 
 | Catégorie | Prefabs |
 |---|---|
-| Végétation | `pine_tree`, `round_tree`, `dead_tree`, `giant_mushroom`, `small_mushroom`, `bush`, `fern`, `grass_tuft`, `flower`, `log` |
-| Rochers | `boulder`, `rock_cluster`, `stone` |
-| Architecture | `cottage`, `ruin_wall`, `ruin_arch`, `watchtower`, `well`, `bridge`, `fence`, `stone_path_slab` |
-| Props | `lantern_post`, `crate`, `barrel`, `bench`, `signpost` |
-| Landmarks | `giant_tree` (échelle ×3.5, racines), `ancient_ruins` (colonnes + arches), `tower` |
+| Végétation | `pine_tree` (cônes empilés), `round_tree` (grappes sur branches), `dead_tree` (tronc noueux, coudes), `willow`, `birch`, `giant_mushroom` (chapeau étagé, anneau lumineux, spores), `small_mushroom`, `bush`, `fern`, `grass`, `flower`, `log`, `cactus`, `palm` |
+| Rochers | `boulder`, `rock_cluster`, `stone`, `cliff_block`, `crystal_cluster` (éclats Neon + lumière + sparkle) |
+| Architecture | `cottage` (bardeaux, volets, porche, lanterne, cheminée + fumée), `ruin_wall`, `ruin_arch`, `watchtower` (brasero, drapeau), `well`, `bridge` (arc, garde-corps, lanternes), `fence`, `stone_path_slab` |
+| Props | `lantern_post`, `crate`, `barrel`, `bench`, `signpost`, `campfire` (braises + fumée), `cart_wheel`, `gravestone`, `wisp`, `tent`, `hay_bale`, `cart`, `firefly_swarm`, `mist_patch` |
+| Landmarks | `giant_tree` (racines contreforts, branches + lanternes suspendues, spores), `ancient_ruins` (colonnes, linteaux, fûts tombés, cristal flottant, brume), `tower`, `portal` (runes, disque, sparkle), `statue`, `windmill`, `temple` (braseros) |
+
+Ambiance nocturne : lanternes tous les ~55 studs le long des routes hors village, nuées de lucioles dans les clairières
+et près du spawn, nappes de brume dans les zones humides, feux follets autour des ruines et du cimetière.
 
 Règles de style (StyleBible) : taper des troncs, nombre de couches de canopée, jitter, palettes par espèce,
 matériaux, pitch des toits, weathering (planches manquantes, murs cassés).
@@ -238,7 +253,8 @@ Le "KEEP THIS AREA" verrouille tous les placements dans un polygone/cercle (`zon
 
 ## 9. Performance
 
-- Budgets par défaut (1024×1024) : végétation ≤ 2 200, rochers ≤ 450, props ≤ 500, bâtiments ≤ 40, total Parts ≤ 30 000.
+- Budgets par défaut (1024×1024) : végétation ≤ 3 200, rochers ≤ 450, props ≤ 500, bâtiments ≤ 40, total Parts ≤ 48 000
+  (estimation plein détail ; le fond est instancié en LOD 1 : ≈ 38 000 parts réels pour la démo).
 - Prefabs mis en cache dans `ReplicatedStorage.WorldAssets.Prefabs` et clonés (Instances partagées).
 - LOD : `full` (< 250 studs), `simple` (canopée 1 bloc, pas de détails), `silhouette` (> 600 studs, 1-2 blocs).
 - `StreamingEnabled = true`, `StreamingMinRadius/TargetRadius` selon la taille du monde.

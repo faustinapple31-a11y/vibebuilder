@@ -1,4 +1,5 @@
 import { hexToColor3 } from "./decode";
+import { NEON_COLOR_SCALE, makeEffect } from "./effects";
 import type { PartData, PrefabVariantData } from "./types";
 
 /**
@@ -38,7 +39,8 @@ function makePart(p: PartData): BasePart {
 	part.Name = p.name ?? p.shape;
 	part.Size = size;
 	part.CFrame = cf;
-	part.Color = hexToColor3(p.color);
+	const color = hexToColor3(p.color);
+	part.Color = p.material === "Neon" ? new Color3(color.R * NEON_COLOR_SCALE, color.G * NEON_COLOR_SCALE, color.B * NEON_COLOR_SCALE) : color;
 	part.Material = materialOf(p.material);
 	part.Anchored = true;
 	part.TopSurface = Enum.SurfaceType.Smooth;
@@ -58,6 +60,7 @@ function makePart(p: PartData): BasePart {
 		light.Shadows = false;
 		light.Parent = part;
 	}
+	if (p.effect) makeEffect(p.effect).Parent = part;
 	return part;
 }
 

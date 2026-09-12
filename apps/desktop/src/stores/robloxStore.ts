@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { newId, slugify } from "@worldforge/core";
 import { OpenCloudClient, OpenCloudError, type CloudTransport, type PlaceInfo, type UniverseInfo } from "@worldforge/roblox-cloud";
+import { runtimeTemplateFiles } from "@worldforge/roblox-export";
 import { parseRbxtscOutput, parseStudioLog, validateBakeForPublish, type DiagnosticEntry, type PublishCheck } from "@worldforge/quality";
 import { BAKE_WORLD_LUAU, StudioMcp, VERIFY_BAKE_JSON_LUAU, WORLD_STATS_LUAU, outFileToInstance, pushBakeChunkLuau, pushScriptLuau, type StudioInstance } from "@worldforge/agents";
 import { serializeBake } from "@worldforge/core";
@@ -331,7 +332,10 @@ export const useRoblox = create<RobloxState>((set, get) => ({
     if (!cur) return false;
     if (!(await get().installDeps())) return false;
     const t0 = Date.now();
-    set((s) => ({ build: { ...s.build, step: "compiling", log: [...s.build.log, "$ rbxtsc"], diagnostics: [] } }));
+    // keep the WorldForge runtime (world builder, prefab factory, effects) in sync with the app version
+    const runtime = runtimeTemplateFiles({ projectName: cur.row.name, projectId: cur.row.id, stylePreset: cur.meta.stylePreset });
+    await fs.writeFiles(cur.path, runtime.map((f) => [f.path, f.content]));
+    set((s) => ({ build: { ...s.build, step: "compiling", log: [...s.build.log, `runtime synced (${runtime.length} files)`, "$ rbxtsc"], diagnostics: [] } }));
     const lines: string[] = [];
     const rbxtsc = (await fs.exists(path.join(cur.path, "node_modules", ".bin", "rbxtsc.cmd"))) ? path.join(cur.path, "node_modules", ".bin", "rbxtsc.cmd") : (await fs.exists(path.join(cur.path, "node_modules", ".bin", "rbxtsc"))) ? path.join(cur.path, "node_modules", ".bin", "rbxtsc") : "rbxtsc";
     const code = await streamStep(`rbxtsc_${newId("", 6)}`, rbxtsc, [], cur.path, (l) => {

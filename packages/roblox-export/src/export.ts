@@ -25,6 +25,14 @@ export interface ScaffoldOptions {
  * Files for a brand-new project (roblox-ts + Rojo template + worldforge.json).
  * Pure function: callers write the files (Tauri fs / Node fs).
  */
+/** Prefixes of the WorldForge-owned runtime (safe to overwrite on every build; agents edit the other folders). */
+export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
+
+/** The engine runtime files of the template (world builder, decode, prefab factory, effects) for an existing project. */
+export function runtimeTemplateFiles(opts: ScaffoldOptions): ProjectFile[] {
+  return scaffoldProjectFiles(opts).filter((f) => RUNTIME_TEMPLATE_PREFIXES.some((p) => f.path.startsWith(p)));
+}
+
 export function scaffoldProjectFiles(opts: ScaffoldOptions): ProjectFile[] {
   const slug = slugify(opts.projectName);
   const now = opts.createdAt ?? new Date().toISOString();

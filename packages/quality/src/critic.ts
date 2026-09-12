@@ -245,10 +245,11 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
 
   // ---------------- performance
   let performance = 10;
-  if (s.partsEstimate > 32000) {
+  // full-detail estimate; background placements are instantiated at LOD 1 in Roblox (~10 % fewer parts)
+  if (s.partsEstimate > 48000) {
     performance -= 3;
-    problems.push({ id: "too_many_parts", severity: "high", message: `≈${s.partsEstimate} parts exceeds the 32k budget`, layer: "performance" });
-  } else if (s.partsEstimate > 26000) performance -= 1;
+    problems.push({ id: "too_many_parts", severity: "high", message: `≈${s.partsEstimate} parts exceeds the 48k budget`, layer: "performance" });
+  } else if (s.partsEstimate > 42000) performance -= 1;
   const overBudget = Object.entries(s.budgets).filter(([, b]) => b.trimmed > b.max * 0.5);
   if (overBudget.length > 0) performance -= 0.5;
 

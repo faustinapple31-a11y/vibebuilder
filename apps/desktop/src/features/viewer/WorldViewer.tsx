@@ -134,6 +134,10 @@ function Placements({ bake }: { bake: WorldBake }) {
 }
 
 const tmpObj = new THREE.Object3D();
+const tmpQuat = new THREE.Quaternion();
+const tmpAlign = new THREE.Quaternion();
+const tmpUp = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 
 function InstancedGroup({ bake, group }: { bake: WorldBake; group: Group }) {
   const variant = bake.prefabs[group.prefab]?.[group.variant];
@@ -147,7 +151,14 @@ function InstancedGroup({ bake, group }: { bake: WorldBake; group: Group }) {
       if (!mesh) continue;
       group.items.forEach((p, i) => {
         tmpObj.position.set(p.position[0], p.position[1], p.position[2]);
-        tmpObj.rotation.set(0, p.rotationY, 0);
+        // rotation = alignUp(terrain normal) · Ry(rotationY), same as the Roblox runtime
+        tmpQuat.setFromAxisAngle(UP, p.rotationY);
+        if (p.up) {
+          tmpUp.set(p.up[0], p.up[1], p.up[2]).normalize();
+          tmpAlign.setFromUnitVectors(UP, tmpUp);
+          tmpQuat.premultiply(tmpAlign);
+        }
+        tmpObj.quaternion.copy(tmpQuat);
         tmpObj.scale.setScalar(p.scale);
         tmpObj.updateMatrix();
         mesh.setMatrixAt(i, tmpObj.matrix);

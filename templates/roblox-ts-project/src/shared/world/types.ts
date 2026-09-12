@@ -11,6 +11,13 @@ export interface PartLight {
 	range: number;
 }
 
+export type PartEffectKind = "fireflies" | "spores" | "embers" | "smoke" | "sparkle" | "mist";
+export interface PartEffect {
+	kind: PartEffectKind;
+	color?: string;
+	rate?: number;
+}
+
 export interface PartData {
 	shape: PartShape;
 	position: [number, number, number];
@@ -23,6 +30,7 @@ export interface PartData {
 	castShadow?: boolean;
 	collide?: boolean;
 	light?: PartLight;
+	effect?: PartEffect;
 	name?: string;
 	lod?: number;
 }
@@ -35,6 +43,7 @@ export interface PrefabVariantData {
 	bounds: { min: [number, number, number]; max: [number, number, number] };
 	sinkDepth: number;
 	footprintRadius: number;
+	baseRadius?: number;
 	tags: string[];
 }
 

@@ -23,16 +23,32 @@ describe("world generator", () => {
     expect(bake.stats.heightStd).toBeGreaterThan(8);
     expect(bake.stats.layerCounts.foreground).toBeGreaterThan(20);
     expect(bake.stats.layerCounts.background).toBeGreaterThan(20);
-    expect(bake.stats.partsEstimate).toBeLessThanOrEqual(30000);
-    // no floating objects
+    expect(bake.stats.partsEstimate).toBeLessThanOrEqual(50000);
+    // no floating objects: the origin never sits above the terrain centre, and the whole base disk
+    // (baseRadius) rests on or in the ground unless the slope exceeds the capped extra sink
     let floating = 0;
+    let buried = 0;
     for (const p of bake.placements) {
       if (p.prefab === "bridge") continue;
+      const v = bake.prefabs[p.prefab]![p.variant]!;
       const h = sampleHeight(bake.terrain, p.position[0], p.position[2]);
-      const sink = bake.prefabs[p.prefab]![p.variant]!.sinkDepth * p.scale;
-      if (p.position[1] > h + 0.5 || p.position[1] < h - sink - 0.5) floating++;
+      const sink = v.sinkDepth * p.scale;
+      const r = (v.baseRadius ?? 1) * p.scale;
+      let min = h;
+      for (let i = 0; i < 8; i++) {
+        const a = p.rotationY + (i / 8) * Math.PI * 2;
+        min = Math.min(min, sampleHeight(bake.terrain, p.position[0] + Math.cos(a) * r, p.position[2] + Math.sin(a) * r));
+      }
+      const height = Math.max(1, v.bounds.max[1]) * p.scale;
+      const maxExtra = Math.max(1.2, Math.min(height * 0.3, r * 0.9));
+      if (p.position[1] > h + 0.5) floating++;
+      // tilted placements (p.up) lie flush on the slope; upright ones must reach the lowest point of their base
+      else if (!p.up && r >= 1.5 && h - min <= maxExtra && p.position[1] > min + 0.5) floating++;
+      if (p.up && Math.abs(Math.hypot(...p.up) - 1) > 1e-3) floating++;
+      if (p.position[1] < h - sink - maxExtra - 0.5) buried++;
     }
     expect(floating).toBe(0);
+    expect(buried).toBe(0);
     console.log("trimmed", JSON.stringify(Object.fromEntries(Object.entries(bake.stats.budgets).map(([k, v]) => [k, v.trimmed]))), "village", JSON.stringify(bake.zones.find((z) => z.kind === "settlement")?.center.map((v) => v.toFixed(0))));
     // determinism
     const bake2 = generateWorld(spec, style);

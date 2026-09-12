@@ -71,6 +71,12 @@ export function placeRocksAndProps(ctx: GenContext): void {
       continue;
     }
     if (rng.next() > d) continue;
+    // glowing crystal outcrops in the mystical biomes (style glow drives the chance)
+    const mystical = biome === "mushroom_grove" || biome === "dark_forest" || biome === "swamp" || biome === "rocky" || biome === "highlands";
+    if (style.mushroom.glow > 0.15 && mystical && rng.chance(0.14 + style.mushroom.glow * 0.2)) {
+      add("crystal_cluster", x, z, { scale: rng.float(0.8, 1.6), importance: 5.5 });
+      continue;
+    }
     const cluster = rng.chance(style.rock.clusterChance * 0.5);
     add(cluster ? "rock_cluster" : "boulder", x, z, { scale: rng.float(0.7, 1.5), importance: 4 + s });
   }
@@ -144,6 +150,17 @@ export function placeRocksAndProps(ctx: GenContext): void {
         const a = rng.float(0, Math.PI * 2);
         add("cart_wheel", site.center[0] + Math.cos(a) * site.radius * 0.5, site.center[1] + Math.sin(a) * site.radius * 0.5, { importance: 1, zone: site.id });
       }
+      // a cart and a few hay bales give the village a worked, lived-in look
+      if (rng.chance(0.8)) {
+        const a = rng.float(0, Math.PI * 2);
+        add("cart", site.center[0] + Math.cos(a) * site.radius * 0.45, site.center[1] + Math.sin(a) * site.radius * 0.45, { importance: 3.5, zone: site.id, margin: 1 });
+      }
+      const bales = Math.round(rng.float(2, 5) * density);
+      for (let i = 0; i < bales; i++) {
+        const a = rng.float(0, Math.PI * 2);
+        const r = site.radius * rng.float(0.5, 0.95);
+        add("hay_bale", site.center[0] + Math.cos(a) * r, site.center[1] + Math.sin(a) * r, { importance: 1.5, zone: site.id, margin: 0.5 });
+      }
     }
     // signposts at road junctions/ends
     for (const road of ctx.paths.filter((p) => p.kind === "road")) {
@@ -202,6 +219,21 @@ export function placeRocksAndProps(ctx: GenContext): void {
         const foot = ctx.prefabs[prefab]![last.variant]!.footprintRadius * last.scale;
         last.position[1] = flattenArea(ctx, [x, z], foot * 1.1, 0.85) - ctx.prefabs[prefab]![last.variant]!.sinkDepth * last.scale;
         ctx.occupants.push({ position: last.position, radius: foot, kind: "building" });
+        if (style.mushroom.glow > 0.2 && rng.chance(0.35)) {
+          const a = rng.float(0, Math.PI * 2);
+          add("wisp", x + Math.cos(a) * (foot + 3), z + Math.sin(a) * (foot + 3), { importance: 2.5, margin: 0 });
+        }
+      }
+    }
+    // wisps drifting around the ruin landmarks themselves
+    if (style.mushroom.glow > 0.2) {
+      for (const c of centers) {
+        const n = rng.int(2, 4);
+        for (let i = 0; i < n; i++) {
+          const a = rng.float(0, Math.PI * 2);
+          const r = rng.float(22, 40);
+          add("wisp", c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r, { importance: 2.5, margin: 0 });
+        }
       }
     }
   }
@@ -215,6 +247,12 @@ export function placeRocksAndProps(ctx: GenContext): void {
       if (ctx.roadDistance.sample(x, z) > 40 || ctx.roadDistance.sample(x, z) < 8) continue;
       if (!add("campfire", x, z, { importance: 5, margin: 3 })) continue;
       camps++;
+      const tents = rng.int(1, 2);
+      for (let i = 0; i < tents; i++) {
+        const a = rng.float(0, Math.PI * 2) + i * 2.2;
+        // the tent opening (+X) faces the fire
+        add("tent", x + Math.cos(a) * 13, z + Math.sin(a) * 13, { rotationY: -a + Math.PI, importance: 4, margin: 1 });
+      }
       for (let i = 0; i < 3; i++) {
         const a = rng.float(0, Math.PI * 2);
         add(rng.chance(0.5) ? "crate" : "log", x + Math.cos(a) * 7, z + Math.sin(a) * 7, { importance: 2 });
@@ -227,6 +265,52 @@ export function placeRocksAndProps(ctx: GenContext): void {
     const c: Vec2 = site ? [site.center[0] + site.radius * 1.3, site.center[1]] : [ctx.origin[0] + ctx.worldW * 0.6, ctx.origin[1] + ctx.worldD * 0.6];
     for (let i = 0; i < 12; i++) {
       add("gravestone", c[0] + rng.float(-20, 20), c[1] + rng.float(-16, 16), { importance: 3 });
+    }
+    if (style.mushroom.glow > 0.15) {
+      for (let i = 0; i < 3; i++) add("wisp", c[0] + rng.float(-18, 18), c[1] + rng.float(-14, 14), { importance: 2.5, margin: 0 });
+    }
+  }
+  // ---- ambience: lantern-lit main road at night, firefly swarms, ground mist
+  progress(ctx, "props:ambience", 0.85);
+  const night = spec.lighting.timeOfDay < 6 || spec.lighting.timeOfDay > 18.5;
+  const glow = style.mushroom.glow;
+  if (night && sets.has("village")) {
+    // lantern posts every ~55 studs along the roads outside settlements: the path reads at night
+    for (const road of ctx.paths.filter((p) => p.kind === "road")) {
+      let acc = 40;
+      let side = 1;
+      for (let i = 1; i < road.points.length; i++) {
+        const a = road.points[i - 1]!;
+        const b = road.points[i]!;
+        acc += Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (acc < 55) continue;
+        const inSite = ctx.sites.some((s) => Math.hypot(b[0] - s.center[0], b[1] - s.center[1]) < s.radius * 1.15);
+        if (inSite) continue;
+        acc = 0;
+        side = -side;
+        const nx = -(b[1] - a[1]);
+        const nz = b[0] - a[0];
+        const len = Math.hypot(nx, nz) || 1;
+        const off = road.width / 2 + 2;
+        const x = b[0] + (nx / len) * off * side;
+        const z = b[1] + (nz / len) * off * side;
+        if (slopeAtWorld(ctx, x, z) > 0.6) continue;
+        add("lantern_post", x, z, { rotationY: Math.atan2(-(z - b[1]), x - b[0]) + Math.PI, importance: 4.5, margin: 0, sink: true });
+      }
+    }
+  }
+  if (glow > 0.2 || night) {
+    const cands = poissonDisk(ctx, rng, 46);
+    for (const [x, z] of cands) {
+      if (distanceToEdge(ctx, x, z) < 60) continue;
+      const biome = biomeAt(ctx, x, z);
+      const wd = ctx.waterDistance.sample(x, z);
+      const wet = biome === "swamp" || biome === "mushroom_grove" || wd < 22;
+      const forest = biome === "dark_forest" || biome === "forest" || biome === "pine_forest" || biome === "mushroom_grove" || biome === "swamp" || biome === "meadow";
+      if (isWaterAt(ctx, x, z)) continue;
+      const nearSpawn = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]) < 90;
+      if (forest && rng.chance((glow > 0.2 ? 0.28 : 0.12) + (nearSpawn ? 0.3 : 0))) add("firefly_swarm", x, z, { importance: 1.8, margin: 0, sink: false });
+      else if (wet && spec.atmosphere.fogDensity > 0.25 && rng.chance(0.35)) add("mist_patch", x, z, { importance: 1.6, margin: 0, sink: false });
     }
   }
   progress(ctx, "props:done", 1);

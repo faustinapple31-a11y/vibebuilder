@@ -153,3 +153,9 @@ Studio, s'y connecte (`packages/agents/src/mcp/client.ts`, `studio.ts`) et expos
 | Génération 3D | `generate_mesh` | mesh IA de Roblox inséré dans la place (MeshProvider "studio") |
 
 Un seul client MCP peut être connecté à la fois ; les processus orphelins sont nettoyés au démarrage de l'app.
+
+`require()` met les ModuleScripts en cache par *instance* dans la VM d'édition : le sync remplace donc chaque
+Script/ModuleScript par une nouvelle instance (enfants déplacés) au lieu de réécrire `Source`, sinon un bake
+suivant utiliserait encore l'ancien runtime. À chaque `compile`, l'app resynchronise aussi les fichiers runtime du
+template (`src/shared/world/**`, `src/world/**`) dans le projet ; les dossiers gameplay/UI édités par les agents ne
+sont jamais touchés.
