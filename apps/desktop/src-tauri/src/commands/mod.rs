@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod capture;
 pub mod fs;
 pub mod opencloud;

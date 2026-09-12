@@ -19,6 +19,7 @@ export default defineConfig({
       "@worldforge/roblox-export": pkg("roblox-export"),
       "@worldforge/roblox-cloud": pkg("roblox-cloud"),
       "@worldforge/agents": pkg("agents"),
+      "@worldforge/ai-providers": pkg("ai-providers"),
     },
   },
   server: {

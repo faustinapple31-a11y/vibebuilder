@@ -32,6 +32,7 @@ interface RobloxState {
   playTest: (seconds?: number) => Promise<{ errors: DiagnosticEntry[]; output: string }>;
   captureViaMcp: (view?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number }) => Promise<string | null>;
   runLuau: (code: string, datamodel?: "Edit" | "Server" | "Client") => Promise<string>;
+  generateMeshInStudio: (prompt: string) => Promise<string>;
   refreshStudio: () => Promise<void>;
   installDeps: () => Promise<boolean>;
   compile: () => Promise<boolean>;
@@ -268,6 +269,18 @@ export const useRoblox = create<RobloxState>((set, get) => ({
       log(`[luau/${datamodel}] error: ${msg.slice(0, 2000)}`);
       return `error: ${msg}`;
     }
+  },
+
+  /** Roblox Studio's built-in AI mesh generator (inserts the mesh into the open place). */
+  async generateMeshInStudio(prompt) {
+    if (!(await get().connectMcp())) throw new Error("Studio MCP not available");
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) throw new Error("No Studio instance connected");
+    const log = (m: string) => set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), m] } }));
+    log(`generate_mesh: ${prompt.slice(0, 80)}…`);
+    const out = await studioMcp.generateMesh(prompt, { x: 12, y: 12, z: 12 }, 6000);
+    log(`generate_mesh → ${out.slice(0, 200)}`);
+    return out;
   },
 
   /** Screenshot through Studio's own capture (camera at the spawn looking at the village). */

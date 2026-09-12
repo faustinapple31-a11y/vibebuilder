@@ -45,6 +45,9 @@
       ],
       "@worldforge/agents/node": [
         "./packages/agents/src/node-runner.ts"
+      ],
+      "@worldforge/ai-providers": [
+        "./packages/ai-providers/src/index.ts"
       ]
     }
   }

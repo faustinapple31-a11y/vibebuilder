@@ -140,6 +140,11 @@ export const opencloud = {
   hasKey: () => invoke<boolean>("oc_has_key"),
 };
 
+export const ai = {
+  request: (req: { provider: string; method: string; url: string; json_body?: string; response?: "text" | "base64"; headers?: Record<string, string> }) => invoke<OcResponse>("ai_request", { req }),
+  hasKey: (provider: string) => invoke<boolean>("ai_has_key", { provider }),
+};
+
 export const capture = {
   listWindows: () => invoke<{ id: number; title: string; app_name: string; width: number; height: number }[]>("list_windows"),
   window: (titleContains: string | null, outPath: string) => invoke<CaptureResult>("capture_window", { titleContains, outPath }),

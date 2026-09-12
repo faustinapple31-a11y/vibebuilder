@@ -2,17 +2,42 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "types": ["vite/client", "node"],
+    "types": [
+      "vite/client",
+      "node"
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@worldforge/core": ["../../packages/core/src/index.ts"],
-      "@worldforge/world-gen": ["../../packages/world-gen/src/index.ts"],
-      "@worldforge/prefabs": ["../../packages/prefabs/src/index.ts"],
-      "@worldforge/quality": ["../../packages/quality/src/index.ts"],
-      "@worldforge/roblox-export": ["../../packages/roblox-export/src/index.ts"],
-      "@worldforge/roblox-cloud": ["../../packages/roblox-cloud/src/index.ts"],
-      "@worldforge/agents": ["../../packages/agents/src/index.ts"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@worldforge/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@worldforge/world-gen": [
+        "../../packages/world-gen/src/index.ts"
+      ],
+      "@worldforge/prefabs": [
+        "../../packages/prefabs/src/index.ts"
+      ],
+      "@worldforge/quality": [
+        "../../packages/quality/src/index.ts"
+      ],
+      "@worldforge/roblox-export": [
+        "../../packages/roblox-export/src/index.ts"
+      ],
+      "@worldforge/roblox-cloud": [
+        "../../packages/roblox-cloud/src/index.ts"
+      ],
+      "@worldforge/agents": [
+        "../../packages/agents/src/index.ts"
+      ],
+      "@worldforge/ai-providers": [
+        "../../packages/ai-providers/src/index.ts"
+      ]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": [
+    "src",
+    "vite.config.ts"
+  ]
 }

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useProjects } from "@/stores/projectStore";
 import { useWorld } from "@/stores/worldStore";
 import { variantGeometry } from "@/features/viewer/geometry";
+import { GeneratePanel } from "./GeneratePanel";
 
 const CATEGORIES: ("all" | PrefabCategory)[] = ["all", "vegetation", "rock", "building", "prop", "landmark", "path"];
 
@@ -158,6 +159,9 @@ export function AssetsView() {
             <div className="text-[11px] text-faint">The registry is designed for large open-source / licensed libraries (rbxmx, glb, Roblox asset ids); procedural prefabs ship by default and are always available offline.</div>
           </>
         )}
+        <div className="border-t border-line pt-3">
+          <GeneratePanel />
+        </div>
       </aside>
     </div>
   );

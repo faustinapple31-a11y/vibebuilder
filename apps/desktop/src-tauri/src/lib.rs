@@ -49,6 +49,9 @@ pub fn run() {
             // open cloud
             commands::opencloud::oc_request,
             commands::opencloud::oc_has_key,
+            // ai providers
+            commands::ai::ai_request,
+            commands::ai::ai_has_key,
             // capture
             commands::capture::list_windows,
             commands::capture::capture_window,

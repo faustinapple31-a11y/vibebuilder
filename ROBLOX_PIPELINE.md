@@ -136,3 +136,20 @@ BUILD → VALIDATE → PREVIEW → TEST → PUBLISH
 - ✓ Roblox connection : clé Open Cloud présente, universe/place accessibles
 
 Puis `PUBLISH` envoie le `.rbxl` et affiche `versionNumber` retourné.
+
+## 8. Bridge MCP Studio (implémenté)
+
+Roblox Studio embarque un serveur MCP (`StudioMCP.exe`, transport stdio). L'app le détecte à côté de l'exécutable
+Studio, s'y connecte (`packages/agents/src/mcp/client.ts`, `studio.ts`) et expose dans l'onglet Roblox :
+
+| Action | Outils MCP utilisés | Effet |
+|---|---|---|
+| Sync scripts | `execute_luau` | `out/**/*.luau` → Sources des Script/LocalScript/ModuleScript (arborescence de `default.project.json`), sans plugin Rojo |
+| Push bake | `execute_luau` | `assets/world/WorldBake.json` envoyé par chunks de 150 000 caractères dans `ReplicatedStorage.WorldAssets.WorldBakeJson` (StringValues) ; le runtime `loadBake()` le lit en priorité |
+| Bake world | `execute_luau` | `WorldBuilder.buildWorld` en mode édition : terrain voxel + ~3 700 modèles ; `Workspace.WorldPrebaked = true` |
+| Play-test | `start_stop_play`, `get_console_output` | 20 s de jeu, console parsée en diagnostics |
+| Screenshot | `execute_luau` (caméra) + `screen_capture` | PNG dans `qa/screens/` pour le critic visuel |
+| Luau console | `execute_luau` | snippets utilisateur (Edit/Server) |
+| Génération 3D | `generate_mesh` | mesh IA de Roblox inséré dans la place (MeshProvider "studio") |
+
+Un seul client MCP peut être connecté à la fois ; les processus orphelins sont nettoyés au démarrage de l'app.

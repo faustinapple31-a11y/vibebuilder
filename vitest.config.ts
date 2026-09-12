@@ -14,6 +14,7 @@ export default defineConfig({
       "@worldforge/roblox-cloud": pkg("roblox-cloud"),
       "@worldforge/agents/node": path.resolve(__dirname, "packages/agents/src/node-runner.ts"),
       "@worldforge/agents": pkg("agents"),
+      "@worldforge/ai-providers": pkg("ai-providers"),
     },
   },
   test: {
