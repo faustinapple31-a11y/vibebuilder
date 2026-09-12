@@ -125,6 +125,11 @@ touchent le sol) et `bounds` exacts (coins tournés).
 
 Le "chunky low-poly" du style cible se marie naturellement avec les primitives Roblox.
 
+**Hero meshes.** Une variante peut référencer un mesh externe haute qualité (`PrefabVariant.source`) : GLB local
+pour le viewer, asset Roblox `Model` pour le runtime, `nativeSize` pour l'ajuster aux `bounds`. Ces prefabs sont
+fournis au générateur via `GenerateOptions.customPrefabs` et repris d'un bake à l'autre ; leurs placements sont
+verrouillés et survivent aux régénérations (y compris complètes).
+
 ---
 
 ## 2. Pipeline

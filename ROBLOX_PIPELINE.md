@@ -116,6 +116,7 @@ Rust `oc_request` qui lit la clé dans le keyring et ajoute `x-api-key` — la c
 | Developer products | `GET/POST/PATCH https://apis.roblox.com/developer-products/v1/universes/{universeId}/developerproducts…` |
 | Game passes | `GET https://apis.roblox.com/game-passes/v1/…` (création : Creator Dashboard ; l'app ouvre le lien) |
 | Datastores (debug) | `https://apis.roblox.com/cloud/v2/universes/{u}/data-stores` |
+| Upload d'un asset (Hero 3D) | `POST https://apis.roblox.com/assets/v1/assets` (multipart : `request` JSON `{assetType:"Model", creationContext:{creator:{userId|groupId}}}` + `fileContent` .fbx) puis `GET /assets/v1/operations/{id}` jusqu'à `done` → `assetId` |
 
 Permissions requises sur la clé : `universe-places:write`, `universe.place:write`, `universe:read`,
 `universe.developer-product:*` selon les fonctions utilisées.
@@ -136,6 +137,14 @@ BUILD → VALIDATE → PREVIEW → TEST → PUBLISH
 - ✓ Roblox connection : clé Open Cloud présente, universe/place accessibles
 
 Puis `PUBLISH` envoie le `.rbxl` et affiche `versionNumber` retourné.
+
+### Hero 3D models dans la place
+
+Un prefab peut porter `source: { kind: "roblox_asset", assetId, glbPath, nativeSize }`. Au bake, `prefabFactory`
+tente `InsertService:LoadAsset(assetId)` (pcall) : le modèle chargé est ancré, mis à l'échelle pour que sa hauteur
+corresponde aux `bounds` du prefab, pivoté au centre-bas puis mis en cache comme les autres prefabs. En cas d'échec
+(asset non publié, place non associée à un créateur, hors ligne) les parts placeholder du PartList sont utilisées.
+Sur un serveur live, l'asset doit appartenir au créateur de l'expérience (c'est le cas : il est uploadé avec sa clé).
 
 ## 8. Bridge MCP Studio (implémenté)
 

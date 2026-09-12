@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { hexToRgb, sampleHeight, type Placement, type PrefabCategory, type WorldBake } from "@worldforge/core";
 import { useWorld, type ViewerLayer } from "@/stores/worldStore";
+import { useProjects } from "@/stores/projectStore";
+import { loadGlbScene } from "@/lib/meshAssets";
+import { path } from "@/lib/tauri";
 import { terrainGeometry, variantGeometry, waterGeometry } from "./geometry";
 
 const CATEGORY_LAYER: Record<PrefabCategory, ViewerLayer> = { vegetation: "vegetation", rock: "props", building: "buildings", prop: "props", landmark: "landmarks", path: "props", water: "water", npc: "props" };
@@ -126,9 +129,52 @@ function Placements({ bake }: { bake: WorldBake }) {
   }, [bake, layers]);
   return (
     <>
-      {groups.map((g) => (
-        <InstancedGroup key={g.key} bake={bake} group={g} />
-      ))}
+      {groups.map((g) => (bake.prefabs[g.prefab]?.[g.variant]?.source?.glbPath ? <MeshAssetGroup key={g.key} bake={bake} group={g} /> : <InstancedGroup key={g.key} bake={bake} group={g} />))}
+    </>
+  );
+}
+
+/** Hero meshes (AI-generated GLB): the real model, one clone per placement, fitted to the variant bounds. */
+function MeshAssetGroup({ bake, group }: { bake: WorldBake; group: Group }) {
+  const variant = bake.prefabs[group.prefab]?.[group.variant];
+  const projectPath = useProjects((s) => s.current?.path);
+  const select = useWorld((s) => s.select);
+  const [scene, setScene] = useState<THREE.Group | null>(null);
+  const glb = variant?.source?.glbPath;
+  useEffect(() => {
+    let alive = true;
+    setScene(null);
+    if (!glb || !projectPath) return;
+    loadGlbScene(path.join(projectPath, glb))
+      .then((g) => alive && setScene(g))
+      .catch((e) => console.warn("mesh asset load failed", glb, e));
+    return () => {
+      alive = false;
+    };
+  }, [glb, projectPath]);
+  if (!variant || !scene) return <InstancedGroup bake={bake} group={group} />;
+  // scale the raw mesh (glTF units) so its height matches the bounds in studs
+  const native = variant.source?.nativeSize ?? [1, 1, 1];
+  const fit = (variant.bounds.max[1] - Math.min(0, variant.bounds.min[1])) / Math.max(0.001, native[1]);
+  return (
+    <>
+      {group.items.map((p) => {
+        const q = new THREE.Quaternion().setFromAxisAngle(UP, p.rotationY);
+        if (p.up) q.premultiply(new THREE.Quaternion().setFromUnitVectors(UP, new THREE.Vector3(p.up[0], p.up[1], p.up[2]).normalize()));
+        return (
+          <primitive
+            key={p.id}
+            object={scene.clone()}
+            position={[p.position[0], p.position[1], p.position[2]]}
+            quaternion={q}
+            scale={fit * p.scale}
+            onClick={(e: ThreeEvent<MouseEvent>) => {
+              e.stopPropagation();
+              select(p.id);
+            }}
+          />
+        );
+      })}
     </>
   );
 }

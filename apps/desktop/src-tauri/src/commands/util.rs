@@ -120,6 +120,21 @@ pub fn command(program: &Path) -> Command {
     cmd
 }
 
+/// Command for a long-lived GUI application (Roblox Studio): detached from our process tree and job
+/// object, so a restart or crash of the app never takes the editor down with it.
+pub fn detached_command(program: &Path) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB);
+    }
+    cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    cmd
+}
+
 /// Run `program args...` and capture output (non-streaming).
 pub fn run_capture(program: &Path, args: &[&str], cwd: Option<&Path>, timeout_secs: u64) -> Result<(i32, String, String), String> {
     let mut cmd = command(program);

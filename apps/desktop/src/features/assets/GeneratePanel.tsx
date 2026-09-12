@@ -2,7 +2,7 @@ import { Box, Image as ImageIcon, Music, Sparkles, Volume2 } from "lucide-react"
 import { useState } from "react";
 import { AiProviderError } from "@worldforge/ai-providers";
 import { Button, Label, Select, Textarea } from "@/components/ui";
-import { elevenLabs, geminiImages, meshy, saveGeneratedAsset, type GenKind } from "@/lib/aiProviders";
+import { elevenLabs, geminiImages, saveGeneratedAsset, type GenKind } from "@/lib/aiProviders";
 import { fs } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/stores/projectStore";
@@ -57,22 +57,7 @@ export function GeneratePanel() {
         const text = await useRoblox.getState().generateMeshInStudio(prompt + styleHint);
         setResult({ kind, text });
       } else {
-        const job = await meshy.startMesh({ prompt: prompt + styleHint, artStyle: "stylized" });
-        let glb: string | undefined;
-        for (let i = 0; i < 120; i++) {
-          await new Promise((r) => setTimeout(r, 5000));
-          const st = await meshy.pollMesh(job.jobId);
-          setStatus(`Meshy: ${st.status} ${st.progress ?? 0}%`);
-          if (st.status === "done") {
-            glb = st.glbUrl;
-            break;
-          }
-          if (st.status === "failed") throw new Error(st.error ?? "Meshy generation failed");
-        }
-        if (!glb) throw new Error("Meshy timed out");
-        const file = await meshy.downloadMesh(glb);
-        const saved = await saveGeneratedAsset(project.path, project.row.id, "mesh", prompt, file, "meshy");
-        setResult({ kind, path: saved.path, text: `GLB saved to ${saved.path} — import it in Studio (Avatar/3D Importer) or drag it into the Asset Manager.` });
+        throw new Error("Textured high-quality models are generated from the Hero 3D panel above (Meshy → GLB/FBX → Roblox asset).");
       }
       setStatus(null);
     } catch (e) {
@@ -105,7 +90,7 @@ export function GeneratePanel() {
       {kind === "mesh" && (
         <Select value={meshProvider} onChange={(e) => setMeshProvider(e.target.value as "meshy" | "studio")} className="w-full">
           <option value="studio">Roblox Studio generator (MCP, free with your Roblox account)</option>
-          <option value="meshy">Meshy API (GLB file)</option>
+          <option value="meshy">Meshy · use the Hero 3D panel (textured, PBR, published to Roblox)</option>
         </Select>
       )}
       <Textarea rows={3} placeholder={kind === "image" ? "A glowing mushroom icon, flat stylized, transparent background" : kind === "mesh" ? "A twisted ancient tree stump with glowing roots" : kind === "sound" ? "Soft mushroom pickup pop with a magical sparkle" : "Mysterious ambient forest music, soft pads, slow tempo"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />

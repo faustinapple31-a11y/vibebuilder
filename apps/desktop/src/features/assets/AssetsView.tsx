@@ -14,6 +14,8 @@ import { useProjects } from "@/stores/projectStore";
 import { useWorld } from "@/stores/worldStore";
 import { variantGeometry } from "@/features/viewer/geometry";
 import { GeneratePanel } from "./GeneratePanel";
+import { HeroMeshPanel } from "./HeroMeshPanel";
+import { loadGlbScene, type MeshAssetRecord } from "@/lib/meshAssets";
 
 const CATEGORIES: ("all" | PrefabCategory)[] = ["all", "vegetation", "rock", "building", "prop", "landmark", "path"];
 
@@ -28,6 +30,7 @@ export function AssetsView() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [onlyFav, setOnlyFav] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [hero, setHero] = useState<MeshAssetRecord | null>(null);
 
   useEffect(() => {
     void settingsRepo.get<string[]>("favoriteAssets", []).then(setFavorites);
@@ -100,7 +103,12 @@ export function AssetsView() {
         </div>
       </aside>
       <div className="panel relative min-h-0 overflow-hidden bg-[#e8ecf1]">
-        {variant && <VariantPreview key={variant.id} variant={variant} />}
+        {hero ? <HeroPreview key={hero.id} record={hero} projectPath={project.path} /> : variant && <VariantPreview key={variant.id} variant={variant} />}
+        {hero && (
+          <div className="absolute left-3 top-3 rounded-md bg-panel/90 px-2 py-1 text-[11px]">
+            {hero.name} · GLB preview · {hero.triangles?.toLocaleString() ?? "?"} tris
+          </div>
+        )}
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-1">
           {variants.map((v, i) => (
             <button key={v.id} onClick={() => setVariantIdx(i)} className={cn("h-6 min-w-6 rounded-md border px-1.5 text-[11px]", i === variantIdx ? "border-brand bg-brand text-white" : "border-line bg-panel")}>
@@ -160,10 +168,50 @@ export function AssetsView() {
           </>
         )}
         <div className="border-t border-line pt-3">
+          <HeroMeshPanel selected={hero} onSelect={setHero} />
+        </div>
+        <div className="border-t border-line pt-3">
           <GeneratePanel />
         </div>
       </aside>
     </div>
+  );
+}
+
+/** Real GLB of a hero mesh (textures included), feet on the ground disc, framed by its height. */
+function HeroPreview({ record, projectPath }: { record: MeshAssetRecord; projectPath: string }) {
+  const [scene, setScene] = useState<THREE.Group | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadGlbScene(path.join(projectPath, record.glb))
+      .then((g) => alive && setScene(g))
+      .catch((e) => alive && setErr((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [record.glb, projectPath]);
+  if (err) return <div className="p-4 text-xs text-err">{err}</div>;
+  if (!scene) return <div className="p-4 text-xs text-muted">Loading model…</div>;
+  const fit = record.heightStuds / Math.max(0.001, record.nativeSize[1]);
+  const h = record.heightStuds;
+  const w = Math.max(record.nativeSize[0], record.nativeSize[2]) * fit;
+  const extent = Math.max(h, w, 4);
+  const dist = extent * 1.7 + 6;
+  const target: [number, number, number] = [0, h * 0.45, 0];
+  return (
+    <Canvas camera={{ position: [dist * 0.75, target[1] + dist * 0.5, dist * 0.75], fov: 42, near: 0.5, far: 4000 }} gl={{ antialias: true }} onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace; }}>
+      <hemisphereLight args={["#fff6e6", "#8a97ab", 1.4]} />
+      <directionalLight position={[60, 120, 40]} intensity={2.2} castShadow />
+      <directionalLight position={[-40, 30, -60]} intensity={0.6} color="#b8c8ff" />
+      <ambientLight intensity={0.3} />
+      <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <circleGeometry args={[Math.max(w, 6) * 1.2, 40]} />
+        <meshStandardMaterial color={new THREE.Color(...hexToRgb("#5d7a55"))} />
+      </mesh>
+      <primitive object={scene} scale={fit} />
+      <OrbitControls target={target} autoRotate autoRotateSpeed={1.2} />
+    </Canvas>
   );
 }
 

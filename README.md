@@ -17,7 +17,7 @@ officiels installés sur la machine (Claude Code, Codex, OpenCode, Gemini CLI, A
 | **Swarm** | Panneaux d'agents (nombre libre, modèle + effort + rôle + permissions par agent), composer "décris ton idée", orchestrateur multi-rôles (design → world → assets → gameplay → UI → audio → intégration), validation par schéma + retry, régénération automatique du monde quand un agent modifie la WorldSpec |
 | **AI Workshop** | Prompt → WorldSpec (interpréteur local instantané ou agent IA), image de référence → StyleBible (palette locale + agent vision), presets de style, sliders (terrain, végétation, bâtiments, props, fog, lighting, couleur, densité, échelle, randomness), GENERATE / REGENERATE par couche, locks |
 | **World** | Viewer 3D Three.js (orbit / fly / top / first-person), calques, wireframe, couleurs de biomes, sélection + lock / keep area, versions (restore), rapport du Visual Quality Critic + auto-fix, éditeur de WorldSpec |
-| **Assets** | Registre de prefabs procéduraux (40 prefabs, ~250 variantes par monde), preview 3D, favoris, placement dans le monde, export `.rbxmx`, génération IA (Gemini image, Meshy 3D, Roblox Studio 3D via MCP, ElevenLabs SFX/musique) |
+| **Assets** | Registre de prefabs procéduraux (50 prefabs, ~280 variantes par monde), preview 3D, favoris, placement dans le monde, export `.rbxmx`, **Hero 3D models** (texte ou image → mesh texturé PBR haute qualité, GLB + FBX, publié comme asset Roblox, placé dans le monde), génération IA (Gemini image, Roblox Studio 3D via MCP, ElevenLabs SFX/musique) |
 | **Roblox** | Build (`npm install` → `rbxtsc` → `rojo build`), erreurs TS parsées, Open in Studio, `rojo serve` + plugin, **bridge MCP Studio** (deploy scripts + bake du monde dans la place, play-test automatisé, console, screenshot, console Luau), Open Cloud (universe/place, publish/save version, dashboards), validation avant publication, **QA loop** (build → test → observe → critique → fix) |
 | **Settings** | Providers (défaut, modèle, effort), mode de permission, runtime, clés dans le secure storage OS, QA loop |
 
@@ -40,9 +40,22 @@ s'y connecte (stdio, JSON-RPC) et peut alors : synchroniser les scripts compilé
 monde dans la place (terrain voxel + prefabs), lancer un play-test, lire la console, capturer l'écran — la base de la
 QA loop et du critic visuel.
 
+### Modèles 3D haute qualité (Hero models)
+
+Onglet *Assets → Hero 3D models* : un prompt (ou une image de référence) → Meshy génère la géométrie puis les
+textures PBR (étapes preview → refine, image-to-3D), remaillage au polycount choisi → GLB (viewer) + FBX + vignette
+dans `assets/models/` → *Publish to Roblox* envoie le FBX à l'**Assets API** Open Cloud (asset `Model`, scopes
+`asset:read` + `asset:write`, creator id renseigné dans l'onglet Roblox) → l'asset id est mémorisé → *Place in world*
+insère le modèle comme n'importe quel prefab (placement verrouillé, incliné sur le terrain, conservé à la
+régénération). Dans le jeu, `WorldBuilder` fait `InsertService:LoadAsset(id)`, redimensionne le modèle à la hauteur
+choisie et le pose au sol ; sans asset id (ou hors ligne) un placeholder gris prend sa place. *Insert in Studio*
+pose le modèle devant la caméra via MCP. `Import GLB` (+ `.fbx` à côté) enregistre un modèle venu d'un autre outil.
+Clés : Meshy dans *Settings → Keys* ; le modèle est aussi visible dans le viewer 3D avec ses textures.
+
 ### Open Cloud
 
-Créer une clé API sur create.roblox.com (scopes `universe-places:write`, `universe:read`), la coller dans
+Créer une clé API sur create.roblox.com (scopes `universe-places:write`, `universe:read`, et `asset:read` /
+`asset:write` pour les Hero models), la coller dans
 *Settings → Keys* (Credential Manager / Keychain), renseigner universe id + place id dans l'onglet Roblox, puis
 *Validate* et *Publish*.
 

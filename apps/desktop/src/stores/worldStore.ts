@@ -4,8 +4,12 @@ import {
   WorldSpecSchema,
   deserializeBake,
   getStylePreset,
+  newId,
   nextVersion,
+  sampleHeight,
   slugify,
+  type Placement,
+  type PrefabVariant,
   type QAReport,
   type StyleBible,
   type WorldBake,
@@ -18,6 +22,7 @@ import { exportWorldFiles } from "@worldforge/roblox-export";
 import { applyFixes } from "@worldforge/quality";
 import { versionsRepo, type WorldVersionRow } from "@/lib/db";
 import { readJsonFile } from "@/lib/files";
+import { listMeshAssets, meshAssetPrefabId, meshAssetToVariant, type MeshAssetRecord } from "@/lib/meshAssets";
 import { fs, path } from "@/lib/tauri";
 import { generateInWorker } from "@/lib/worldGen";
 import { useProjects } from "./projectStore";
@@ -41,8 +46,14 @@ interface WorldState {
   wireframe: boolean;
   biomeColors: boolean;
   selectedPlacementId: string | null;
+  /** AI-generated / imported hero meshes of the project, as prefab variants (merged into every bake). */
+  meshAssets: MeshAssetRecord[];
+  customPrefabs: Record<string, PrefabVariant[]>;
   // actions
   loadForProject: () => Promise<void>;
+  refreshMeshAssets: () => Promise<MeshAssetRecord[]>;
+  /** Places a hero mesh near the selection (or the spawn) as a locked placement. */
+  placeMeshAsset: (record: MeshAssetRecord, at?: [number, number]) => string | null;
   setSpec: (spec: WorldSpec, opts?: { dirty?: boolean }) => void;
   patchSpec: (patch: Partial<WorldSpec>) => void;
   setStyle: (style: StyleBible) => void;
@@ -88,6 +99,8 @@ export const useWorld = create<WorldState>((set, get) => ({
   wireframe: false,
   biomeColors: false,
   selectedPlacementId: null,
+  meshAssets: [],
+  customPrefabs: {},
 
   async loadForProject() {
     const cur = useProjects.getState().current;
@@ -103,6 +116,45 @@ export const useWorld = create<WorldState>((set, get) => ({
     const report = await readJsonFile<QAReport>(path.join(cur.path, "qa", "report.json"));
     const versions = await versionsRepo.list(cur.row.id, worldId);
     set({ spec, style, bake, report, versions, error: null, dirty: false, selectedPlacementId: null });
+    await get().refreshMeshAssets();
+  },
+
+  async refreshMeshAssets() {
+    const cur = useProjects.getState().current;
+    if (!cur) return [];
+    const meshAssets = await listMeshAssets(cur.path);
+    const customPrefabs: Record<string, PrefabVariant[]> = {};
+    for (const r of meshAssets) customPrefabs[meshAssetPrefabId(r)] = [meshAssetToVariant(r)];
+    // refresh the variants already embedded in the current bake (asset id after publishing, new height…)
+    const bake = get().bake;
+    if (bake) {
+      const prefabs = { ...bake.prefabs };
+      let changed = false;
+      for (const [id, vs] of Object.entries(customPrefabs)) {
+        if (prefabs[id] && JSON.stringify(prefabs[id]) !== JSON.stringify(vs)) {
+          prefabs[id] = vs;
+          changed = true;
+        }
+      }
+      if (changed) set({ bake: { ...bake, prefabs } });
+    }
+    set({ meshAssets, customPrefabs });
+    return meshAssets;
+  },
+
+  placeMeshAsset(record, at) {
+    const bake = get().bake;
+    if (!bake) return null;
+    const variant = meshAssetToVariant(record);
+    const sel = get().selectedPlacementId;
+    const near = sel ? bake.placements.find((p) => p.id === sel) : null;
+    const x = at ? at[0] : (near?.position[0] ?? bake.spawn.position[0]) + 10;
+    const z = at ? at[1] : (near?.position[2] ?? bake.spawn.position[2]) + 6;
+    const y = sampleHeight(bake.terrain, x, z) - variant.sinkDepth;
+    const placement: Placement = { id: newId("hero", 6), prefab: variant.prefab, variant: 0, category: variant.category, position: [x, y, z], rotationY: 0, scale: 1, layer: "foreground", locked: true, importance: 10 };
+    const prefabs = { ...bake.prefabs, [variant.prefab]: [variant] };
+    set({ bake: { ...bake, prefabs, placements: [...bake.placements, placement] }, selectedPlacementId: placement.id, dirty: true });
+    return placement.id;
   },
 
   setSpec(spec, opts = {}) {
@@ -137,7 +189,8 @@ export const useWorld = create<WorldState>((set, get) => ({
       const { bake, report } = await generateInWorker(
         specToUse,
         style,
-        { previous: opts.layers ? previous : undefined, regenerate: opts.layers, seedOverride: opts.layers ? seedOverride : undefined, version },
+        // previous is always passed: locked placements (manual inserts, hero meshes) and external mesh prefabs survive
+        { previous, regenerate: opts.layers, seedOverride: opts.layers ? seedOverride : undefined, version, customPrefabs: get().customPrefabs },
         (stage, p) => set({ progress: { stage, p } }),
       );
       // persist to the project

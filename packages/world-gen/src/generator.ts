@@ -101,8 +101,14 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   ctx.waterDistance.data.fill(400);
   ctx.water.data.fill(NaN);
 
-  // ---- prefab library (always rebuilt: cheap and style-dependent)
+  // ---- prefab library (always rebuilt: cheap and style-dependent) + external mesh assets
   ctx.prefabs = buildPrefabLibrary(requiredPrefabs(spec), style, deriveSeed(seed, "prefabs"), ctx.variantCounts);
+  for (const [id, variants] of Object.entries(options.customPrefabs ?? {})) if (variants.length > 0) ctx.prefabs[id] = variants;
+  if (compatiblePrevious) {
+    for (const [id, variants] of Object.entries(compatiblePrevious.prefabs)) {
+      if (!ctx.prefabs[id] && variants[0]?.source) ctx.prefabs[id] = variants;
+    }
+  }
 
   // ---- terrain
   if (regenerate.has("terrain") || !compatiblePrevious) {
@@ -183,6 +189,15 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     placeRocksAndProps(ctx);
   } else {
     for (const p of compatiblePrevious.placements) if (p.category === "rock" || p.category === "prop" || p.category === "path") ctx.placements.push({ ...p });
+  }
+
+  // ---- locked placements survive the regeneration of their layer (manual inserts, hero meshes)
+  if (compatiblePrevious) {
+    const have = new Set(ctx.placements.map((p) => p.id));
+    for (const p of compatiblePrevious.placements) {
+      if (!p.locked || have.has(p.id) || !ctx.prefabs[p.prefab]?.[p.variant]) continue;
+      ctx.placements.push({ ...p, position: [p.position[0], p.position[1], p.position[2]] });
+    }
   }
 
   // ---- lighting

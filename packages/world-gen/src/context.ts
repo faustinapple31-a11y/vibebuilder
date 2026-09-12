@@ -20,6 +20,8 @@ export type GenLayer = "terrain" | "water" | "roads" | "landmarks" | "buildings"
 export const GEN_LAYERS: GenLayer[] = ["terrain", "water", "roads", "landmarks", "buildings", "vegetation", "props", "lighting"];
 
 export interface GenerateOptions {
+  /** Extra prefab variants (AI-generated hero meshes, imports) merged into the library; kept across regenerations. */
+  customPrefabs?: Record<string, PrefabVariant[]>;
   /** Previous bake for partial regeneration. */
   previous?: WorldBake;
   /** Layers to regenerate. Default: all unlocked layers (or all when no previous bake). */

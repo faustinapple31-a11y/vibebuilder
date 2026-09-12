@@ -16,6 +16,9 @@ export const ProjectMetaSchema = z.object({
     .object({
       universeId: z.number().int().optional(),
       placeId: z.number().int().optional(),
+      /** Owner of uploaded assets (Assets API): the user id or the group id the Open Cloud key belongs to. */
+      creatorUserId: z.number().int().optional(),
+      creatorGroupId: z.number().int().optional(),
       lastPublishedVersion: z.number().int().optional(),
       lastPublishedAt: z.string().optional(),
     })

@@ -131,6 +131,26 @@ export interface Part {
 
 export type PrefabCategory = "vegetation" | "rock" | "building" | "prop" | "landmark" | "path" | "water" | "npc";
 
+/**
+ * External high-quality mesh behind a prefab (AI-generated or imported). The PartList of such a
+ * variant is only a placeholder (used when the asset cannot be loaded); the runtime spawns the real
+ * Roblox Model asset and the viewer renders the local GLB.
+ */
+export interface PrefabMeshSource {
+  kind: "roblox_asset";
+  /** Roblox Model asset id (uploaded through Open Cloud) — spawned with InsertService:LoadAsset. */
+  assetId?: number;
+  /** Project-relative GLB for the viewer / preview. */
+  glbPath?: string;
+  /** Project-relative FBX (what was uploaded to Roblox). */
+  fbxPath?: string;
+  thumbnailPath?: string;
+  provider: string;
+  prompt: string;
+  /** Size of the raw mesh in its own units, before fitting to `bounds`. */
+  nativeSize?: Vec3;
+}
+
 export interface PrefabVariant {
   /** e.g. "pine_tree/03" */
   id: string;
@@ -150,6 +170,7 @@ export interface PrefabVariant {
    */
   baseRadius?: number;
   tags: string[];
+  source?: PrefabMeshSource;
 }
 
 /** Row-major 3×3 rotation matrix. */

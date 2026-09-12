@@ -3,7 +3,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 
 use super::tools::{studio_executable, studio_plugins_dir};
-use super::util::{command, find_tool, run_capture};
+use super::util::{command, detached_command, find_tool, run_capture};
 
 #[derive(Serialize)]
 pub struct StudioInfo {
@@ -63,16 +63,35 @@ pub fn open_place_in_studio(place_path: String) -> Result<u32, String> {
     if !place.exists() {
         return Err(format!("place file not found: {place_path}"));
     }
-    let child = command(&exe).arg(&place).spawn().map_err(|e| e.to_string())?;
-    Ok(child.id())
+    let child = spawn_detached(&exe, Some(&place))?;
+    Ok(child)
 }
 
 /// Launch Roblox Studio without a place.
 #[tauri::command]
 pub fn launch_studio() -> Result<u32, String> {
     let exe = studio_executable().ok_or("Roblox Studio is not installed")?;
-    let child = command(&exe).spawn().map_err(|e| e.to_string())?;
-    Ok(child.id())
+    spawn_detached(&exe, None)
+}
+
+/// Studio must outlive the app (dev restarts, crashes): try to break away from our job object first,
+/// fall back to a plain detached spawn when the job forbids breakaway.
+fn spawn_detached(exe: &PathBuf, arg: Option<&PathBuf>) -> Result<u32, String> {
+    let mut cmd = detached_command(exe);
+    if let Some(a) = arg {
+        cmd.arg(a);
+    }
+    match cmd.spawn() {
+        Ok(child) => Ok(child.id()),
+        Err(_) => {
+            let mut fallback = command(exe);
+            if let Some(a) = arg {
+                fallback.arg(a);
+            }
+            let child = fallback.spawn().map_err(|e| e.to_string())?;
+            Ok(child.id())
+        }
+    }
 }
 
 /// Install the Rojo Studio plugin via `rojo plugin install`.

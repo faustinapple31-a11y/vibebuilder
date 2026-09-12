@@ -17,6 +17,8 @@ export function RobloxView() {
   const bake = useWorld((s) => s.bake);
   const [universeId, setUniverseId] = useState(String(project.meta.roblox.universeId ?? ""));
   const [placeId, setPlaceId] = useState(String(project.meta.roblox.placeId ?? ""));
+  const [creatorUserId, setCreatorUserId] = useState(String(project.meta.roblox.creatorUserId ?? ""));
+  const [creatorGroupId, setCreatorGroupId] = useState(String(project.meta.roblox.creatorGroupId ?? ""));
   const [tab, setTab] = useState<"build" | "logs" | "qa">("build");
   const [luau, setLuau] = useState("print(\"hello from WorldForge\")\nreturn workspace:GetAttribute(\"WorldReady\")");
 
@@ -26,7 +28,15 @@ export function RobloxView() {
   }, []);
 
   const saveIds = async () => {
-    await updateMeta({ roblox: { ...project.meta.roblox, universeId: universeId ? Number(universeId) : undefined, placeId: placeId ? Number(placeId) : undefined } });
+    await updateMeta({
+      roblox: {
+        ...project.meta.roblox,
+        universeId: universeId ? Number(universeId) : undefined,
+        placeId: placeId ? Number(placeId) : undefined,
+        creatorUserId: creatorUserId ? Number(creatorUserId) : undefined,
+        creatorGroupId: creatorGroupId ? Number(creatorGroupId) : undefined,
+      },
+    });
     await r.refreshCloud();
   };
   const busy = r.build.step === "installing" || r.build.step === "compiling" || r.build.step === "building";
@@ -106,7 +116,16 @@ export function RobloxView() {
                 <Label>Place id</Label>
                 <Input value={placeId} onChange={(e) => setPlaceId(e.target.value.replace(/\D/g, ""))} placeholder="987654321" />
               </div>
+              <div>
+                <Label hint="asset uploads">Creator user id</Label>
+                <Input value={creatorUserId} onChange={(e) => setCreatorUserId(e.target.value.replace(/\D/g, ""))} placeholder="your Roblox user id" />
+              </div>
+              <div>
+                <Label hint="or group">Creator group id</Label>
+                <Input value={creatorGroupId} onChange={(e) => setCreatorGroupId(e.target.value.replace(/\D/g, ""))} placeholder="optional" />
+              </div>
             </div>
+            <div className="text-[11px] text-faint">Hero 3D models are uploaded as Model assets with the Assets API (`asset:read`/`asset:write` scopes) under this creator — the owner of the API key.</div>
             <div className="flex gap-1.5">
               <Button size="sm" variant="outline" onClick={() => void saveIds()}>
                 Save & check

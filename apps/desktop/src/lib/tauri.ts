@@ -136,7 +136,7 @@ export const studio = {
 };
 
 export const opencloud = {
-  request: (req: { method: string; url: string; json_body?: string; body_file?: string; content_type?: string; headers?: Record<string, string> }) => invoke<OcResponse>("oc_request", { req }),
+  request: (req: { method: string; url: string; json_body?: string; body_file?: string; content_type?: string; headers?: Record<string, string>; multipart?: { name: string; text?: string; file_path?: string; file_name?: string; content_type?: string }[] }) => invoke<OcResponse>("oc_request", { req }),
   hasKey: () => invoke<boolean>("oc_has_key"),
 };
 

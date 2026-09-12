@@ -17,6 +17,17 @@ pub struct OcRequest {
     pub content_type: Option<String>,
     #[serde(default)]
     pub headers: HashMap<String, String>,
+    /// multipart/form-data parts (Assets API): text fields and local files.
+    pub multipart: Option<Vec<OcPart>>,
+}
+
+#[derive(Deserialize)]
+pub struct OcPart {
+    pub name: String,
+    pub text: Option<String>,
+    pub file_path: Option<String>,
+    pub file_name: Option<String>,
+    pub content_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -40,7 +51,27 @@ pub async fn oc_request(req: OcRequest) -> Result<OcResponse, String> {
     for (k, v) in &req.headers {
         builder = builder.header(k, v);
     }
-    if let Some(path) = &req.body_file {
+    if let Some(parts) = &req.multipart {
+        let mut form = reqwest::multipart::Form::new();
+        for p in parts {
+            if let Some(path) = &p.file_path {
+                let bytes = tokio::fs::read(path).await.map_err(|e| format!("cannot read part file {path}: {e}"))?;
+                let file_name = p.file_name.clone().unwrap_or_else(|| std::path::Path::new(path).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| "file".into()));
+                let mut part = reqwest::multipart::Part::bytes(bytes).file_name(file_name);
+                if let Some(ct) = &p.content_type {
+                    part = part.mime_str(ct).map_err(|e| e.to_string())?;
+                }
+                form = form.part(p.name.clone(), part);
+            } else {
+                let mut part = reqwest::multipart::Part::text(p.text.clone().unwrap_or_default());
+                if let Some(ct) = &p.content_type {
+                    part = part.mime_str(ct).map_err(|e| e.to_string())?;
+                }
+                form = form.part(p.name.clone(), part);
+            }
+        }
+        builder = builder.multipart(form);
+    } else if let Some(path) = &req.body_file {
         let bytes = tokio::fs::read(path).await.map_err(|e| format!("cannot read body file: {e}"))?;
         builder = builder.header("content-type", req.content_type.clone().unwrap_or_else(|| "application/octet-stream".into())).body(bytes);
     } else if let Some(json) = &req.json_body {

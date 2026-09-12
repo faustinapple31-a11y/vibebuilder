@@ -1,4 +1,4 @@
-import { ElevenLabsProvider, GeminiImageProvider, MeshyProvider, type AiTransport, type GeneratedFile } from "@worldforge/ai-providers";
+import { ElevenLabsProvider, GeminiImageProvider, MeshyMeshProvider, type AiTransport, type GeneratedFile } from "@worldforge/ai-providers";
 import { newId } from "@worldforge/core";
 import { db } from "./db";
 import { ai, fs, path } from "./tauri";
@@ -10,7 +10,7 @@ export const aiTransport: AiTransport = async (req) => {
 };
 
 export const geminiImages = new GeminiImageProvider(aiTransport);
-export const meshy = new MeshyProvider(aiTransport);
+export const meshy = new MeshyMeshProvider(aiTransport);
 export const elevenLabs = new ElevenLabsProvider(aiTransport);
 
 export type GenKind = "image" | "mesh" | "sound" | "music";

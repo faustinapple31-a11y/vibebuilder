@@ -64,7 +64,60 @@ function makePart(p: PartData): BasePart {
 	return part;
 }
 
+const InsertService = game.GetService("InsertService");
+
+/**
+ * Spawns an external Roblox Model asset (uploaded through Open Cloud) and fits it to the variant:
+ * pivot at the bottom centre, height scaled to the bake's bounds. Returns undefined when the asset
+ * cannot be loaded (offline, not owned, moderation pending) so the placeholder parts are used instead.
+ */
+function loadMeshAsset(variant: PrefabVariantData): Model | undefined {
+	const src = variant.source;
+	if (!src || src.kind !== "roblox_asset" || src.assetId === undefined) return undefined;
+	const [ok, res] = pcall(() => InsertService.LoadAsset(src.assetId!));
+	if (!ok) {
+		warn(`WorldForge: cannot load asset ${src.assetId} for ${variant.id}: ${res}`);
+		return undefined;
+	}
+	const container = res as Model;
+	// the container holds the asset's top-level instances; keep a single Model around them
+	let model: Model;
+	const children = container.GetChildren();
+	if (children.size() === 1 && children[0].IsA("Model")) {
+		model = children[0];
+		model.Parent = undefined;
+		container.Destroy();
+	} else {
+		model = container;
+	}
+	model.Name = variant.id;
+	for (const d of model.GetDescendants()) {
+		if (d.IsA("BasePart")) {
+			d.Anchored = true;
+			d.CastShadow = true;
+		}
+	}
+	// fit: scale so the height matches the bounds, then pivot at the bottom centre
+	const [cf, size] = model.GetBoundingBox();
+	const targetH = math.max(0.5, variant.bounds.max[1] - math.min(0, variant.bounds.min[1]));
+	if (size.Y > 0.01) {
+		const s = targetH / size.Y;
+		if (math.abs(s - 1) > 0.01) model.ScaleTo(s);
+	}
+	const [cf2, size2] = model.GetBoundingBox();
+	model.WorldPivot = new CFrame(cf2.Position.X, cf2.Position.Y - size2.Y / 2, cf2.Position.Z);
+	model.PivotTo(new CFrame());
+	model.SetAttribute("AssetId", src.assetId);
+	return model;
+}
+
 export function buildPrefabModel(variant: PrefabVariantData, minLod = 0): Model {
+	const loaded = loadMeshAsset(variant);
+	if (loaded) {
+		loaded.SetAttribute("Prefab", variant.prefab);
+		loaded.SetAttribute("Category", variant.category);
+		return loaded;
+	}
 	const model = new Instance("Model");
 	model.Name = variant.id;
 	for (const p of variant.parts) {

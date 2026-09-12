@@ -35,6 +35,16 @@ export interface PartData {
 	lod?: number;
 }
 
+export interface PrefabMeshSource {
+	kind: "roblox_asset";
+	assetId?: number;
+	glbPath?: string;
+	fbxPath?: string;
+	provider: string;
+	prompt: string;
+	nativeSize?: [number, number, number];
+}
+
 export interface PrefabVariantData {
 	id: string;
 	prefab: string;
@@ -45,6 +55,8 @@ export interface PrefabVariantData {
 	footprintRadius: number;
 	baseRadius?: number;
 	tags: string[];
+	/** External Roblox Model asset (AI-generated hero mesh); parts are only a fallback placeholder. */
+	source?: PrefabMeshSource;
 }
 
 export interface PlacementMeta {

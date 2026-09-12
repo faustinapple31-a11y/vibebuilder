@@ -10,6 +10,36 @@ export interface CloudRequest {
   bodyFile?: string;
   contentType?: string;
   headers?: Record<string, string>;
+  /** multipart/form-data parts (Assets API uploads). */
+  multipart?: CloudMultipartPart[];
+}
+
+export interface CloudMultipartPart {
+  name: string;
+  /** Text field (e.g. the JSON `request` part). */
+  text?: string;
+  /** Local file part. */
+  filePath?: string;
+  fileName?: string;
+  contentType?: string;
+}
+
+export type AssetType = "Model" | "Decal" | "Audio" | "Video";
+
+export interface AssetOperation {
+  operationId: string;
+  done: boolean;
+  assetId?: string;
+  path?: string;
+  error?: string;
+}
+
+/** Content types accepted by the Assets API per asset type. */
+export const ASSET_CONTENT_TYPES: Record<AssetType, Record<string, string>> = {
+  Model: { fbx: "model/fbx" },
+  Decal: { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", bmp: "image/bmp", tga: "image/tga" },
+  Audio: { mp3: "audio/mpeg", ogg: "audio/ogg" },
+  Video: { mp4: "video/mp4", mov: "video/mov" },
 }
 
 export interface CloudResponse {
@@ -124,6 +154,48 @@ export class OpenCloudClient {
       bodyFile: rbxlPath,
       contentType: "application/octet-stream",
     });
+  }
+
+  /**
+   * Upload a file as a new asset (Assets API, `asset:write`). Model assets take .fbx (textures embedded),
+   * so an AI-generated mesh becomes a real Roblox Model that `InsertService:LoadAsset` can spawn.
+   * The creator is the user or group the API key belongs to.
+   */
+  async createAsset(opts: { filePath: string; fileName: string; assetType: AssetType; displayName: string; description?: string; creator: { userId?: number | string; groupId?: number | string } }): Promise<AssetOperation> {
+    const ext = opts.fileName.split(".").pop()?.toLowerCase() ?? "";
+    const contentType = ASSET_CONTENT_TYPES[opts.assetType][ext];
+    if (!contentType) throw new Error(`${opts.assetType} assets do not accept .${ext} files`);
+    const creator = opts.creator.groupId ? { groupId: String(opts.creator.groupId) } : { userId: String(opts.creator.userId ?? "") };
+    if (!creator.groupId && !creator.userId) throw new Error("Open Cloud asset upload needs the creator user id or group id (Roblox tab)");
+    const request = { assetType: opts.assetType, displayName: opts.displayName.slice(0, 50), description: (opts.description ?? "Generated with WorldForge AI").slice(0, 1000), creationContext: { creator } };
+    const res = await this.call<{ path?: string; operationId?: string; done?: boolean; response?: { assetId?: string }; error?: { message?: string } }>({
+      method: "POST",
+      url: `${OPEN_CLOUD_BASE}/assets/v1/assets`,
+      multipart: [
+        { name: "request", text: JSON.stringify(request), contentType: "application/json" },
+        { name: "fileContent", filePath: opts.filePath, fileName: opts.fileName, contentType },
+      ],
+    });
+    const operationId = res.operationId ?? res.path?.split("/").pop() ?? "";
+    return { operationId, done: !!res.done, assetId: res.response?.assetId, path: res.path, error: res.error?.message };
+  }
+
+  /** Poll an Assets API operation until the asset id is known. */
+  async getAssetOperation(operationId: string): Promise<AssetOperation> {
+    const res = await this.call<{ path?: string; done?: boolean; response?: { assetId?: string; moderationResult?: { moderationState?: string } }; error?: { message?: string } }>({ method: "GET", url: `${OPEN_CLOUD_BASE}/assets/v1/operations/${operationId}` });
+    return { operationId, done: !!res.done, assetId: res.response?.assetId, path: res.path, error: res.error?.message };
+  }
+
+  async waitForAsset(operationId: string, opts: { pollMs?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void> } = {}): Promise<string> {
+    const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+    const started = Date.now();
+    for (;;) {
+      const op = await this.getAssetOperation(operationId);
+      if (op.error) throw new Error(`Roblox asset upload failed: ${op.error}`);
+      if (op.done && op.assetId) return op.assetId;
+      if (Date.now() - started > (opts.timeoutMs ?? 5 * 60 * 1000)) throw new Error("Roblox asset upload timed out (operation still pending)");
+      await sleep(opts.pollMs ?? 3000);
+    }
   }
 
   /** Developer products (Open Cloud developer-products API). */

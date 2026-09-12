@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { newId, slugify } from "@worldforge/core";
 import { OpenCloudClient, OpenCloudError, type CloudTransport, type PlaceInfo, type UniverseInfo } from "@worldforge/roblox-cloud";
 import { runtimeTemplateFiles } from "@worldforge/roblox-export";
+import { updateMeshAsset, type MeshAssetRecord } from "@/lib/meshAssets";
 import { parseRbxtscOutput, parseStudioLog, validateBakeForPublish, type DiagnosticEntry, type PublishCheck } from "@worldforge/quality";
 import { BAKE_WORLD_LUAU, StudioMcp, VERIFY_BAKE_JSON_LUAU, WORLD_STATS_LUAU, outFileToInstance, pushBakeChunkLuau, pushScriptLuau, type StudioInstance } from "@worldforge/agents";
 import { serializeBake } from "@worldforge/core";
@@ -34,6 +35,10 @@ interface RobloxState {
   captureViaMcp: (view?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number }) => Promise<string | null>;
   runLuau: (code: string, datamodel?: "Edit" | "Server" | "Client") => Promise<string>;
   generateMeshInStudio: (prompt: string) => Promise<string>;
+  /** Uploads a hero mesh (FBX) as a Roblox Model asset through Open Cloud and stores the asset id. */
+  publishMeshAsset: (record: MeshAssetRecord, onProgress?: (m: string) => void) => Promise<number>;
+  /** Spawns a published hero mesh in the open Studio place (edit mode) in front of the camera. */
+  insertMeshAssetInStudio: (record: MeshAssetRecord) => Promise<string>;
   refreshStudio: () => Promise<void>;
   installDeps: () => Promise<boolean>;
   compile: () => Promise<boolean>;
@@ -62,7 +67,15 @@ let qaAbort = false;
 const runner = createTauriProcessRunner();
 
 const transport: CloudTransport = async (req) => {
-  const res = await opencloud.request({ method: req.method, url: req.url, json_body: req.jsonBody !== undefined ? JSON.stringify(req.jsonBody) : undefined, body_file: req.bodyFile, content_type: req.contentType, headers: req.headers });
+  const res = await opencloud.request({
+    method: req.method,
+    url: req.url,
+    json_body: req.jsonBody !== undefined ? JSON.stringify(req.jsonBody) : undefined,
+    body_file: req.bodyFile,
+    content_type: req.contentType,
+    headers: req.headers,
+    multipart: req.multipart?.map((p) => ({ name: p.name, text: p.text, file_path: p.filePath, file_name: p.fileName, content_type: p.contentType })),
+  });
   return { status: res.status, body: res.body, headers: res.headers };
 };
 export const cloudClient = new OpenCloudClient(transport);
@@ -282,6 +295,53 @@ export const useRoblox = create<RobloxState>((set, get) => ({
     const out = await studioMcp.generateMesh(prompt, { x: 12, y: 12, z: 12 }, 6000);
     log(`generate_mesh → ${out.slice(0, 200)}`);
     return out;
+  },
+
+  async publishMeshAsset(record, onProgress) {
+    const cur = useProjects.getState().current;
+    if (!cur) throw new Error("No project open");
+    if (!record.fbx) throw new Error("This model has no FBX file — Roblox Model assets are uploaded as .fbx (regenerate with Meshy or import an FBX)");
+    const creator = { userId: cur.meta.roblox.creatorUserId, groupId: cur.meta.roblox.creatorGroupId };
+    if (!creator.userId && !creator.groupId) throw new Error("Set the creator user id (or group id) of your Open Cloud key in the Roblox tab first");
+    onProgress?.("uploading FBX to Roblox (Assets API)…");
+    const op = await cloudClient.createAsset({ filePath: path.join(cur.path, record.fbx), fileName: record.fbx.split("/").pop() ?? "model.fbx", assetType: "Model", displayName: record.name, description: `WorldForge AI · ${record.prompt}`.slice(0, 1000), creator });
+    let assetId = op.assetId;
+    if (!assetId) {
+      onProgress?.(`processing (operation ${op.operationId})…`);
+      assetId = await cloudClient.waitForAsset(op.operationId);
+    }
+    const id = Number(assetId);
+    await updateMeshAsset(cur.path, { ...record, robloxAssetId: id, robloxOperationId: op.operationId, publishedAt: new Date().toISOString() });
+    await useWorld.getState().refreshMeshAssets();
+    onProgress?.(`published as asset ${id}`);
+    return id;
+  },
+
+  async insertMeshAssetInStudio(record) {
+    if (!record.robloxAssetId) throw new Error("Publish the model to Roblox first (it needs an asset id to be inserted)");
+    const code = `local InsertService = game:GetService("InsertService")
+local ok, res = pcall(function() return InsertService:LoadAsset(${record.robloxAssetId}) end)
+if not ok then return "error: " .. tostring(res) end
+local model = res
+local child = model:GetChildren()[1]
+if #model:GetChildren() == 1 and child:IsA("Model") then child.Parent = nil; model:Destroy(); model = child end
+model.Name = ${JSON.stringify(record.name.slice(0, 50))}
+for _, d in ipairs(model:GetDescendants()) do if d:IsA("BasePart") then d.Anchored = true end end
+local cf, size = model:GetBoundingBox()
+local target = ${record.heightStuds.toFixed(2)}
+if size.Y > 0.01 then model:ScaleTo(target / size.Y) end
+cf, size = model:GetBoundingBox()
+local cam = workspace.CurrentCamera
+local focus = cam.CFrame.Position + cam.CFrame.LookVector * (size.Magnitude + 20)
+local ray = workspace:Raycast(focus + Vector3.new(0, 200, 0), Vector3.new(0, -600, 0))
+local ground = ray and ray.Position or focus
+model.WorldPivot = CFrame.new(cf.Position.X, cf.Position.Y - size.Y / 2, cf.Position.Z)
+model:PivotTo(CFrame.new(ground))
+local folder = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hero") or Instance.new("Folder")
+folder.Name = "Hero"; folder.Parent = workspace:FindFirstChild("World") or workspace
+model.Parent = folder
+return string.format("inserted %s (%d parts, %.1f studs tall) at %s", model.Name, #model:GetDescendants(), size.Y, tostring(ground))`;
+    return get().runLuau(code, "Edit");
   },
 
   /** Screenshot through Studio's own capture (camera at the spawn looking at the village). */

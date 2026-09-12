@@ -48,17 +48,6 @@ export interface ImageProvider {
   generateImage(req: { prompt: string; aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3"; negativePrompt?: string }): Promise<GeneratedFile>;
 }
 
-export interface MeshProvider {
-  id: string;
-  name: string;
-  /** Starts a generation job; returns a job id to poll. */
-  startMesh(req: { prompt: string; artStyle?: "stylized" | "realistic" | "sculpture"; targetPolycount?: number }): Promise<{ jobId: string }>;
-  /** Poll until done. Returns download URLs when ready. */
-  pollMesh(jobId: string): Promise<{ status: "pending" | "running" | "done" | "failed"; progress?: number; glbUrl?: string; thumbnailUrl?: string; error?: string }>;
-  /** Download a finished mesh (GLB) as base64. */
-  downloadMesh(url: string): Promise<GeneratedFile>;
-}
-
 export interface AudioProvider {
   id: string;
   name: string;
@@ -99,44 +88,6 @@ export class GeminiImageProvider implements ImageProvider {
   }
 }
 
-// ---------------------------------------------------------------- Meshy (3D)
-export class MeshyProvider implements MeshProvider {
-  id = "meshy";
-  name = "Meshy (text → 3D)";
-  constructor(private transport: AiTransport) {}
-
-  async startMesh(req: { prompt: string; artStyle?: "stylized" | "realistic" | "sculpture"; targetPolycount?: number }): Promise<{ jobId: string }> {
-    const res = await call(this.transport, {
-      provider: "meshy",
-      method: "POST",
-      url: "https://api.meshy.ai/openapi/v2/text-to-3d",
-      jsonBody: {
-        mode: "preview",
-        prompt: req.prompt,
-        art_style: req.artStyle === "realistic" ? "realistic" : req.artStyle === "sculpture" ? "sculpture" : "cartoon",
-        should_remesh: true,
-        target_polycount: req.targetPolycount ?? 8000,
-        topology: "triangle",
-      },
-    });
-    const json = JSON.parse(res.body) as { result?: string };
-    if (!json.result) throw new AiProviderError("meshy", res.status, res.body);
-    return { jobId: json.result };
-  }
-
-  async pollMesh(jobId: string) {
-    const res = await call(this.transport, { provider: "meshy", method: "GET", url: `https://api.meshy.ai/openapi/v2/text-to-3d/${jobId}` });
-    const j = JSON.parse(res.body) as { status?: string; progress?: number; model_urls?: { glb?: string }; thumbnail_url?: string; task_error?: { message?: string } };
-    const status = j.status === "SUCCEEDED" ? "done" : j.status === "FAILED" || j.status === "CANCELED" ? "failed" : j.status === "IN_PROGRESS" ? "running" : "pending";
-    return { status: status as "pending" | "running" | "done" | "failed", progress: j.progress, glbUrl: j.model_urls?.glb, thumbnailUrl: j.thumbnail_url, error: j.task_error?.message };
-  }
-
-  async downloadMesh(url: string): Promise<GeneratedFile> {
-    const res = await call(this.transport, { provider: "meshy", method: "GET", url, response: "base64" });
-    return { data: res.body, mimeType: "model/gltf-binary", extension: "glb" };
-  }
-}
-
 // ---------------------------------------------------------------- ElevenLabs (audio)
 export class ElevenLabsProvider implements AudioProvider {
   id = "elevenlabs";
@@ -172,3 +123,5 @@ export const AI_PROVIDER_HOSTS: Record<AiProviderKey, string[]> = {
   meshy: ["https://api.meshy.ai/", "https://assets.meshy.ai/"],
   elevenlabs: ["https://api.elevenlabs.io/"],
 };
+
+export * from "./mesh";
