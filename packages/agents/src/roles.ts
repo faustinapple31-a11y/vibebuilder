@@ -170,6 +170,16 @@ ROLE: General assistant for this project. Do what the user asks, prefer editing 
   },
 };
 
+/** System prompt for a role, including the JSON schema contract of its output file when it has one. */
+export function roleSystemPrompt(role: AgentRole): string {
+  const def = ROLES[role];
+  if (!def.schema || !def.outputFile) return def.systemPrompt;
+  return `${def.systemPrompt}
+
+OUTPUT CONTRACT — ${def.outputFile} must validate against this JSON schema (enum values are exact; unknown keys are dropped):
+${schemaText(def.schema)}`;
+}
+
 export interface RoleContext {
   userPrompt: string;
   projectName: string;
@@ -194,7 +204,7 @@ export function buildRolePrompt(role: AgentRole, ctx: RoleContext): string {
     parts.push(`Recent conversation (most recent last):\n${ctx.history.slice(-8).map((h) => `- user: ${h.prompt}${h.summary ? `\n  agent: ${h.summary}` : ""}`).join("\n")}`);
   }
   if (def.schema && def.outputFile) {
-    parts.push(`Write a JSON file that validates against this schema to ${def.outputFile} (use the Write tool; do not paste the JSON in chat):\n${schemaText(def.schema)}`);
+    parts.push(`Write the JSON to ${def.outputFile} with your file tools (do not paste it in chat). It must validate against the OUTPUT CONTRACT schema in your instructions.`);
   }
   if (role === "world") {
     if (ctx.draftWorldSpec) parts.push(`Draft produced by WorldForge's local interpreter — refine it (keep ids, improve composition, adjust to the request):\n${JSON.stringify(ctx.draftWorldSpec, null, 1)}`);

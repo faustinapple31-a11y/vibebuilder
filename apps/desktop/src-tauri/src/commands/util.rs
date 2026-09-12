@@ -65,9 +65,56 @@ pub fn find_tool(name: &str) -> Option<PathBuf> {
     None
 }
 
+/// npm-style `.cmd` shims cannot receive arbitrary arguments (cmd.exe escaping): resolve the real
+/// target they launch (a native exe under node_modules, or `node <cli.js>`) and run it directly.
+pub fn launch_spec(program: &Path) -> (PathBuf, Vec<String>) {
+    let ext = program.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    if ext != "cmd" && ext != "bat" {
+        return (program.to_path_buf(), vec![]);
+    }
+    let Ok(text) = std::fs::read_to_string(program) else { return (program.to_path_buf(), vec![]) };
+    let dir = program.parent().map(|d| d.to_path_buf()).unwrap_or_default();
+    for line in text.lines() {
+        let l = line.trim();
+        if !l.contains("%dp0%") {
+            continue;
+        }
+        let mut quoted: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        let mut inside = false;
+        for ch in l.chars() {
+            if ch == '"' {
+                if inside {
+                    quoted.push(cur.clone());
+                    cur.clear();
+                }
+                inside = !inside;
+            } else if inside {
+                cur.push(ch);
+            }
+        }
+        for q in &quoted {
+            let rel = q.replace("%dp0%", "");
+            let target = dir.join(rel.trim_start_matches('\\').trim_start_matches('/'));
+            let tl = target.to_string_lossy().to_ascii_lowercase();
+            if tl.ends_with(".exe") && target.is_file() {
+                return (target, vec![]);
+            }
+            if (tl.ends_with(".js") || tl.ends_with(".cjs") || tl.ends_with(".mjs")) && target.is_file() {
+                let node = which("node").unwrap_or_else(|| PathBuf::from("node"));
+                return (node, vec![target.to_string_lossy().to_string()]);
+            }
+        }
+    }
+    (program.to_path_buf(), vec![])
+}
+
 /// Build a Command for an executable path; on Windows hides the console window.
+/// `.cmd` shims are unwrapped to their real target so arguments are passed verbatim.
 pub fn command(program: &Path) -> Command {
-    let mut cmd = Command::new(program);
+    let (exe, prefix) = launch_spec(program);
+    let mut cmd = Command::new(exe);
+    cmd.args(prefix);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd

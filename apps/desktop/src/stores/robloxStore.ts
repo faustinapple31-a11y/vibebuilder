@@ -283,7 +283,7 @@ export const useRoblox = create<RobloxState>((set, get) => ({
         // position the Studio camera (default: at the spawn, looking at the composition target)
         const f = (n: number) => n.toFixed(1);
         await studioMcp.executeLuau(`local cam = workspace.CurrentCamera; cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = CFrame.lookAt(Vector3.new(${f(v.position[0])}, ${f(v.position[1])}, ${f(v.position[2])}), Vector3.new(${f(v.lookAt[0])}, ${f(v.lookAt[1])}, ${f(v.lookAt[2])})); cam.FieldOfView = ${v.fov ?? 70}; return "camera set"`, "Edit", 30000);
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 2500)); // let streaming + exposure settle
       }
       const res = await studioMcp.screenCapture(`WorldForge_${Date.now()}`);
       if (!res.image) {

@@ -1,6 +1,6 @@
 import { GameSpecSchema, WorldSpecSchema, newId, nowIso, type GameSpec, type WorldSpec } from "@worldforge/core";
 import { interpretPrompt } from "./local/interpreter";
-import { buildRolePrompt, ROLES, validateRoleOutput, type RoleContext } from "./roles";
+import { buildRolePrompt, ROLES, roleSystemPrompt, validateRoleOutput, type RoleContext } from "./roles";
 import type { AgentEvent, AgentProviderId, AgentRole, AgentSession, FileIO, IAgentProvider } from "./types";
 
 export type TaskStatus = "pending" | "running" | "validating" | "done" | "failed" | "skipped" | "cancelled";
@@ -151,7 +151,7 @@ export class Orchestrator {
       task.sessionId = session.id;
       task.providerId = provider.id;
       session.options.role = task.role;
-      session.options.systemPrompt = ROLES[task.role].systemPrompt;
+      session.options.systemPrompt = roleSystemPrompt(task.role);
       if (!session.options.allowedTools) session.options.allowedTools = ROLES[task.role].allowedTools;
       const ctx = await this.buildContext(plan, task);
       let prompt = buildRolePrompt(task.role, ctx);

@@ -8,6 +8,7 @@ import {
   planNewGame,
   planQA,
   planWorldOnly,
+  roleSystemPrompt,
   summarizeToolInput,
   type AgentEvent,
   type AgentProviderId,
@@ -198,13 +199,13 @@ export const useAgents = create<AgentState>((set, get) => ({
     }
     let session = pane.session;
     if (!session || session.provider !== pane.providerId) {
-      session = await provider.startSession({ cwd: cur.path, model: pane.model || undefined, effort: pane.effort || undefined, permissionMode: pane.permissionMode, role: pane.role, systemPrompt: ROLES[pane.role].systemPrompt, allowedTools: pane.permissionMode === "bypass" ? undefined : ROLES[pane.role].allowedTools });
+      session = await provider.startSession({ cwd: cur.path, model: pane.model || undefined, effort: pane.effort || undefined, permissionMode: pane.permissionMode, role: pane.role, systemPrompt: roleSystemPrompt(pane.role), allowedTools: pane.permissionMode === "bypass" ? undefined : ROLES[pane.role].allowedTools });
     } else {
       session.options.model = pane.model || undefined;
       session.options.effort = pane.effort || undefined;
       session.options.permissionMode = pane.permissionMode;
       session.options.role = pane.role;
-      session.options.systemPrompt = ROLES[pane.role].systemPrompt;
+      session.options.systemPrompt = roleSystemPrompt(pane.role);
     }
     const runId = await runsRepo.startAgent({ projectId: cur.row.id, provider: pane.providerId, role: pane.role, model: pane.model || null, prompt: text });
     const histId = await historyRepo.add(cur.row.id, pane.role, pane.providerId, text);
@@ -228,10 +229,29 @@ export const useAgents = create<AgentState>((set, get) => ({
     get().updatePane(paneId, { status, statusText: status === "error" ? "Error" : status === "external" ? "Opened in Antigravity" : "Ready" });
     await runsRepo.endAgent(runId, status, after?.usage ?? {}, result ?? null);
     if (result) await historyRepo.setSummary(histId, result);
-    // world changes made by the agent → regenerate
-    const afterSpec = JSON.stringify(await readJsonFile<unknown>(specPath));
+    // world changes made by the agent → validate, retry once with the errors, then regenerate
+    let afterSpec = JSON.stringify(await readJsonFile<unknown>(specPath));
     if (afterSpec !== before && afterSpec !== "null") {
-      const parsed = WorldSpecSchema.safeParse(JSON.parse(afterSpec));
+      let parsed = WorldSpecSchema.safeParse(JSON.parse(afterSpec));
+      if (!parsed.success && !failed && pane.providerId !== "local-rules" && pane.providerId !== "antigravity") {
+        const errors = parsed.error.issues.slice(0, 15).map((i) => `- ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
+        set((s) => ({ panes: s.panes.map((p) => (p.id === paneId ? { ...p, status: "running", statusText: "Fixing invalid WorldSpec…", log: [...p.log, entry("status", `world.spec.json is invalid — asking the agent to fix it:\n${errors}`)] } : p)) }));
+        try {
+          for await (const ev of provider.sendPrompt(session, `Your last edit left worlds/${cur.meta.currentWorld}/world.spec.json INVALID against the OUTPUT CONTRACT schema:\n${errors}\nFix only these fields (use exact enum values) and keep everything else.`)) {
+            if (ev.type === "raw") continue;
+            set((s) => ({ panes: s.panes.map((p) => (p.id === paneId ? appendEvent(p, ev) : p)) }));
+          }
+        } catch (e) {
+          set((s) => ({ panes: s.panes.map((p) => (p.id === paneId ? { ...p, log: [...p.log, entry("error", (e as Error).message ?? String(e))] } : p)) }));
+        }
+        get().updatePane(paneId, { status: "done", statusText: "Ready" });
+        afterSpec = JSON.stringify(await readJsonFile<unknown>(specPath));
+        parsed = WorldSpecSchema.safeParse(JSON.parse(afterSpec));
+      }
+      if (!parsed.success) {
+        const errors = parsed.error.issues.slice(0, 10).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+        set((s) => ({ panes: s.panes.map((p) => (p.id === paneId ? { ...p, log: [...p.log, entry("error", `world.spec.json still invalid, world not regenerated: ${errors}`)] } : p)) }));
+      }
       if (parsed.success) {
         const world = useWorld.getState();
         world.setSpec(parsed.data);
