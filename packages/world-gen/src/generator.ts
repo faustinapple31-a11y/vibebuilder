@@ -218,6 +218,11 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     const v = ctx.prefabs[p.prefab]?.[p.variant];
     if (!v) continue;
     if (p.prefab === "bridge") continue;
+    if (v.tags.includes("floating")) {
+      const w = ctx.water.sample(p.position[0], p.position[2]);
+      if (!Number.isNaN(w)) p.position[1] = w + 0.05;
+      continue;
+    }
     const conform = conformFactor(p, v);
     if (conform > 0) {
       const n = terrainNormal(ctx, p.position[0], p.position[2], Math.max(2, (v.baseRadius ?? 2) * p.scale));
@@ -291,7 +296,9 @@ export function groundHeightFor(ctx: GenContext, v: PrefabVariant, x: number, z:
     }
   }
   const height = Math.max(1, v.bounds.max[1]) * scale;
-  const maxExtra = Math.max(1.2, Math.min(height * 0.3, r * 0.9));
+  // buildings/landmarks sit on flattened ground (small drop is enough); trees only ever sink their root flare
+  const cap = v.category === "vegetation" ? 1.5 : v.category === "landmark" ? 1.5 : 1.2;
+  const maxExtra = Math.min(cap, Math.max(0.5, Math.min(height * 0.3, r * 0.9)));
   const drop = Math.min(center - min, maxExtra) * (1 - conform);
   return center - drop - sink;
 }
@@ -357,7 +364,7 @@ function addLandmarkPlacements(ctx: GenContext): void {
 export function requiredPrefabs(spec: WorldSpec): string[] {
   const ids = new Set<string>();
   for (const s of spec.vegetation.species) ids.add(SPECIES_PREFAB[s]);
-  for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone", "crystal_cluster", "wisp", "tent", "hay_bale", "cart", "firefly_swarm", "mist_patch"]) ids.add(base);
+  for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone", "crystal_cluster", "wisp", "tent", "hay_bale", "cart", "firefly_swarm", "mist_patch", "reeds", "lily_pad", "stone_wall", "market_stall", "lantern_string"]) ids.add(base);
   for (const l of spec.landmarks) ids.add(LANDMARK_PREFAB[l.type].prefab);
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
 }

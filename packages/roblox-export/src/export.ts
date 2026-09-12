@@ -96,7 +96,7 @@ export function buildRojoProject(slug: string, bake: WorldBake): Record<string, 
   base.tree["Lighting"] = {
     $className: "Lighting",
     $properties: {
-      Technology: "Future",
+      Technology: L.technology ?? "ShadowMap",
       ClockTime: L.clockTime,
       Brightness: L.brightness,
       Ambient: rgb(L.ambient),
@@ -129,6 +129,7 @@ export function buildRojoProject(slug: string, bake: WorldBake): Record<string, 
     $properties: {
       FilteringEnabled: true,
       StreamingEnabled: true,
+      Terrain: undefined,
       StreamingMinRadius: 128,
       StreamingTargetRadius: Math.round(Math.min(2048, Math.max(512, worldSize * 0.9))),
     },

@@ -311,7 +311,7 @@ export function smallMushroom(ctx: PrefabContext, variant: number): PrefabVarian
     b.cylinder([x, h + h * 0.42, z], d * 1.6, h * 0.22, lightenHex(capColor, 0.06), { material: style.materials.mushroom, collide: false, lod: 0 });
   }
   if (style.mushroom.glow > 0.3 && rng.chance(0.4)) {
-    b.add({ shape: "box", position: [0, 1, 0], size: [0.3, 0.3, 0.3], rotation: [0, 0, 0], color: style.palette.glow, material: "Neon", transparency: 0.5, collide: false, lod: 0, light: { type: "point", color: style.palette.glow, brightness: 0.6, range: 8 } });
+    b.add({ shape: "box", position: [0, 1, 0], size: [0.3, 0.3, 0.3], rotation: [0, 0, 0], color: style.palette.glow, material: "Neon", transparency: 0.5, collide: false, lod: 0 });
   }
   return b.build({ id: `small_mushroom/${variant}`, prefab: "small_mushroom", category: "vegetation", sinkDepth: 0.2, footprintRadius: 1.2, tags: ["mushroom", "small"] });
 }
@@ -389,7 +389,7 @@ export function flower(ctx: PrefabContext, variant: number): PrefabVariant {
     b.box([x, h + 0.2, z], [0.9, 0.4, 0.9], jitterHex(petal, jitter(rng, 10), 0, jitter(rng, 0.08)), { rotation: [0, 45, 0], collide: false, castShadow: false, lod: i === 0 ? 1 : 0 });
   }
   if (style.mushroom.glow > 0.3 && rng.chance(0.3)) {
-    b.add({ shape: "sphere", position: [0, rng.float(1.4, 2.4), 0], size: [0.35, 0.35, 0.35], rotation: [0, 0, 0], color: style.palette.glow, material: "Neon", collide: false, castShadow: false, lod: 0, light: { type: "point", color: style.palette.glow, brightness: 0.5, range: 6 } });
+    b.add({ shape: "sphere", position: [0, rng.float(1.4, 2.4), 0], size: [0.35, 0.35, 0.35], rotation: [0, 0, 0], color: style.palette.glow, material: "Neon", collide: false, castShadow: false, lod: 0 });
   }
   return b.build({ id: `flower/${variant}`, prefab: "flower", category: "vegetation", sinkDepth: 0.3, footprintRadius: 0.8, tags: ["undergrowth", "flower"] });
 }

@@ -118,6 +118,10 @@ export interface RobloxLightingSettings {
   bloom: { intensity: number; size: number; threshold: number };
   sunRays: { intensity: number; spread: number };
   sky: { sunAngularSize: number; moonAngularSize: number; starCount: number };
+  /** Lighting.Technology — "ShadowMap" is the safe default; "Future" adds dynamic light shadows (heavier on the GPU). */
+  technology: "ShadowMap" | "Future";
+  /** Workspace.Terrain water shader. */
+  terrain: { waterColor: string; waterTransparency: number; waterReflectance: number; waterWaveSize: number; waterWaveSpeed: number };
 }
 
 export interface BakeStats {

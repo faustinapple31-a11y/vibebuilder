@@ -285,7 +285,6 @@ export function fireflySwarm(ctx: PrefabContext, variant: number): PrefabVariant
   const h = rng.float(3, 6);
   const color = rng.chance(0.5) ? mixHex(style.palette.glow, "#e8ffb0", 0.6) : mixHex(style.palette.glow, "#ffe9a0", 0.4);
   b.effect([0, h * 0.6 + 1, 0], [r * 2, h, r * 2], { kind: "fireflies", color, rate: 2 + r * 0.25 }, { lod: 1 });
-  b.add({ shape: "sphere", position: [0, h * 0.6 + 1, 0], size: [0.4, 0.4, 0.4], rotation: [0, 0, 0], color, material: "Neon", transparency: 1, collide: false, castShadow: false, lod: 1, light: { type: "point", color, brightness: 0.35, range: r * 1.6 } });
   return b.build({ id: `firefly_swarm/${variant}`, prefab: "firefly_swarm", category: "prop", sinkDepth: 0, footprintRadius: 1, baseRadius: 0.5, tags: ["ambience", "glow"] });
 }
 
@@ -296,4 +295,114 @@ export function mistPatch(ctx: PrefabContext, variant: number): PrefabVariant {
   const r = rng.float(12, 24);
   b.effect([0, 1.2, 0], [r * 2, 1.5, r * 2], { kind: "mist", color: mixHex(style.fog.color, "#ffffff", 0.45), rate: 0.8 + r * 0.05 }, { lod: 1 });
   return b.build({ id: `mist_patch/${variant}`, prefab: "mist_patch", category: "prop", sinkDepth: 0, footprintRadius: 1, baseRadius: 0.5, tags: ["ambience"] });
+}
+
+/** Reeds / cattails on river banks and lake shores. */
+export function reeds(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const stalks = rng.int(5, 9);
+  const green = jitterHex(mixHex(style.palette.foliageAlt, "#8fb04a", 0.4), jitter(rng, 8), 0, jitter(rng, 0.06));
+  for (let i = 0; i < stalks; i++) {
+    const h = rng.float(3.5, 6.5);
+    const x = jitter(rng, 1.8);
+    const z = jitter(rng, 1.8);
+    const lean = jitter(rng, 0.12);
+    const tip: Vec3 = [x + lean * h, h, z + jitter(rng, 0.1) * h];
+    b.segment([x, -0.3, z], tip, 0.22, green, { material: style.materials.canopy, collide: false, castShadow: false, lod: i < 4 ? 1 : 0, overlap: 0 });
+    if (rng.chance(0.5)) b.cylinder([tip[0], tip[1] - 0.8, tip[2]], 0.45, 1.6, "#5a3a22", { material: "Fabric", rotation: [0, 0, -lean * 60], collide: false, castShadow: false, lod: 0 });
+  }
+  return b.build({ id: `reeds/${variant}`, prefab: "reeds", category: "vegetation", sinkDepth: 0.3, footprintRadius: 2, tags: ["undergrowth", "water", "bank"] });
+}
+
+/** Lily pads floating on still water (placed at the water level, never tilted or snapped to the bed). */
+export function lilyPad(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const pads = rng.int(2, 4);
+  for (let i = 0; i < pads; i++) {
+    const d = rng.float(2, 3.6);
+    const x = i === 0 ? 0 : jitter(rng, 3);
+    const z = i === 0 ? 0 : jitter(rng, 3);
+    b.cylinder([x, 0.12, z], d, 0.2, jitterHex("#3f7a3a", jitter(rng, 8), 0, jitter(rng, 0.08)), { material: "SmoothPlastic", collide: false, castShadow: false, lod: i === 0 ? 2 : 1 });
+    if (rng.chance(0.35)) {
+      const col = rng.pick(["#f2d9e6", "#ffd9a8", style.palette.glow]);
+      b.box([x + d * 0.2, 0.55, z], [0.9, 0.7, 0.9], col, { material: col === style.palette.glow ? "Neon" : "SmoothPlastic", rotation: [0, 45, 0], collide: false, castShadow: false, lod: 0 });
+    }
+  }
+  return b.build({ id: `lily_pad/${variant}`, prefab: "lily_pad", category: "vegetation", sinkDepth: 0, footprintRadius: 3, baseRadius: 0.5, tags: ["water", "floating"] });
+}
+
+/** Low dry-stone wall segment (village boundaries, field edges). */
+export function stoneWall(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const len = rng.float(9, 13);
+  const stone = jitterHex(style.palette.stone, jitter(rng, 5), 0, jitter(rng, 0.05));
+  const h = rng.float(2.2, 3);
+  b.box([0, h / 2 - 0.4, 0], [len, h + 0.8, 1.4], stone, { material: style.materials.stoneWall, rotation: [jitter(rng, 1.5), 0, jitter(rng, 1.5)], collide: true, lod: 2 });
+  // capstones
+  const caps = Math.floor(len / 2.2);
+  for (let i = 0; i < caps; i++) {
+    const x = -len / 2 + 1.1 + i * 2.2;
+    b.box([x, h + 0.2, jitter(rng, 0.15)], [1.9, 0.6, 1.6], jitterHex(stone, 0, 0, jitter(rng, 0.06)), { material: style.materials.stoneWall, rotation: [jitter(rng, 4), jitter(rng, 6), jitter(rng, 4)], collide: false, lod: i % 2 === 0 ? 1 : 0 });
+  }
+  if (rng.chance(style.rock.mossChance)) b.box([jitter(rng, len * 0.3), h * 0.5, 0.75], [rng.float(2, 4), h * 0.6, 0.25], style.palette.foliageAlt, { material: "Grass", collide: false, castShadow: false, lod: 0 });
+  return b.build({ id: `stone_wall/${variant}`, prefab: "stone_wall", category: "prop", sinkDepth: 0.5, footprintRadius: len / 2, tags: ["village", "wall"] });
+}
+
+/** Market stall: table, canvas awning on posts, goods. Opening faces -Z. */
+export function marketStall(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const wood = woodColor(ctx);
+  const w = rng.float(8, 10);
+  const d = 5;
+  const canvas = jitterHex(rng.pick([style.palette.accent, "#c9563a", "#3a6fb0", "#c9a45a"]), jitter(rng, 6), 0, jitter(rng, 0.06));
+  // table
+  b.box([0, 2.8, 0], [w, 0.5, d], wood, { material: style.materials.wall, collide: true, lod: 2 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box([sx * (w / 2 - 0.5), 1.3, sz * (d / 2 - 0.5)], [0.5, 2.6, 0.5], jitterHex(wood, 0, 0, -0.1), { material: style.materials.trunk, collide: false, lod: 1 });
+  b.box([0, 1.2, 0.3], [w - 1.5, 2.2, d - 1.8], jitterHex(wood, 0, 0, -0.05), { material: style.materials.wall, collide: false, lod: 1 });
+  // posts + awning (sloped canvas)
+  for (const sx of [-1, 1]) {
+    b.box([sx * (w / 2 - 0.2), 4.6, d / 2 - 0.2], [0.45, 9.2, 0.45], wood, { material: style.materials.trunk, collide: false, lod: 1 });
+    b.box([sx * (w / 2 - 0.2), 4.0, -d / 2 - 1.2], [0.45, 8, 0.45], wood, { material: style.materials.trunk, collide: false, lod: 1 });
+  }
+  b.beam([0, 9.2, d / 2 - 0.2], [0, 8.0, -d / 2 - 1.2], 0.25, w + 0.6, canvas, { material: "Fabric", collide: false, castShadow: true, lod: 2, overlap: 0.3 });
+  // striped valance
+  for (let i = 0; i < 4; i++) b.box([-w / 2 + 0.75 + i * (w / 4) + w / 8 - 0.4, 7.4, -d / 2 - 1.2], [w / 4 - 0.4, 1.0, 0.15], i % 2 === 0 ? canvas : "#efe6d2", { material: "Fabric", collide: false, castShadow: false, lod: 0 });
+  // goods: crates, a sack, produce
+  b.box([-w * 0.3, 3.55, -0.5], [1.6, 1.0, 1.6], jitterHex(wood, 0, 0, 0.05), { material: style.materials.wall, rotation: [0, 15, 0], collide: false, lod: 0 });
+  b.sphere([w * 0.25, 3.6, 0.2], 1.3, "#b89a6a", { material: "Fabric", collide: false, lod: 0 });
+  for (let i = 0; i < 5; i++) b.sphere([w * 0.02 + jitter(rng, 1.2), 3.35, jitter(rng, 1.0)], 0.6, rng.pick(["#d9743a", "#c9a24a", "#8fb04a", style.palette.mushroom]), { material: "SmoothPlastic", collide: false, castShadow: false, lod: 0 });
+  // lantern under the awning
+  const glow = mixHex("#ffb866", style.palette.glow, 0.3);
+  b.box([w * 0.35, 6.4, -d / 2 - 0.6], [0.7, 0.9, 0.7], glow, { material: "Neon", transparency: 0.2, collide: false, lod: 1, light: { type: "point", color: glow, brightness: 1.0, range: 16 } });
+  return b.build({ id: `market_stall/${variant}`, prefab: "market_stall", category: "prop", sinkDepth: 0.3, footprintRadius: w / 2 + 1.5, baseRadius: w / 2, tags: ["village", "market"] });
+}
+
+/** String of hanging lanterns between two posts (spans a village street along local X). */
+export function lanternString(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const wood = woodColor(ctx);
+  const len = 14;
+  const h = rng.float(10, 12);
+  for (const sx of [-1, 1]) b.box([sx * len / 2, h / 2 - 0.3, 0], [0.8, h + 0.6, 0.8], wood, { material: style.materials.trunk, rotation: [0, 0, jitter(rng, 1.5)], collide: true, lod: 2 });
+  // rope as a shallow catenary of 6 segments
+  const pts: Vec3[] = [];
+  const n = 6;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n - 0.5;
+    pts.push([t * len, h - 0.4 - (0.25 - t * t) * 6, 0]);
+  }
+  b.chain(pts, 0.18, 0.18, "#4a3a2a", { material: "Fabric", collide: false, castShadow: false, lod: 1 });
+  const glow = mixHex("#ffb866", style.palette.glow, 0.35);
+  for (let i = 1; i < n; i++) {
+    const p = pts[i]!;
+    const lit = rng.chance(0.85);
+    b.box([p[0], p[1] - 0.35, 0], [0.12, 0.6, 0.12], "#2b2622", { material: style.materials.metal, collide: false, castShadow: false, lod: 0 });
+    b.box([p[0], p[1] - 1.2, 0], [0.9, 1.2, 0.9], lit ? glow : "#3a332c", { material: lit ? "Neon" : "Glass", transparency: lit ? 0.15 : 0.4, collide: false, lod: 1, light: lit ? { type: "point", color: glow, brightness: 0.9, range: 14 } : undefined });
+  }
+  return b.build({ id: `lantern_string/${variant}`, prefab: "lantern_string", category: "prop", sinkDepth: 0.4, footprintRadius: len / 2, tags: ["village", "light"] });
 }

@@ -6,6 +6,11 @@ import { TERRAIN_MATERIALS, type WorldBakeData } from "shared/world/types";
  * Builds Roblox Terrain voxels from the baked heightmap.
  * Chunked WriteVoxels (16×16 cells) over the [min,max] height band of each chunk,
  * with a Rock base filled by FillBlock. Yields between chunks to keep the server responsive.
+ *
+ * Calibrated against Studio raycasts: smooth terrain renders its surface half a voxel (2 studs) above
+ * `voxelBottom + occupancy × 4`, so heights are shifted down by SURFACE_BIAS before voxelisation, and each
+ * voxel samples the heightmap at its centre (mean of the 4 surrounding cells) rather than at a corner.
+ * Result: the rendered surface matches the heightmap to ±0.05 studs on flat ground.
  */
 export interface TerrainBuildResult {
 	chunks: number;
@@ -13,6 +18,28 @@ export interface TerrainBuildResult {
 }
 
 const VOXEL = 4;
+/** Rendered surface = voxelBottom + occupancy * VOXEL + SURFACE_BIAS (measured in Studio). */
+const SURFACE_BIAS = VOXEL / 2;
+
+/** Bilinear heightmap sampler in world coordinates (same interpolation as the generator). */
+export function makeHeightSampler(data: WorldBakeData["terrain"]): (x: number, z: number) => number {
+	const heights = base64ToBuffer(data.heightsB64);
+	const { width, depth, cellSize } = data;
+	const [ox, oz] = data.origin;
+	return (x: number, z: number) => {
+		const fx = math.clamp((x - ox) / cellSize, 0, width - 1.001);
+		const fz = math.clamp((z - oz) / cellSize, 0, depth - 1.001);
+		const x0 = math.floor(fx);
+		const z0 = math.floor(fz);
+		const tx = fx - x0;
+		const tz = fz - z0;
+		const h00 = readF32(heights, z0 * width + x0);
+		const h10 = readF32(heights, z0 * width + x0 + 1);
+		const h01 = readF32(heights, (z0 + 1) * width + x0);
+		const h11 = readF32(heights, (z0 + 1) * width + x0 + 1);
+		return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+	};
+}
 
 export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done: number, total: number) => void): TerrainBuildResult {
 	const terrain = Workspace.Terrain;
@@ -38,6 +65,16 @@ export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done:
 	const total = chunksX * chunksZ;
 	let done = 0;
 	const cellsPerVoxel = math.max(1, math.floor(VOXEL / cellSize));
+	/** Height at the centre of the voxel whose corner is cell (x, z): mean of the 4 cells around the centre. */
+	const heightAt = (x: number, z: number): number => {
+		const x1 = math.min(width - 1, x + 1);
+		const z1 = math.min(depth - 1, z + 1);
+		return (readF32(heights, z * width + x) + readF32(heights, z * width + x1) + readF32(heights, z1 * width + x) + readF32(heights, z1 * width + x1)) / 4;
+	};
+	const waterAt = (x: number, z: number): number => {
+		const w = readF32(water, z * width + x);
+		return w === w ? w : -math.huge; // NaN → no water
+	};
 
 	for (let cz = 0; cz < chunksZ; cz++) {
 		for (let cx = 0; cx < chunksX; cx++) {
@@ -58,7 +95,7 @@ export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done:
 					if (w === w && w > maxH) maxH = w; // NaN check
 				}
 			}
-			const yMin = math.floor((minH - 6) / VOXEL) * VOXEL;
+			const yMin = math.floor((minH - 6 - SURFACE_BIAS) / VOXEL) * VOXEL;
 			const yMax = math.ceil((maxH + 4) / VOXEL) * VOXEL;
 			const ny = math.max(1, (yMax - yMin) / VOXEL);
 			const nx = (x1 - x0) / cellsPerVoxel;
@@ -85,8 +122,8 @@ export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done:
 						const x = x0 + ix * cellsPerVoxel;
 						const z = z0 + iz * cellsPerVoxel;
 						const i = z * width + x;
-						const h = readF32(heights, i);
-						const w = readF32(water, i);
+						const h = heightAt(x, z) - SURFACE_BIAS;
+						const w = waterAt(x, z) - SURFACE_BIAS;
 						const surf = TERRAIN_MATERIALS[readU8(materials, i)] ?? Enum.Material.Grass;
 						let m: Enum.Material = Enum.Material.Air;
 						let o = 0;
@@ -96,7 +133,7 @@ export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done:
 						} else if (yb < h) {
 							o = (h - yb) / VOXEL;
 							m = surf === Enum.Material.Water ? Enum.Material.Mud : surf;
-						} else if (w === w && yb < w) {
+						} else if (yb < w) {
 							o = math.min(1, (w - yb) / VOXEL);
 							m = Enum.Material.Water;
 						}

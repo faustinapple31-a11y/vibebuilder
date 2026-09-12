@@ -164,6 +164,8 @@ function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: string): v
     } else {
       const w = 1 - smoothstep(half, half + shoulder, d);
       h.data[k] = lerp(cur, target[k]!, w * 0.7);
+      // worn dirt shoulder along the road edge
+      if (d <= half + 2.5 && ctx.materials[k] !== TERRAIN_MATERIAL_INDEX.Water) ctx.materials[k] = TERRAIN_MATERIAL_INDEX.Ground;
     }
   }
 }

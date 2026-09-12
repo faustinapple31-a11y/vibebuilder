@@ -61,6 +61,21 @@ export function generateTerrain(ctx: GenContext): void {
     return v + d + micro;
   });
 
+  // stylized strata: steep slopes read as layered cliffs (terraces blended by slope), flats untouched
+  progress(ctx, "terrain:strata", 0.62);
+  const slope2 = h.slopeGrid();
+  const strataStep = 6 + t.roughness * 4;
+  h.map((x, z, v, i) => {
+    const s = slope2.data[i]!;
+    const m = smoothstep(0.55, 0.95, s) * 0.55;
+    if (m <= 0) return v;
+    const wx = origin[0] + x * cellSize;
+    const wz = origin[1] + z * cellSize;
+    const wobble = ridge.noise2(wx / 70, wz / 70) * strataStep * 0.35;
+    const terraced = Math.floor((v + wobble) / strataStep) * strataStep + strataStep * 0.5 - wobble;
+    return lerp(v, terraced, m);
+  });
+
   progress(ctx, "terrain:erosion", 0.7);
   erode(ctx, t.erosion);
 

@@ -59,6 +59,14 @@ export function computeLighting(ctx: GenContext): RobloxLightingSettings {
     bloom: { intensity: night ? 0.5 : 0.25, size: 24, threshold: night ? 0.85 : 1.2 },
     sunRays: { intensity: mood === "golden" || mood === "dawn" ? 0.18 : night ? 0.02 : 0.06, spread: 0.6 },
     sky: { sunAngularSize: 18, moonAngularSize: night ? 15 : 11, starCount: night ? 3000 : 1500 },
+    technology: "ShadowMap",
+    terrain: {
+      waterColor: mixHex(style.palette.water, night ? "#1a2a44" : "#3c7fa8", night ? 0.45 : 0.3),
+      waterTransparency: night ? 0.55 : 0.45,
+      waterReflectance: night ? 0.75 : 0.6,
+      waterWaveSize: 0.12,
+      waterWaveSpeed: 7,
+    },
   };
   void lightenHex;
 }

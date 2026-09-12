@@ -67,12 +67,19 @@ export function generateBiomes(ctx: GenContext): void {
       const b = biomes[best]!;
       const s = slope.data[i]!;
       const detail = n2.noise2(wx / 40, wz / 40);
+      const patch = n2.fbm(wx / 18 + 50, wz / 18 - 50, 2); // fine moss / bare-earth patches
       let mat: TerrainMaterial = detail > 0.35 ? b.prefs.alt : b.prefs.surface;
+      const forest = b.id === "dark_forest" || b.id === "forest" || b.id === "pine_forest" || b.id === "mushroom_grove";
+      if (forest && patch > 0.45) mat = "Ground"; // bare earth under dense canopy
+      else if (forest && patch < -0.5) mat = "LeafyGrass"; // moss
+      else if ((b.id === "meadow" || b.id === "highlands") && patch > 0.55) mat = "LeafyGrass"; // lush tufts
+      const sandy = b.id === "desert" || b.id === "beach";
       if (!Number.isNaN(ctx.water.data[i]!)) mat = "Water";
-      else if (s > 0.85) mat = "Rock";
+      else if (s > 0.85) mat = detail > 0.2 ? "Basalt" : "Rock";
       else if (s > 0.62) mat = detail > 0 ? "Rock" : "Slate";
-      else if (wd < 4) mat = b.id === "desert" || b.id === "beach" ? "Sand" : "Mud";
-      else if (wd < 10 && detail > -0.2) mat = b.id === "desert" || b.id === "beach" ? "Sand" : "Ground";
+      else if (s > 0.45 && detail > 0.3) mat = "Ground"; // scree / bare slope
+      else if (wd < 3) mat = sandy ? "Sand" : detail > 0.1 ? "Sand" : "Mud"; // sandy banks with mud
+      else if (wd < 9 && detail > -0.2) mat = sandy ? "Sand" : "Ground";
       else if (h > 0.9 && b.id !== "desert") mat = detail > 0 ? "Snow" : "Rock";
       ctx.materials[i] = TERRAIN_MATERIAL_INDEX[mat];
     }

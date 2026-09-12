@@ -31,6 +31,7 @@ describe("world generator", () => {
     for (const p of bake.placements) {
       if (p.prefab === "bridge") continue;
       const v = bake.prefabs[p.prefab]![p.variant]!;
+      if (v.tags.includes("floating")) continue;
       const h = sampleHeight(bake.terrain, p.position[0], p.position[2]);
       const sink = v.sinkDepth * p.scale;
       const r = (v.baseRadius ?? 1) * p.scale;
@@ -40,7 +41,8 @@ describe("world generator", () => {
         min = Math.min(min, sampleHeight(bake.terrain, p.position[0] + Math.cos(a) * r, p.position[2] + Math.sin(a) * r));
       }
       const height = Math.max(1, v.bounds.max[1]) * p.scale;
-      const maxExtra = Math.max(1.2, Math.min(height * 0.3, r * 0.9));
+      const cap = v.category === "vegetation" || v.category === "landmark" ? 1.5 : 1.2;
+      const maxExtra = Math.min(cap, Math.max(0.5, Math.min(height * 0.3, r * 0.9)));
       if (p.position[1] > h + 0.5) floating++;
       // tilted placements (p.up) lie flush on the slope; upright ones must reach the lowest point of their base
       else if (!p.up && r >= 1.5 && h - min <= maxExtra && p.position[1] > min + 0.5) floating++;

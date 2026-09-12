@@ -22,16 +22,17 @@ export function placeRocksAndProps(ctx: GenContext): void {
     }
   }
   let n = 0;
-  const add = (prefab: string, x: number, z: number, opts: { scale?: number; rotationY?: number; importance?: number; zone?: string; category?: Placement["category"]; margin?: number; sink?: boolean }): boolean => {
+  const add = (prefab: string, x: number, z: number, opts: { scale?: number; rotationY?: number; importance?: number; zone?: string; category?: Placement["category"]; margin?: number; sink?: boolean; onWater?: boolean }): boolean => {
     const variants = ctx.prefabs[prefab];
     if (!variants || variants.length === 0) return false;
-    if (!inside(ctx, x, z) || isWaterAt(ctx, x, z)) return false;
+    if (!inside(ctx, x, z) || (!opts.onWater && isWaterAt(ctx, x, z))) return false;
+    if (opts.onWater && !isWaterAt(ctx, x, z)) return false;
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
     const radius = v.footprintRadius * scale * 0.6;
     if (hash.overlaps(x, z, radius, opts.margin ?? 0.5)) return false;
-    const y = ctx.heights.sample(x, z) - (opts.sink === false ? 0 : v.sinkDepth * scale);
+    const y = opts.onWater ? ctx.water.sample(x, z) : ctx.heights.sample(x, z) - (opts.sink === false ? 0 : v.sinkDepth * scale);
     const pos: [number, number, number] = [x, y, z];
     hash.insert({ position: pos, radius });
     ctx.placements.push({
@@ -270,6 +271,72 @@ export function placeRocksAndProps(ctx: GenContext): void {
       for (let i = 0; i < 3; i++) add("wisp", c[0] + rng.float(-18, 18), c[1] + rng.float(-14, 14), { importance: 2.5, margin: 0 });
     }
   }
+  // ---- waterside: reeds on the banks, lily pads on still shallow water
+  progress(ctx, "props:waterside", 0.8);
+  {
+    const cands = poissonDisk(ctx, rng, 7);
+    for (const [x, z] of cands) {
+      if (distanceToEdge(ctx, x, z) < 40) continue;
+      const wd = ctx.waterDistance.sample(x, z);
+      const biome = biomeAt(ctx, x, z);
+      const sandy = biome === "desert" || biome === "beach";
+      if (isWaterAt(ctx, x, z)) {
+        // lily pads: lakes/pools (slow water) close to the shore, not on the river's main current
+        const depth = ctx.water.sample(x, z) - ctx.heights.sample(x, z);
+        if (depth > 0.6 && depth < 4.5 && wd < 0.5 && !sandy && rng.chance(0.22)) {
+          add("lily_pad", x, z, { importance: 3.2, margin: 0, onWater: true, scale: rng.float(0.8, 1.3) });
+        }
+        continue;
+      }
+      if (wd < 6 && !sandy && slopeAtWorld(ctx, x, z) < 0.5 && ctx.roadDistance.sample(x, z) > 4 && rng.chance(0.55)) {
+        add("reeds", x, z, { importance: 3.2, margin: 0, scale: rng.float(0.8, 1.4) });
+      }
+    }
+  }
+
+  // ---- village extras: dry-stone boundary walls, market stalls, lantern strings across the street
+  if (sets.has("village")) {
+    for (const site of ctx.sites) {
+      const inhabited = site.spec.type === "village" || site.spec.type === "hamlet" || site.spec.type === "outpost";
+      // boundary wall ring with gaps at the roads and a few missing segments
+      const ringR = site.radius * 0.92;
+      const segLen = 11;
+      const segs = Math.floor((2 * Math.PI * ringR) / segLen);
+      for (let i = 0; i < segs; i++) {
+        const a = (i / segs) * Math.PI * 2;
+        const x = site.center[0] + Math.cos(a) * ringR;
+        const z = site.center[1] + Math.sin(a) * ringR;
+        if (ctx.roadDistance.sample(x, z) < 9 || ctx.waterDistance.sample(x, z) < 6 || slopeAtWorld(ctx, x, z) > 0.45) continue;
+        if (rng.chance(inhabited ? 0.18 : 0.45)) continue;
+        add("stone_wall", x, z, { rotationY: -a + Math.PI / 2, importance: 2.5, zone: site.id, margin: 0, sink: true });
+      }
+      // market stalls at the plaza edge, facing the centre
+      const stalls = inhabited ? rng.int(1, 3) : rng.chance(0.4) ? 1 : 0;
+      for (let i = 0; i < stalls; i++) {
+        const a = rng.float(0, Math.PI * 2);
+        const r = site.radius * 0.24 + 8;
+        const x = site.center[0] + Math.cos(a) * r;
+        const z = site.center[1] + Math.sin(a) * r;
+        // the stall's opening (-Z) must face the plaza centre
+        add("market_stall", x, z, { rotationY: Math.atan2(-(site.center[0] - x), -(site.center[1] - z)) + Math.PI, importance: 4, zone: site.id, margin: 1 });
+      }
+      // lantern strings across the street where roads enter the village
+      let strings = 0;
+      for (const road of ctx.paths.filter((p) => p.kind === "road")) {
+        for (let i = 2; i < road.points.length - 2 && strings < 3; i += 2) {
+          const p = road.points[i]!;
+          const d = Math.hypot(p[0] - site.center[0], p[1] - site.center[1]);
+          if (d > site.radius * 0.7 || d < site.radius * 0.3) continue;
+          const a = road.points[i + 1]!;
+          const dir = Math.atan2(a[1] - p[1], a[0] - p[0]);
+          const scale = Math.min(1.4, Math.max(0.8, (road.width + 6) / 14));
+          if (add("lantern_string", p[0], p[1], { rotationY: -dir, scale, importance: 4.5, zone: site.id, margin: 0, sink: true })) strings++;
+          i += 6;
+        }
+      }
+    }
+  }
+
   // ---- ambience: lantern-lit main road at night, firefly swarms, ground mist
   progress(ctx, "props:ambience", 0.85);
   const night = spec.lighting.timeOfDay < 6 || spec.lighting.timeOfDay > 18.5;

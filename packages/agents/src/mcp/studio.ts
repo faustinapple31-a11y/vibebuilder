@@ -242,6 +242,9 @@ return "ok " .. inst:GetFullName() .. " (" .. #inst.Source .. " chars)"`;
 export const BAKE_WORLD_LUAU = `
 local RS = game:GetService("ReplicatedStorage")
 local SSS = game:GetService("ServerScriptService")
+-- a 40k-part bake must not land in Studio's undo history (memory), and the previous bake is released first
+local CHS = game:GetService("ChangeHistoryService")
+pcall(function() CHS:SetEnabled(false) end)
 local ok, err = pcall(function()
   local World = SSS:FindFirstChild("World")
   assert(World, "ServerScriptService.World not found — build & sync the project (rojo) first")
@@ -251,6 +254,8 @@ local ok, err = pcall(function()
   workspace:SetAttribute("WorldPrebaked", true)
   print(string.format("[WorldForge] baked %d placements, %d terrain chunks in %.1fs", report.placements, report.terrainChunks, report.seconds))
 end)
+pcall(function() CHS:ResetWaypoints() end)
+pcall(function() CHS:SetEnabled(true) end)
 if not ok then error(err) end
 return "ok"
 `;

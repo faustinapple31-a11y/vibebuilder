@@ -2,7 +2,7 @@ import { HttpService, Lighting, ReplicatedStorage, Workspace } from "@rbxts/serv
 import { base64ToBuffer, hexToColor3, readF32 } from "shared/world/decode";
 import { PrefabCache } from "shared/world/prefabFactory";
 import type { LightingData, WorldBakeData } from "shared/world/types";
-import { buildTerrain } from "./TerrainBuilder";
+import { buildTerrain, makeHeightSampler } from "./TerrainBuilder";
 
 /**
  * Builds the whole world from ReplicatedStorage.WorldAssets.WorldBake at runtime.
@@ -88,6 +88,20 @@ export function applyLighting(l: LightingData): void {
 	sky.SunAngularSize = l.sky.sunAngularSize;
 	sky.MoonAngularSize = l.sky.moonAngularSize;
 	sky.StarCount = l.sky.starCount;
+	// Lighting technology (NotScriptable outside edit mode → pcall). ShadowMap by default: Future with hundreds of
+	// point lights has hung the GPU driver (DXGI_ERROR_DEVICE_HUNG) on a big bake.
+	pcall(() => {
+		(Lighting as unknown as { Technology: Enum.Technology }).Technology = l.technology === "Future" ? Enum.Technology.Future : Enum.Technology.ShadowMap;
+	});
+	const t = l.terrain;
+	if (t) {
+		const terrain = Workspace.Terrain;
+		terrain.WaterColor = hexToColor3(t.waterColor);
+		terrain.WaterTransparency = t.waterTransparency;
+		terrain.WaterReflectance = t.waterReflectance;
+		terrain.WaterWaveSize = t.waterWaveSize;
+		terrain.WaterWaveSpeed = t.waterWaveSpeed;
+	}
 }
 
 export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): BuildReport {
@@ -132,6 +146,14 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 		cacheFolder.Name = "Prefabs";
 		cacheFolder.Parent = assets;
 		const cache = new PrefabCache(cacheFolder);
+		// Terrain snap: the bake places objects on the heightmap; the voxel surface can still differ by a stud or
+		// two on slopes/ridges. Measure the difference at each pivot with a terrain-only raycast and apply it, so
+		// every model keeps the generator's intent (sink, tilt, base contact) relative to the *rendered* ground.
+		const heightAt = makeHeightSampler(bake.terrain);
+		const snapParams = new RaycastParams();
+		snapParams.FilterType = Enum.RaycastFilterType.Include;
+		snapParams.FilterDescendantsInstances = [Workspace.Terrain];
+		snapParams.IgnoreWater = true;
 		const buf = base64ToBuffer(bake.placementsB64);
 		const total = bake.placementCount;
 		const yieldEvery = options.yieldEvery ?? 150;
@@ -149,7 +171,16 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 			const z = readF32(buf, o + 4);
 			const rotY = readF32(buf, o + 5);
 			const scale = readF32(buf, o + 6);
-			let cf = new CFrame(x, y, z);
+			let yy = y;
+			const floating = variant.tags !== undefined && variant.tags.includes("floating");
+			if (prefabName !== "bridge" && !floating) {
+				const hit = Workspace.Raycast(new Vector3(x, y + 150, z), new Vector3(0, -400, 0), snapParams);
+				if (hit) {
+					const delta = hit.Position.Y - heightAt(x, z);
+					if (math.abs(delta) < 24) yy = y + delta;
+				}
+			}
+			let cf = new CFrame(x, yy, z);
 			if (stride >= 9) {
 				const ux = readF32(buf, o + 7);
 				const uz = readF32(buf, o + 8);

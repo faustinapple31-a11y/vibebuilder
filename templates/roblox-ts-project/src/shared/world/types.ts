@@ -87,6 +87,8 @@ export interface LightingData {
 	bloom: { intensity: number; size: number; threshold: number };
 	sunRays: { intensity: number; spread: number };
 	sky: { sunAngularSize: number; moonAngularSize: number; starCount: number };
+	technology?: "ShadowMap" | "Future";
+	terrain?: { waterColor: string; waterTransparency: number; waterReflectance: number; waterWaveSize: number; waterWaveSpeed: number };
 }
 
 export interface WorldBakeData {

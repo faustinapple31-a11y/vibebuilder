@@ -66,6 +66,11 @@ export const PREFAB_DEFINITIONS: PrefabDefinition[] = [
   def("hay_bale", "prop", props.hayBale, 6, 2, ["village", "farm"]),
   def("cart", "prop", props.cart, 4, 14, ["village", "farm"]),
   def("firefly_swarm", "prop", props.fireflySwarm, 4, 2, ["ambience", "glow"]),
+  def("reeds", "vegetation", props.reeds, 8, 9, ["undergrowth", "water"]),
+  def("lily_pad", "vegetation", props.lilyPad, 6, 4, ["water", "floating"]),
+  def("stone_wall", "prop", props.stoneWall, 8, 7, ["village", "wall"]),
+  def("market_stall", "prop", props.marketStall, 6, 22, ["village", "market"]),
+  def("lantern_string", "prop", props.lanternString, 4, 20, ["village", "light"]),
   def("mist_patch", "prop", props.mistPatch, 4, 1, ["ambience"]),
   // landmarks
   def("giant_tree", "landmark", lm.giantTree, 4, 30, ["landmark"]),

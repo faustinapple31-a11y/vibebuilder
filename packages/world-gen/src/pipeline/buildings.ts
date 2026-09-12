@@ -115,6 +115,10 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     const r = plazaR + 10 + rng.float(0, site.radius * 0.8);
     if (tryPlace("cottage", cottages, a, r, rng.chance(0.5))) placedCount++;
   }
+  // paved plaza (cobblestone core, packed earth ring) — reads as a real village square
+  if (s.type !== "camp") paveDisc(ctx, site.center, plazaR * 0.75, TERRAIN_MATERIAL_INDEX.Cobblestone);
+  paveDisc(ctx, site.center, plazaR * 0.75 + 5, TERRAIN_MATERIAL_INDEX.Ground, true);
+
   // well or campfire at the plaza
   const centerPrefab = s.type === "camp" ? "campfire" : "well";
   const cv = ctx.prefabs[centerPrefab];
@@ -139,6 +143,26 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
   }
   void centerY;
   void placedCount;
+}
+
+/** Paints a disc of terrain material; `ringOnly` keeps existing Cobblestone (paints the surroundings only). */
+function paveDisc(ctx: GenContext, c: Vec2, r: number, material: number, ringOnly = false): void {
+  const h = ctx.heights;
+  const [cx, cz] = h.toCell(c[0], c[1]);
+  const rc = Math.ceil(r / ctx.cellSize);
+  for (let dz = -rc; dz <= rc; dz++) {
+    for (let dx = -rc; dx <= rc; dx++) {
+      const x = Math.round(cx) + dx;
+      const z = Math.round(cz) + dz;
+      if (x < 0 || z < 0 || x >= ctx.width || z >= ctx.depth) continue;
+      const [wx, wz] = h.toWorld(x, z);
+      if (Math.hypot(wx - c[0], wz - c[1]) > r) continue;
+      const i = z * ctx.width + x;
+      if (ctx.materials[i] === TERRAIN_MATERIAL_INDEX.Water) continue;
+      if (ringOnly && ctx.materials[i] === TERRAIN_MATERIAL_INDEX.Cobblestone) continue;
+      ctx.materials[i] = material;
+    }
+  }
 }
 
 function markGround(ctx: GenContext, c: Vec2, r: number): void {
