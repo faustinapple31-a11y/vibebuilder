@@ -20,7 +20,12 @@ commandes Rust `studio.rs`, `opencloud.rs`, `process.rs`.
 │   ├── client/main.client.ts            # bootstrap client (UI, atmosphère locale)
 │   ├── shared/
 │   │   ├── config.ts                    # constantes gameplay
-│   │   ├── net.ts                       # remotes typés
+│   │   ├── catalog.ts                   # shop (coins) + game passes / dev products (générés du GameSpec)
+│   │   ├── animations.ts                # ids d'animations + AnimSpec custom
+│   │   ├── audio.ts                     # musique, ambiances par zone, SFX
+│   │   ├── npcs.ts                      # roster PNJ (nom, rôle, zone, dialogues)
+│   │   ├── anim/keyframes.ts            # AnimSpec → KeyframeSequence (KeyframeSequenceProvider)
+│   │   ├── net.ts                       # remotes typés (ShopState, ShopBuy, ShopPromptRobux, NpcTalk, PlaySfx…)
 │   │   └── world/
 │   │       ├── types.ts                 # types WorldBake côté Roblox
 │   │       ├── decode.ts                # base64 + buffer decode
@@ -29,8 +34,8 @@ commandes Rust `studio.rs`, `opencloud.rs`, `process.rs`.
 │   │   ├── WorldBuilder.ts              # terrain (WriteVoxels), placements, lighting, spawn
 │   │   ├── TerrainBuilder.ts
 │   │   └── Streaming.ts                 # LOD/cull, StreamingEnabled
-│   ├── systems/                         # gameplay généré (PlayerData, Survival, Collectibles, …)
-│   └── ui/                              # HUD, inventory, shop… (roblox-ts, Instances UI)
+│   ├── systems/                         # PlayerData (owned/inventory/multipliers/buffs), Shop, Npcs, Audio, Survival, Collectibles…
+│   └── ui/                              # Hud (bouton Shop, bulle de dialogue), ShopUi (fenêtre shop), …
 ├── assets/
 │   ├── world/WorldBake.json             # → ReplicatedStorage.WorldAssets.WorldBake (ModuleScript via Rojo)
 │   └── models/*.rbxmx                   # prefabs individuels (asset browser)
@@ -160,6 +165,25 @@ corresponde aux `bounds` du prefab, pivoté au centre-bas puis mis en cache comm
 (asset non publié, place non associée à un créateur, hors ligne) les parts placeholder du PartList sont utilisées.
 Sur un serveur live, l'asset doit appartenir au créateur de l'expérience (c'est le cas : il est uploadé avec sa clé).
 
+### Shop, game passes, developer products
+
+`systems/Shop.ts` valide chaque achat côté serveur (`ShopBuy` RemoteFunction) : prix en coins, item non consommable
+déjà possédé → refus, effets appliqués sur le profil (`multipliers`, `buffs` à durée, `inventory`, coins) et
+répliqués au client (`ShopState`). Les items Robux passent par `MarketplaceService.PromptGamePassPurchase` /
+`PromptProductPurchase` ; `ProcessReceipt` est idempotent (`PurchaseId` mémorisé dans le profil) et
+`UserOwnsGamePassAsync` est re-synchronisé à la connexion. `ui/ShopUi.ts` dessine la fenêtre (sections, tiers
+"Owned", consommables "You have: N", cartes R$) ; touche **B** ou bouton HUD.
+
+### PNJ, animations, audio
+
+`systems/Npcs.ts` crée des rigs R15 (`Players:CreateHumanoidModelFromDescription`) sur les marqueurs de zone
+(`World/Zones`, un Part invisible par zone du bake), joue idle/walk/greet (ids du catalogue Roblox ou
+`registerAnimSpec` pour les keyframes custom) et propose un ProximityPrompt *Talk* (`NpcTalk` → bulle HUD).
+`systems/Audio.ts` : musique dans `SoundService`, ambiance par zone (crossfade sur le marqueur le plus proche),
+SFX déclenchés par le serveur (`PlaySfx`). Sans asset id, les sons Roblox intégrés `rbxasset://sounds/*` servent
+de défaut ; l'onglet Game uploade des fichiers audio via l'Assets API (`Audio`) et l'onglet Toolbox prend des sons
+libres du Creator Store.
+
 ## 8. Bridge MCP Studio (implémenté)
 
 Roblox Studio embarque un serveur MCP (`StudioMCP.exe`, transport stdio). L'app le détecte à côté de l'exécutable
@@ -173,6 +197,8 @@ Studio, s'y connecte (`packages/agents/src/mcp/client.ts`, `studio.ts`) et expos
 | Play-test | `start_stop_play`, `get_console_output` | 20 s de jeu, console parsée en diagnostics |
 | Screenshot | `execute_luau` (caméra) + `screen_capture` | PNG dans `qa/screens/` pour le critic visuel |
 | Luau console | `execute_luau` | snippets utilisateur (Edit/Server) |
+| Insert asset (Toolbox) | `execute_luau` | `game:GetObjects("rbxassetid://id")` posé au sol devant la caméra dans `workspace.Toolbox` (audio → `Sound` dans SoundService) |
+| Preview animation (Game) | `execute_luau` | rig R15 dans `workspace.WorldForgePreview`, KeyframeSequence construit à partir de l'AnimSpec, track jouée |
 | Génération 3D | `generate_mesh` | mesh IA de Roblox inséré dans la place (MeshProvider "studio") |
 
 Un seul client MCP peut être connecté à la fois ; les processus orphelins sont nettoyés au démarrage de l'app.

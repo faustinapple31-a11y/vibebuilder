@@ -54,6 +54,7 @@ pub fn run() {
             // ai providers
             commands::ai::ai_request,
             commands::ai::ai_has_key,
+            commands::public::public_get,
             // capture
             commands::capture::list_windows,
             commands::capture::capture_window,

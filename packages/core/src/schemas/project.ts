@@ -11,6 +11,8 @@ export const ProjectMetaSchema = z.object({
   stylePreset: StylePresetIdSchema.default("stylized_mystical"),
   currentWorld: z.string().default("main"),
   worldVersion: z.string().default("v0.0"),
+  /** Version of the roblox-ts template the project was scaffolded/upgraded with (see TEMPLATE_VERSION). */
+  templateVersion: z.number().int().default(1),
   locks: LocksSchema.prefault({}),
   roblox: z
     .object({

@@ -47,6 +47,54 @@ export const GAMEPLAY_SYSTEMS = [
 export const GameplaySystemIdSchema = z.enum(GAMEPLAY_SYSTEMS);
 export type GameplaySystemId = z.infer<typeof GameplaySystemIdSchema>;
 
+export const ShopEffectSchema = z.object({
+  /** multiplier: stat × value permanently · buff: stat × value for durationSeconds · grant_coins: +value coins · cosmetic: flag only */
+  type: z.enum(["multiplier", "buff", "grant_coins", "grant_item", "cosmetic"]).default("cosmetic"),
+  stat: z.string().optional(),
+  value: z.number().default(2),
+  durationSeconds: z.number().int().min(0).default(0),
+  item: z.string().optional(),
+});
+export type ShopEffect = z.infer<typeof ShopEffectSchema>;
+
+export const ShopItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().default(""),
+  section: z.string().default("upgrades"),
+  /** Coins price (in-game currency). */
+  price: z.number().int().min(0).default(100),
+  /** Consumables can be bought repeatedly ("You have: N"); upgrades are owned once. */
+  consumable: z.boolean().default(false),
+  effect: ShopEffectSchema.prefault({}),
+  /** Decal asset id for the card icon (optional; the UI falls back to a styled glyph). */
+  iconAssetId: z.number().int().optional(),
+  /** Card tint. */
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+});
+export type ShopItem = z.infer<typeof ShopItemSchema>;
+
+/** Procedural animation: keyframes of joint rotations (degrees, Euler XYZ) on an R15 rig. */
+export const AnimSpecSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** Loop for idles, one-shot for emotes/attacks. */
+  loop: z.boolean().default(false),
+  priority: z.enum(["Idle", "Movement", "Action"]).default("Action"),
+  durationSeconds: z.number().min(0.1).max(30).default(1.5),
+  keyframes: z
+    .array(
+      z.object({
+        /** 0..1 of the duration */
+        t: z.number().min(0).max(1),
+        /** joint name → [rx, ry, rz] degrees; R15 joints: LeftShoulder, RightShoulder, LeftElbow, RightElbow, Neck, Waist, LeftHip, RightHip, LeftKnee, RightKnee, Root */
+        joints: z.record(z.string(), z.tuple([z.number(), z.number(), z.number()])),
+      }),
+    )
+    .min(2),
+});
+export type AnimSpec = z.infer<typeof AnimSpecSchema>;
+
 export const GameSpecSchema = z.object({
   title: z.string().min(1).default("Untitled Game"),
   tagline: z.string().default(""),
@@ -120,8 +168,39 @@ export const GameSpecSchema = z.object({
     .prefault({}),
   monetization: z
     .object({
-      gamepasses: z.array(z.object({ id: z.string(), name: z.string(), description: z.string().default(""), priceRobux: z.number().int().min(0).default(99) })).default([]),
-      developerProducts: z.array(z.object({ id: z.string(), name: z.string(), description: z.string().default(""), priceRobux: z.number().int().min(0).default(49) })).default([]),
+      gamepasses: z.array(z.object({ id: z.string(), name: z.string(), description: z.string().default(""), priceRobux: z.number().int().min(0).default(99), robloxId: z.number().int().optional(), iconAssetId: z.number().int().optional(), effect: ShopEffectSchema.optional() })).default([]),
+      developerProducts: z.array(z.object({ id: z.string(), name: z.string(), description: z.string().default(""), priceRobux: z.number().int().min(0).default(49), robloxId: z.number().int().optional(), iconAssetId: z.number().int().optional(), effect: ShopEffectSchema.optional() })).default([]),
+    })
+    .prefault({}),
+  /** In-game shop (coins economy): upgrades, potions, consumables. Robux items come from `monetization`. */
+  shop: z
+    .object({
+      title: z.string().default("Shop"),
+      sections: z.array(z.object({ id: z.string(), title: z.string() })).default([
+        { id: "upgrades", title: "Upgrades" },
+        { id: "potions", title: "Potions" },
+      ]),
+      items: z.array(ShopItemSchema).default([]),
+    })
+    .prefault({}),
+  /** Character animations used by NPCs / emotes (Roblox catalog ids or procedural presets). */
+  animations: z
+    .object({
+      npcIdle: z.string().default("rbxassetid://507766666"),
+      npcWalk: z.string().default("rbxassetid://507777826"),
+      greet: z.string().default("rbxassetid://507770239"),
+      emotes: z.array(z.object({ id: z.string(), name: z.string(), animationId: z.string() })).default([]),
+      /** Procedural keyframe animations built in-game (see template shared/anim). */
+      custom: z.array(AnimSpecSchema).default([]),
+    })
+    .prefault({}),
+  /** Music & sounds wired into the game (Roblox audio asset ids). */
+  audio: z
+    .object({
+      ambientMusic: z.string().optional(),
+      zoneAmbience: z.array(z.object({ zone: z.string(), soundId: z.string(), volume: z.number().min(0).max(2).default(0.5) })).default([]),
+      sfx: z.object({ collect: z.string().optional(), purchase: z.string().optional(), error: z.string().optional(), notify: z.string().optional() }).prefault({}),
+      musicVolume: z.number().min(0).max(2).default(0.35),
     })
     .prefault({}),
   worldBrief: z.string().default(""),

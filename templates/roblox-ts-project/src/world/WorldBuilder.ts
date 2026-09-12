@@ -130,6 +130,7 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 		return f;
 	};
 
+	const heightAt = makeHeightSampler(bake.terrain);
 	if (options.lighting !== false) applyLighting(bake.lighting);
 
 	if (options.terrain !== false) {
@@ -149,7 +150,6 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 		// Terrain snap: the bake places objects on the heightmap; the voxel surface can still differ by a stud or
 		// two on slopes/ridges. Measure the difference at each pivot with a terrain-only raycast and apply it, so
 		// every model keeps the generator's intent (sink, tilt, base contact) relative to the *rendered* ground.
-		const heightAt = makeHeightSampler(bake.terrain);
 		const snapParams = new RaycastParams();
 		snapParams.FilterType = Enum.RaycastFilterType.Include;
 		snapParams.FilterDescendantsInstances = [Workspace.Terrain];
@@ -204,6 +204,28 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 				progress("placements", i, total);
 				task.wait();
 			}
+		}
+	}
+
+	// zone markers (invisible parts): audio ambience, NPC homes, quests hook onto them by name
+	{
+		const zones = new Instance("Folder");
+		zones.Name = "Zones";
+		zones.Parent = worldFolder;
+		for (const z of bake.zones) {
+			const marker = new Instance("Part");
+			marker.Name = z.id;
+			marker.Anchored = true;
+			marker.CanCollide = false;
+			marker.CanQuery = false;
+			marker.CanTouch = false;
+			marker.Transparency = 1;
+			marker.Size = new Vector3(2, 2, 2);
+			const [cx, cz] = z.center;
+			marker.CFrame = new CFrame(cx, heightAt(cx, cz) + 4, cz);
+			marker.SetAttribute("Kind", z.kind);
+			marker.SetAttribute("Radius", z.radius);
+			marker.Parent = zones;
 		}
 	}
 

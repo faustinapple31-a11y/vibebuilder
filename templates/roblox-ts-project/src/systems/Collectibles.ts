@@ -1,8 +1,9 @@
 import { CollectionService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { getRemoteEvent, Remotes } from "shared/net";
-import { addCoins } from "./PlayerData";
+import { addCoins, multiplierFor } from "./PlayerData";
 import { feed } from "./Survival";
+import { playSfx } from "./Audio";
 
 /**
  * Turns matching world prefabs into collectibles with a ProximityPrompt.
@@ -25,9 +26,10 @@ function makeCollectible(model: Model): void {
 	prompt.Triggered.Connect((player) => {
 		if (!prompt.Enabled) return;
 		prompt.Enabled = false;
-		addCoins(player, GameConfig.collectibles.rewardCoins);
-		feed(player);
-		notify.FireClient(player, `+${GameConfig.collectibles.rewardCoins} ${GameConfig.currency.name}`);
+		const granted = addCoins(player, GameConfig.collectibles.rewardCoins);
+		feed(player, multiplierFor(player, "food"));
+		playSfx(player, "collect");
+		notify.FireClient(player, `+${granted} ${GameConfig.currency.name}`);
 		const parts = model.GetDescendants().filter((d): d is BasePart => d.IsA("BasePart"));
 		const original = parts.map((p) => p.Transparency);
 		for (const p of parts) p.Transparency = 1;

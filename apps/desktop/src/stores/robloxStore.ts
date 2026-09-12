@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { newId, slugify } from "@worldforge/core";
 import { OpenCloudClient, OpenCloudError, type CloudTransport, type PlaceInfo, type UniverseInfo } from "@worldforge/roblox-cloud";
-import { runtimeTemplateFiles } from "@worldforge/roblox-export";
+import { TEMPLATE_VERSION, runtimeTemplateFiles, templateUpgradeFiles } from "@worldforge/roblox-export";
 import { updateMeshAsset, type MeshAssetRecord } from "@/lib/meshAssets";
 import { parseRbxtscOutput, parseStudioLog, validateBakeForPublish, type DiagnosticEntry, type PublishCheck } from "@worldforge/quality";
 import { BAKE_WORLD_LUAU, StudioMcp, VERIFY_BAKE_JSON_LUAU, WORLD_STATS_LUAU, outFileToInstance, pushBakeChunkLuau, pushScriptLuau, type StudioInstance } from "@worldforge/agents";
@@ -33,6 +33,7 @@ interface RobloxState {
   deployToStudio: () => Promise<boolean>;
   playTest: (seconds?: number) => Promise<{ errors: DiagnosticEntry[]; output: string }>;
   captureViaMcp: (view?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number }) => Promise<string | null>;
+  setPlaying: (on: boolean) => Promise<boolean>;
   runLuau: (code: string, datamodel?: "Edit" | "Server" | "Client") => Promise<string>;
   generateMeshInStudio: (prompt: string) => Promise<string>;
   /** Uploads a hero mesh (FBX) as a Roblox Model asset through Open Cloud and stores the asset id. */
@@ -268,6 +269,21 @@ export const useRoblox = create<RobloxState>((set, get) => ({
     }
   },
 
+  /** Start / stop Studio play mode (Play Solo) without the automatic 20 s test. */
+  async setPlaying(on) {
+    if (!(await get().connectMcp())) return false;
+    await get().refreshStudios();
+    if (!studioMcp?.activeStudioId) return false;
+    try {
+      await studioMcp.startStopPlay(on);
+      set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), on ? "play mode started" : "play mode stopped"] } }));
+      return true;
+    } catch (e) {
+      set((s) => ({ mcp: { ...s.mcp, log: [...s.mcp.log.slice(-200), `play toggle failed: ${(e as Error).message ?? e}`] } }));
+      return false;
+    }
+  },
+
   /** Execute a Luau snippet in Studio and log the output (Luau console). */
   async runLuau(code, datamodel = "Edit") {
     if (!(await get().connectMcp())) return "";
@@ -356,8 +372,9 @@ return string.format("inserted %s (%d parts, %.1f studs tall) at %s", model.Name
       if (v) {
         // position the Studio camera (default: at the spawn, looking at the composition target)
         const f = (n: number) => n.toFixed(1);
-        await studioMcp.executeLuau(`local cam = workspace.CurrentCamera; cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = CFrame.lookAt(Vector3.new(${f(v.position[0])}, ${f(v.position[1])}, ${f(v.position[2])}), Vector3.new(${f(v.lookAt[0])}, ${f(v.lookAt[1])}, ${f(v.lookAt[2])})); cam.FieldOfView = ${v.fov ?? 70}; return "camera set"`, "Edit", 30000);
-        await new Promise((r) => setTimeout(r, 2500)); // let streaming + exposure settle
+        // in play mode the Edit datamodel is unavailable: keep the player's camera and just capture
+        const camOk = await studioMcp.executeLuau(`local cam = workspace.CurrentCamera; cam.CameraType = Enum.CameraType.Scriptable; cam.CFrame = CFrame.lookAt(Vector3.new(${f(v.position[0])}, ${f(v.position[1])}, ${f(v.position[2])}), Vector3.new(${f(v.lookAt[0])}, ${f(v.lookAt[1])}, ${f(v.lookAt[2])})); cam.FieldOfView = ${v.fov ?? 70}; return "camera set"`, "Edit", 30000).then(() => true, () => false);
+        if (camOk) await new Promise((r) => setTimeout(r, 2500)); // let streaming + exposure settle
       }
       const res = await studioMcp.screenCapture(`WorldForge_${Date.now()}`);
       if (!res.image) {
@@ -393,9 +410,28 @@ return string.format("inserted %s (%d parts, %.1f studs tall) at %s", model.Name
     if (!(await get().installDeps())) return false;
     const t0 = Date.now();
     // keep the WorldForge runtime (world builder, prefab factory, effects) in sync with the app version
-    const runtime = runtimeTemplateFiles({ projectName: cur.row.name, projectId: cur.row.id, stylePreset: cur.meta.stylePreset });
+    const scaffold = { projectName: cur.row.name, projectId: cur.row.id, stylePreset: cur.meta.stylePreset };
+    const runtime = runtimeTemplateFiles(scaffold);
     await fs.writeFiles(cur.path, runtime.map((f) => [f.path, f.content]));
-    set((s) => ({ build: { ...s.build, step: "compiling", log: [...s.build.log, `runtime synced (${runtime.length} files)`, "$ rbxtsc"], diagnostics: [] } }));
+    const upgradeLog: string[] = [];
+    if ((cur.meta.templateVersion ?? 1) < TEMPLATE_VERSION) {
+      // one-time framework upgrade (shop/NPC/audio systems…): diverging files are backed up first
+      const existing = new Set((await fs.walk(path.join(cur.path, "src"), 5000)).map((p) => `src/${p}`));
+      const files = templateUpgradeFiles(scaffold, existing);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      for (const f of files) {
+        if (!existing.has(f.path)) continue;
+        const current = await fs.readText(path.join(cur.path, f.path)).catch(() => "");
+        if (current && current !== f.content) {
+          await fs.writeText(path.join(cur.path, ".wf-backup", stamp, f.path), current);
+          upgradeLog.push(`backup ${f.path} → .wf-backup/${stamp}/`);
+        }
+      }
+      await fs.writeFiles(cur.path, files.map((f) => [f.path, f.content]));
+      upgradeLog.push(`template upgraded to v${TEMPLATE_VERSION} (${files.length} files)`);
+      await useProjects.getState().updateMeta({ templateVersion: TEMPLATE_VERSION });
+    }
+    set((s) => ({ build: { ...s.build, step: "compiling", log: [...s.build.log, `runtime synced (${runtime.length} files)`, ...upgradeLog, "$ rbxtsc"], diagnostics: [] } }));
     const lines: string[] = [];
     const rbxtsc = (await fs.exists(path.join(cur.path, "node_modules", ".bin", "rbxtsc.cmd"))) ? path.join(cur.path, "node_modules", ".bin", "rbxtsc.cmd") : (await fs.exists(path.join(cur.path, "node_modules", ".bin", "rbxtsc"))) ? path.join(cur.path, "node_modules", ".bin", "rbxtsc") : "rbxtsc";
     const code = await streamStep(`rbxtsc_${newId("", 6)}`, rbxtsc, [], cur.path, (l) => {

@@ -3,6 +3,9 @@ import { buildWorld, loadBake } from "world/WorldBuilder";
 import * as PlayerData from "systems/PlayerData";
 import * as Survival from "systems/Survival";
 import * as Collectibles from "systems/Collectibles";
+import * as Shop from "systems/Shop";
+import * as Npcs from "systems/Npcs";
+import * as Audio from "systems/Audio";
 import { getRemoteEvent, Remotes } from "shared/net";
 
 /**
@@ -25,3 +28,6 @@ if (!prebaked) {
 
 Survival.start();
 Collectibles.start();
+Shop.start();
+Npcs.start();
+Audio.start();

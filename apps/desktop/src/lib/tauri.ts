@@ -153,6 +153,11 @@ export const opencloud = {
   hasKey: () => invoke<boolean>("oc_has_key"),
 };
 
+/** Read-only proxy for public Roblox endpoints (Creator Store search, thumbnails). */
+export const publicApi = {
+  get: (url: string, response: "text" | "base64" = "text") => invoke<OcResponse>("public_get", { req: { url, response } }),
+};
+
 export const ai = {
   request: (req: { provider: string; method: string; url: string; json_body?: string; response?: "text" | "base64"; headers?: Record<string, string> }) => invoke<OcResponse>("ai_request", { req }),
   hasKey: (provider: string) => invoke<boolean>("ai_has_key", { provider }),

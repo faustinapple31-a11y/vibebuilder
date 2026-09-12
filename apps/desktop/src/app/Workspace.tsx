@@ -1,4 +1,4 @@
-import { Bell, Bot, Box, ChevronDown, Crown, FolderOpen, Grid2X2, Home, Layers, Pause, Play, Plus, Search, Settings2, Sparkles, Upload } from "lucide-react";
+import { Bell, Bot, Box, ChevronDown, Crown, FolderOpen, Grid2X2, Home, Layers, Library, Pause, Play, Plus, Search, Settings2, ShoppingBag, Sparkles, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PROVIDER_META, type AgentProviderId } from "@worldforge/agents";
 import { Button, Dropdown, IconButton, Pill, Tip } from "@/components/ui";
@@ -13,6 +13,8 @@ import { VisualWorkshop } from "@/features/workshop/VisualWorkshop";
 import { WorldView } from "@/features/world/WorldView";
 import { AssetsView } from "@/features/assets/AssetsView";
 import { RobloxView } from "@/features/roblox/RobloxView";
+import { GameView } from "@/features/game/GameView";
+import { ToolboxView } from "@/features/toolbox/ToolboxView";
 import { SettingsView } from "@/features/settings/SettingsView";
 
 const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
@@ -20,6 +22,8 @@ const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
   { id: "workshop", label: "AI Workshop", icon: <Sparkles size={14} /> },
   { id: "world", label: "World", icon: <Box size={14} /> },
   { id: "assets", label: "Assets", icon: <Layers size={14} /> },
+  { id: "game", label: "Game", icon: <ShoppingBag size={14} /> },
+  { id: "toolbox", label: "Toolbox", icon: <Library size={14} /> },
   { id: "roblox", label: "Roblox", icon: <Play size={14} /> },
   { id: "settings", label: "Settings", icon: <Settings2 size={14} /> },
 ];
@@ -161,6 +165,8 @@ export function Workspace() {
         {tab === "workshop" && <VisualWorkshop />}
         {tab === "world" && <WorldView />}
         {tab === "assets" && <AssetsView />}
+        {tab === "game" && <GameView />}
+        {tab === "toolbox" && <ToolboxView />}
         {tab === "roblox" && <RobloxView />}
         {tab === "settings" && <SettingsView />}
       </main>

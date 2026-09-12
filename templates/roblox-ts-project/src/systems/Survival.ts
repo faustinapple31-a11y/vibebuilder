@@ -3,10 +3,11 @@ import { GameConfig } from "shared/config";
 import { getProfile, replicate } from "./PlayerData";
 
 /** Hunger drains over time; starving players take damage. Food restores hunger. */
-export function feed(player: Player, amount = GameConfig.survival.foodRestore): void {
+/** Restores hunger; `multiplier` comes from shop upgrades (x2 Food…). */
+export function feed(player: Player, multiplier = 1, amount = GameConfig.survival.foodRestore): void {
 	const p = getProfile(player);
 	if (!p) return;
-	p.hunger = math.min(GameConfig.survival.hungerMax, p.hunger + amount);
+	p.hunger = math.min(GameConfig.survival.hungerMax, p.hunger + amount * multiplier);
 	replicate(player);
 }
 

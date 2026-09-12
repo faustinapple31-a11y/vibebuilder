@@ -216,10 +216,37 @@ export class OpenCloudClient {
     return this.call<DeveloperProduct>({ method: "POST", url: `${OPEN_CLOUD_BASE}/developer-products/v1/universes/${universeId}/developerproducts/${productId}/update`, jsonBody: patch });
   }
 
-  /** Game passes: listing is supported; creation is done in the Creator Dashboard (the app opens it). */
   async listGamePasses(universeId: number | string): Promise<GamePassInfo[]> {
     const data = await this.call<{ gamePasses?: GamePassInfo[] }>({ method: "GET", url: `${OPEN_CLOUD_BASE}/game-passes/v1/universes/${universeId}/game-passes?pageSize=50` });
     return data.gamePasses ?? [];
+  }
+
+  /**
+   * Create a game pass (Open Cloud game-passes API, multipart: universeId, name, description, optional icon file),
+   * then set its price / put it on sale. Requires the `legacy-game-pass:write` (create) scope on the key.
+   */
+  async createGamePass(universeId: number | string, pass: { name: string; description?: string; priceRobux: number; iconPath?: string }): Promise<GamePassInfo> {
+    const parts: CloudMultipartPart[] = [
+      { name: "universeId", text: String(universeId) },
+      { name: "name", text: pass.name.slice(0, 50) },
+      { name: "description", text: (pass.description ?? "").slice(0, 1000) },
+    ];
+    if (pass.iconPath) parts.push({ name: "file", filePath: pass.iconPath, fileName: pass.iconPath.split(/[\\/]/).pop() ?? "icon.png", contentType: "image/png" });
+    const created = await this.call<{ gamePassId?: number; id?: number }>({ method: "POST", url: `${OPEN_CLOUD_BASE}/game-passes/v1/game-passes`, multipart: parts });
+    const id = Number(created.gamePassId ?? created.id);
+    if (!id) throw new Error("game pass creation returned no id");
+    await this.updateGamePass(id, { price: pass.priceRobux, isForSale: pass.priceRobux > 0 });
+    return { id, name: pass.name, description: pass.description, price: pass.priceRobux, isForSale: pass.priceRobux > 0 };
+  }
+
+  /** Update name / description / price / sale status of a game pass (multipart form). */
+  async updateGamePass(gamePassId: number | string, patch: { name?: string; description?: string; price?: number; isForSale?: boolean }): Promise<void> {
+    const parts: CloudMultipartPart[] = [];
+    if (patch.name !== undefined) parts.push({ name: "name", text: patch.name.slice(0, 50) });
+    if (patch.description !== undefined) parts.push({ name: "description", text: patch.description.slice(0, 1000) });
+    if (patch.price !== undefined) parts.push({ name: "price", text: String(Math.max(0, Math.round(patch.price))) });
+    if (patch.isForSale !== undefined) parts.push({ name: "isForSale", text: patch.isForSale ? "true" : "false" });
+    await this.call({ method: "POST", url: `${OPEN_CLOUD_BASE}/game-passes/v1/game-passes/${gamePassId}/details`, multipart: parts });
   }
 
   /** Data stores (debug/inspection). Requires `universe-datastores.objects:read`. */

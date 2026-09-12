@@ -10,9 +10,31 @@ export interface Profile {
 	coins: number;
 	hunger: number;
 	visits: number;
+	/** Shop: permanently owned upgrades / passes. */
+	owned: string[];
+	/** Shop: consumable counts and items. */
+	inventory: Record<string, number>;
+	/** Permanent stat multipliers (coins, food…). */
+	multipliers: Record<string, number>;
+	/** Timed buffs: stat → { value, until (os.time) }. */
+	buffs: Record<string, { value: number; until: number }>;
 }
 
-const DEFAULT_PROFILE: Profile = { coins: GameConfig.currency.starting, hunger: GameConfig.survival.hungerMax, visits: 0 };
+const DEFAULT_PROFILE: Profile = { coins: GameConfig.currency.starting, hunger: GameConfig.survival.hungerMax, visits: 0, owned: [], inventory: {}, multipliers: {}, buffs: {} };
+
+function fresh(): Profile {
+	return { ...DEFAULT_PROFILE, owned: [], inventory: {}, multipliers: {}, buffs: {} };
+}
+
+/** Effective multiplier for a stat: permanent × active timed buff. */
+export function multiplierFor(player: Player, stat: string): number {
+	const p = profiles.get(player);
+	if (!p) return 1;
+	let m = p.multipliers[stat] ?? 1;
+	const b = p.buffs[stat];
+	if (b && b.until > os.time()) m *= b.value;
+	return m;
+}
 const profiles = new Map<Player, Profile>();
 const store = (() => {
 	const [ok, ds] = pcall(() => DataStoreService.GetDataStore(GameConfig.dataStore.name));
@@ -29,10 +51,10 @@ function load(player: Player): Profile {
 		const [ok, data] = pcall(() => store.GetAsync(keyFor(player)));
 		if (ok && typeIs(data, "table")) {
 			const d = data as Partial<Profile>;
-			return { coins: d.coins ?? DEFAULT_PROFILE.coins, hunger: d.hunger ?? DEFAULT_PROFILE.hunger, visits: d.visits ?? 0 };
+			return { coins: d.coins ?? DEFAULT_PROFILE.coins, hunger: d.hunger ?? DEFAULT_PROFILE.hunger, visits: d.visits ?? 0, owned: d.owned ?? [], inventory: d.inventory ?? {}, multipliers: d.multipliers ?? {}, buffs: d.buffs ?? {} };
 		}
 	}
-	return { ...DEFAULT_PROFILE };
+	return fresh();
 }
 
 export function save(player: Player): void {
@@ -55,11 +77,14 @@ export function replicate(player: Player): void {
 	if (coins) coins.Value = math.floor(p.coins);
 }
 
-export function addCoins(player: Player, amount: number): void {
+/** Adds coins with the player's coin multipliers applied (upgrades, VIP, luck buffs). Returns the amount granted. */
+export function addCoins(player: Player, amount: number, raw = false): number {
 	const p = profiles.get(player);
-	if (!p) return;
-	p.coins += amount;
+	if (!p) return 0;
+	const granted = raw ? amount : math.floor(amount * multiplierFor(player, "coins") * multiplierFor(player, "luck"));
+	p.coins += granted;
 	replicate(player);
+	return granted;
 }
 
 function onJoin(player: Player): void {
@@ -81,7 +106,22 @@ function onLeave(player: Player): void {
 	profiles.delete(player);
 }
 
+/** Studio-only QA hook: `ServerStorage.WorldForgeDev:Invoke("grantCoins", player, amount)` from the app's play-test / Luau console. */
+function installDevHook(): void {
+	if (!RunService.IsStudio()) return;
+	const hook = new Instance("BindableFunction");
+	hook.Name = "WorldForgeDev";
+	hook.OnInvoke = (command: unknown, player: unknown, amount: unknown) => {
+		const p = player as Player;
+		if (command === "grantCoins") return addCoins(p, tonumber(amount) ?? 0, true);
+		if (command === "profile") return profiles.get(p);
+		return undefined;
+	};
+	hook.Parent = game.GetService("ServerStorage");
+}
+
 export function start(): void {
+	installDevHook();
 	Players.PlayerAdded.Connect(onJoin);
 	Players.PlayerRemoving.Connect(onLeave);
 	for (const p of Players.GetPlayers()) onJoin(p);

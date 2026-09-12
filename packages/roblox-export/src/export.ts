@@ -28,9 +28,48 @@ export interface ScaffoldOptions {
 /** Prefixes of the WorldForge-owned runtime (safe to overwrite on every build; agents edit the other folders). */
 export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
 
+/**
+ * Bumped whenever the gameplay framework of the template changes shape (new systems, remotes, generated
+ * data modules). Projects scaffolded with an older version get the framework files re-applied once
+ * (`templateUpgradeFiles`), with backups of any file that diverged.
+ *   2 — shop / monetization / NPCs / animations / audio systems (Game + Toolbox tabs).
+ */
+export const TEMPLATE_VERSION = 2;
+
+/** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
+export const FRAMEWORK_TEMPLATE_FILES = [
+  "src/server/main.server.ts",
+  "src/client/main.client.ts",
+  "src/shared/net.ts",
+  "src/shared/anim/keyframes.ts",
+  "src/systems/PlayerData.ts",
+  "src/systems/Survival.ts",
+  "src/systems/Collectibles.ts",
+  "src/systems/Shop.ts",
+  "src/systems/Npcs.ts",
+  "src/systems/Audio.ts",
+  "src/ui/Hud.ts",
+  "src/ui/ShopUi.ts",
+];
+
 /** The engine runtime files of the template (world builder, decode, prefab factory, effects) for an existing project. */
 export function runtimeTemplateFiles(opts: ScaffoldOptions): ProjectFile[] {
   return scaffoldProjectFiles(opts).filter((f) => RUNTIME_TEMPLATE_PREFIXES.some((p) => f.path.startsWith(p)));
+}
+
+/**
+ * Files to (re)write when a project's templateVersion is older than TEMPLATE_VERSION: the framework
+ * files above plus every template file the project does not have yet (`existing` = current project
+ * paths). Generated data modules (config/catalog/animations/audio/npcs) are produced from the GameSpec
+ * and never touched here.
+ */
+export function templateUpgradeFiles(opts: ScaffoldOptions, existing: Set<string>): ProjectFile[] {
+  return scaffoldProjectFiles(opts).filter((f) => {
+    if (f.path === "worldforge.json" || f.path.endsWith(".gitkeep")) return false;
+    if (RUNTIME_TEMPLATE_PREFIXES.some((p) => f.path.startsWith(p))) return false;
+    if (FRAMEWORK_TEMPLATE_FILES.includes(f.path)) return true;
+    return f.path.startsWith("src/") && !existing.has(f.path);
+  });
 }
 
 export function scaffoldProjectFiles(opts: ScaffoldOptions): ProjectFile[] {
@@ -49,6 +88,7 @@ export function scaffoldProjectFiles(opts: ScaffoldOptions): ProjectFile[] {
     stylePreset: opts.stylePreset as ProjectMeta["stylePreset"],
     currentWorld: "main",
     worldVersion: "v0.0",
+    templateVersion: TEMPLATE_VERSION,
     locks: { terrain: false, water: false, roads: false, landmarks: false, buildings: false, vegetation: false, props: false, lighting: false },
     roblox: {},
     agents: { defaultProvider: "claude-code", roleProviders: {}, permissionMode: "acceptEdits", runtime: "host" },

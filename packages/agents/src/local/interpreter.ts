@@ -9,6 +9,7 @@ import {
   type WorldSpecInput,
 } from "@worldforge/core";
 import type { GenLayer } from "@worldforge/world-gen";
+import { defaultGameContent } from "@worldforge/roblox-export";
 
 /**
  * Local rule-based interpreter (FR/EN). Not an AI: a deterministic keyword compiler that turns a
@@ -274,10 +275,12 @@ export function interpretGame(prompt: string, spec: WorldSpec): GameSpec {
     systems,
     currencies: [{ id: "coins", name: "Coins", icon: "coin", startingAmount: 0 }],
     items: [{ id: "mushroom", name: "Glowing Mushroom", category: "food", rarity: "common", stackable: true }],
-    npcs: spec.settlements.length ? [{ id: "elder", name: "Village Elder", role: "quest_giver", location: spec.settlements[0]!.id, dialogue: ["Welcome, traveler.", "The forest hides many secrets."] }] : [],
+    npcs: spec.settlements.length ? defaultGameContent().npcs.map((n) => ({ ...n, location: spec.settlements[0]!.id })) : [],
     quests: [{ id: "first_light", title: "First Light", description: "Collect 5 glowing mushrooms.", objective: { type: "collect", target: "mushroom", count: 5 }, reward: { currency: "coins", amount: 50 } }],
     ui,
-    monetization: { gamepasses: [{ id: "vip", name: "VIP", description: "Double coins & a glowing aura", priceRobux: 199 }], developerProducts: [{ id: "coins_500", name: "500 Coins", description: "A pouch of coins", priceRobux: 49 }] },
+    monetization: defaultGameContent().monetization,
+    shop: defaultGameContent().shop,
+    animations: defaultGameContent().animations,
     worldBrief: spec.notes ?? "",
     audioBrief: `${spec.lighting.mood} ${spec.theme.replace(/_/g, " ")} ambience, soft music, nature SFX`,
   });

@@ -18,6 +18,8 @@ officiels installés sur la machine (Claude Code, Codex, OpenCode, Gemini CLI, A
 | **AI Workshop** | Prompt → WorldSpec (interpréteur local instantané ou agent IA), image de référence → StyleBible (palette locale + agent vision), presets de style, sliders (terrain, végétation, bâtiments, props, fog, lighting, couleur, densité, échelle, randomness), GENERATE / REGENERATE par couche, locks |
 | **World** | Viewer 3D Three.js (orbit / fly / top / first-person), calques, wireframe, couleurs de biomes, sélection + lock / keep area, versions (restore), rapport du Visual Quality Critic + auto-fix, éditeur de WorldSpec |
 | **Assets** | Registre de prefabs procéduraux (50 prefabs, ~280 variantes par monde), preview 3D, favoris, placement dans le monde, export `.rbxmx`, **Hero 3D models** (texte ou image → mesh texturé PBR haute qualité, GLB + FBX, publié comme asset Roblox, placé dans le monde), génération IA (Gemini image, Roblox Studio 3D via MCP, ElevenLabs SFX/musique) |
+| **Game** | **Interfaces & shop** (catalogue d'items coins : upgrades permanents, potions consommables, effets multiplicateur/buff/grant ; fenêtre Shop in-game générée, achats validés serveur), **Gamepasses & dev products** (VIP, packs de coins/gems : créés sur Roblox via Open Cloud en un clic, ids injectés dans le jeu, `PromptGamePassPurchase` / `ProcessReceipt` idempotent), **Animations** (idle/walk/greet des PNJ, emotes du catalogue Roblox, animations custom par keyframes, preview sur un rig R15 dans Studio), **Music & sounds** (musique d'ambiance, ambiances par zone, SFX, lecteur avec waveform, upload audio Open Cloud) |
+| **Toolbox** | **Shared toolbox** : recherche du Creator Store Roblox (modèles, meshes, images/icônes, audio, animations — millions d'assets, vignettes), *Insert in Studio* via MCP, *use as* icône de shop / musique / ambiance / SFX / emote / idle PNJ ; bibliothèque locale partagée entre projets (icônes générées, sons, modèles 3D, imports) |
 | **Roblox** | Build (`npm install` → `rbxtsc` → `rojo build`), erreurs TS parsées, Open in Studio, `rojo serve` + plugin, **bridge MCP Studio** (deploy scripts + bake du monde dans la place, play-test automatisé, console, screenshot, console Luau), Open Cloud (universe/place, publish/save version, dashboards), validation avant publication, **QA loop** (build → test → observe → critique → fix) |
 | **Settings** | Providers (défaut, modèle, effort), mode de permission, runtime, clés dans le secure storage OS, QA loop |
 
@@ -52,10 +54,22 @@ choisie et le pose au sol ; sans asset id (ou hors ligne) un placeholder gris pr
 pose le modèle devant la caméra via MCP. `Import GLB` (+ `.fbx` à côté) enregistre un modèle venu d'un autre outil.
 Clés : Meshy dans *Settings → Keys* ; le modèle est aussi visible dans le viewer 3D avec ses textures.
 
+### Shop, monétisation, animations, audio (onglet Game)
+
+Le `GameSpec` (`design/game.spec.json`) porte le shop, les game passes / developer products, les animations et
+l'audio. Chaque modification régénère `src/shared/{config,catalog,animations,audio,npcs}.ts` ; les systèmes du
+template (`systems/Shop.ts`, `ui/ShopUi.ts`, `systems/Npcs.ts`, `systems/Audio.ts`, `shared/anim/keyframes.ts`)
+les lisent au démarrage. *Create on Roblox* crée les passes (`game-passes/v1`) et les produits (`developer-products`)
+sur l'univers avec la clé Open Cloud et mémorise les ids ; les PNJ sont des rigs R15 animés (catalogue Roblox ou
+keyframes générés, `KeyframeSequenceProvider`) avec un prompt *Talk* ; la musique et les ambiances par zone
+(`World/Zones`) et les SFX (`PlaySfx`) sont câblés côté client. L'onglet *Toolbox* cherche dans le Creator Store
+(API publique, sans clé) et insère les assets dans Studio ou dans le GameSpec.
+
 ### Open Cloud
 
-Créer une clé API sur create.roblox.com (scopes `universe-places:write`, `universe:read`, et `asset:read` /
-`asset:write` pour les Hero models), la coller dans
+Créer une clé API sur create.roblox.com (scopes `universe-places:write`, `universe:read`, `asset:read` /
+`asset:write` pour les Hero models et l'audio, `universe.game-pass:write` + `universe.developer-product:write`
+pour la monétisation), la coller dans
 *Settings → Keys* (Credential Manager / Keychain), renseigner universe id + place id dans l'onglet Roblox, puis
 *Validate* et *Publish*.
 

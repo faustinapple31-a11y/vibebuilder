@@ -8,6 +8,14 @@ export interface PlayerStats {
 	hunger: number;
 }
 
+/** Replicated shop state: owned upgrades, consumable counts, active buffs (seconds left). */
+export interface ShopState {
+	coins: number;
+	owned: string[];
+	counts: Record<string, number>;
+	buffs: Record<string, number>;
+}
+
 const FOLDER = "Remotes";
 
 function folder(): Folder {
@@ -36,8 +44,29 @@ export function waitRemoteEvent(name: string): RemoteEvent {
 	return f.WaitForChild(name) as RemoteEvent;
 }
 
+export function getRemoteFunction(name: string): RemoteFunction {
+	const f = folder();
+	let r = f.FindFirstChild(name) as RemoteFunction | undefined;
+	if (!r) {
+		r = new Instance("RemoteFunction");
+		r.Name = name;
+		r.Parent = f;
+	}
+	return r;
+}
+
+export function waitRemoteFunction(name: string): RemoteFunction {
+	const f = ReplicatedStorage.WaitForChild(FOLDER) as Folder;
+	return f.WaitForChild(name) as RemoteFunction;
+}
+
 export const Remotes = {
 	StatsChanged: "StatsChanged",
 	Notify: "Notify",
 	WorldProgress: "WorldProgress",
+	ShopState: "ShopState",
+	ShopBuy: "ShopBuy",
+	ShopPromptRobux: "ShopPromptRobux",
+	NpcTalk: "NpcTalk",
+	PlaySfx: "PlaySfx",
 } as const;

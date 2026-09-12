@@ -17,6 +17,12 @@ export class Hud {
 	private notif: TextLabel;
 	private loading: Frame;
 	private loadingText: TextLabel;
+	private dialogue: Frame;
+	private dialogueName: TextLabel;
+	private dialogueText: TextLabel;
+	private sfx = new Map<string, Sound>();
+	/** Set by the client bootstrap to open the shop window. */
+	public onShop: (() => void) | undefined;
 
 	constructor() {
 		const player = Players.LocalPlayer;
@@ -39,6 +45,33 @@ export class Hud {
 		const hl = this.label("Hunger", new UDim2(0, 100, 0, 14), new UDim2(0, 12, 0, 34), 12);
 		hl.TextColor3 = Color3.fromHex("#9aa3b8");
 		hl.Parent = panel;
+
+		// shop button (bottom-left)
+		const shopBtn = new Instance("TextButton");
+		shopBtn.Size = new UDim2(0, 120, 0, 44);
+		shopBtn.Position = new UDim2(0, 16, 1, -64);
+		shopBtn.BackgroundColor3 = ACCENT;
+		shopBtn.Text = "🛒  Shop";
+		shopBtn.TextSize = 18;
+		shopBtn.Font = Enum.Font.GothamBlack;
+		shopBtn.TextColor3 = Color3.fromHex("#141824");
+		const sc = new Instance("UICorner");
+		sc.CornerRadius = new UDim(0, 12);
+		sc.Parent = shopBtn;
+		shopBtn.Parent = this.gui;
+		shopBtn.MouseButton1Click.Connect(() => this.onShop?.());
+
+		// NPC dialogue bubble (bottom-centre)
+		this.dialogue = this.frame(new UDim2(0, 520, 0, 90), new UDim2(0.5, -260, 1, -130), PANEL, 0.15);
+		this.dialogue.Visible = false;
+		this.dialogue.Parent = this.gui;
+		this.dialogueName = this.label("", new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 8), 16);
+		this.dialogueName.TextColor3 = ACCENT;
+		this.dialogueName.Parent = this.dialogue;
+		this.dialogueText = this.label("", new UDim2(1, -24, 0, 52), new UDim2(0, 12, 0, 32), 15);
+		this.dialogueText.TextWrapped = true;
+		this.dialogueText.TextYAlignment = Enum.TextYAlignment.Top;
+		this.dialogueText.Parent = this.dialogue;
 
 		this.notif = this.label("", new UDim2(0, 320, 0, 32), new UDim2(0.5, -160, 0, 24), 18);
 		this.notif.TextTransparency = 1;
@@ -97,6 +130,29 @@ export class Hud {
 		this.notif.TextXAlignment = Enum.TextXAlignment.Center;
 		this.notif.TextTransparency = 0;
 		TweenService.Create(this.notif, new TweenInfo(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency: 1 }).Play();
+	}
+
+	/** NPC line: shows the bubble for a few seconds. */
+	say(name: string, text: string): void {
+		this.dialogueName.Text = name;
+		this.dialogueText.Text = text;
+		this.dialogue.Visible = true;
+		task.delay(5, () => {
+			if (this.dialogueText.Text === text) this.dialogue.Visible = false;
+		});
+	}
+
+	/** Plays a short sound (cached per id). */
+	playSfx(id: string): void {
+		let s = this.sfx.get(id);
+		if (!s) {
+			s = new Instance("Sound");
+			s.SoundId = id;
+			s.Volume = 0.6;
+			s.Parent = this.gui;
+			this.sfx.set(id, s);
+		}
+		s.Play();
 	}
 
 	setLoading(stage: string, done: number, total: number): void {

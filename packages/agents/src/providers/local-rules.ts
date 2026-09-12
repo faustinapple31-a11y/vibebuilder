@@ -1,4 +1,5 @@
 import { GameSpecSchema, WorldSpecSchema, newId, nowIso, type GameSpec, type WorldSpec } from "@worldforge/core";
+import { buildGameFiles } from "@worldforge/roblox-export";
 import { interpretGame, interpretModification, interpretPrompt } from "../local/interpreter";
 import type { AgentCapabilities, AgentDetection, AgentEvent, AgentSession, AgentStatus, AgentUsage, AuthResult, FileIO, IAgentProvider, PromptOptions, SessionOptions } from "../types";
 
@@ -69,7 +70,8 @@ export class LocalRulesProvider implements IAgentProvider {
         if (game) {
           const configPath = this.files.join(cwd, "src", "shared", "config.ts");
           await this.files.writeText(configPath, buildConfigTs(game));
-          yield { type: "tool_use", name: "write_config", input: { file: "src/shared/config.ts" } };
+          for (const f of buildGameFiles(game)) await this.files.writeText(this.files.join(cwd, ...f.path.split("/")), f.content);
+          yield { type: "tool_use", name: "write_config", input: { files: ["src/shared/config.ts", ...buildGameFiles(game).map((f) => f.path)] } };
           yield { type: "text", text: `Applied GameSpec to src/shared/config.ts (currency "${game.currencies[0]?.name ?? "Coins"}", survival ${game.systems.some((s) => s.id === "survival_stats") ? "on" : "off"}, collectibles ${game.systems.some((s) => s.id === "collectibles") ? "on" : "off"}). New systems beyond the templates (${game.systems.map((s) => s.id).filter((id) => !["player_data", "currency", "collectibles", "survival_stats", "leaderboards"].includes(id)).join(", ") || "none"}) require an AI agent (Claude Code, Codex, OpenCode or Gemini CLI).` };
         } else yield { type: "text", text: "No design/game.spec.json found; run the Design role first." };
         yield { type: "done", result: "config applied", exitCode: 0 };
