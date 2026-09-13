@@ -184,6 +184,20 @@ SFX déclenchés par le serveur (`PlaySfx`). Sans asset id, les sons Roblox int�
 de défaut ; l'onglet Game uploade des fichiers audio via l'Assets API (`Audio`) et l'onglet Toolbox prend des sons
 libres du Creator Store.
 
+### Systèmes par genre
+
+`GameConfig.systems` (généré depuis le GameSpec) active les modules de `src/systems/` : `Combat`
+(armes, dégâts serveur, PvP selon le genre), `Enemies` (rigs R15 IA, pathfinding, chasse, respawn),
+`Checkpoints` (obby / story / course, KillBrick), `Progression` (XP, jour-nuit, quêtes,
+leaderboards), `Tycoon`, `Simulator` (backpack / vente / upgrades / rebirth), `Rounds` (lobby →
+intermission → round → vainqueur, équipes, point de capture), `Racing` (véhicules physiques + portiques
++ tours), `TowerDefense` (vagues sur le chemin généré, tours sur pads), `Economy` (farming, mining,
+crafting, pets, housing & jobs, trading), `Modes` (sport, puzzle, parkour, story, sandbox,
+abilities, rhythm, minigames). Les ancres viennent des zones `World/Zones` (`shared/zones.ts`) écrites
+par le générateur avec leurs attributs. Le HUD affiche un panneau de valeurs génériques (`HudValue`),
+une bannière de round (`RoundState`) et une barre de vie ; raccourcis : V véhicule, P œuf, Q/F
+capacités, Shift sprint, R rebirth, double saut (parkour), clic pour construire (sandbox).
+
 ## 8. Bridge MCP Studio (implémenté)
 
 Roblox Studio embarque un serveur MCP (`StudioMCP.exe`, transport stdio). L'app le détecte à côté de l'exécutable

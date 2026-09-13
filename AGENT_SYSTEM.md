@@ -70,6 +70,13 @@ Chaque rôle écrit dans son périmètre. L'orchestrateur assemble.
 
 ---
 
+### 3b. Catalogue de la taxonomie dans les prompts
+
+Les rôles *design* et *world* reçoivent le catalogue complet des styles (kits, biomes, landmarks) et
+des genres (systèmes, layout, caméra) — `STYLE_CATALOG` / `GENRE_CATALOG` dans `roles.ts` — pour que
+les JSON produits utilisent uniquement des ids valides ; l'interpréteur local (`interpretPrompt`)
+suit exactement les mêmes tables, ce qui garantit qu'un prompt sans agent donne un monde cohérent.
+
 ## 4. Orchestrateur
 
 ```
