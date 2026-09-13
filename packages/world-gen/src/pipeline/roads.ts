@@ -107,8 +107,38 @@ export function resolveNode(ctx: GenContext, id: string): Vec2 | null {
   return null;
 }
 
+/** Terrain material for a road type (asphalt/concrete/pavement for modern streets, sand, snow, metal walkways…). */
+export function roadMaterial(type: string): number {
+  switch (type) {
+    case "dirt_path":
+    case "wooden_walkway":
+      return TERRAIN_MATERIAL_INDEX.Ground;
+    case "asphalt_road":
+    case "neon_road":
+      return TERRAIN_MATERIAL_INDEX.Asphalt;
+    case "concrete_road":
+      return TERRAIN_MATERIAL_INDEX.Pavement;
+    case "metal_walkway":
+      return TERRAIN_MATERIAL_INDEX.Slate;
+    case "sand_path":
+      return TERRAIN_MATERIAL_INDEX.Sand;
+    case "snow_path":
+      return TERRAIN_MATERIAL_INDEX.Snow;
+    case "brick_road":
+      return TERRAIN_MATERIAL_INDEX.Cobblestone;
+    default:
+      return TERRAIN_MATERIAL_INDEX.Cobblestone;
+  }
+}
+
+/** Recompute the road distance field after extra streets were added (grid settlements, layouts). */
+export function refreshRoadDistance(ctx: GenContext): void {
+  const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
+  ctx.roadDistance = distanceToPolylinesGrid(ctx.heights, roads, 300);
+}
+
 /** Flatten the road cross-section along a smoothed height profile and mark the material. */
-function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: string): void {
+export function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: string): void {
   const h = ctx.heights;
   // height profile along the path, smoothed (moving average) to avoid bumps
   const prof = pts.map((p) => h.sample(p[0], p[1]));
@@ -127,7 +157,8 @@ function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: string): v
   const half = width / 2;
   const shoulder = width * 0.9;
   const reach = half + shoulder;
-  const mat = type === "dirt_path" ? TERRAIN_MATERIAL_INDEX.Ground : type === "wooden_walkway" ? TERRAIN_MATERIAL_INDEX.Ground : TERRAIN_MATERIAL_INDEX.Cobblestone;
+  const mat = roadMaterial(type);
+  const shoulderMat = type === "asphalt_road" || type === "concrete_road" || type === "neon_road" ? TERRAIN_MATERIAL_INDEX.Pavement : type === "sand_path" ? TERRAIN_MATERIAL_INDEX.Sand : type === "snow_path" ? TERRAIN_MATERIAL_INDEX.Snow : TERRAIN_MATERIAL_INDEX.Ground;
   const dist = new Float32Array(ctx.width * ctx.depth).fill(Infinity);
   const target = new Float32Array(ctx.width * ctx.depth);
   for (let i = 1; i < pts.length; i++) {
@@ -165,7 +196,7 @@ function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: string): v
       const w = 1 - smoothstep(half, half + shoulder, d);
       h.data[k] = lerp(cur, target[k]!, w * 0.7);
       // worn dirt shoulder along the road edge
-      if (d <= half + 2.5 && ctx.materials[k] !== TERRAIN_MATERIAL_INDEX.Water) ctx.materials[k] = TERRAIN_MATERIAL_INDEX.Ground;
+      if (d <= half + 2.5 && ctx.materials[k] !== TERRAIN_MATERIAL_INDEX.Water) ctx.materials[k] = shoulderMat;
     }
   }
 }

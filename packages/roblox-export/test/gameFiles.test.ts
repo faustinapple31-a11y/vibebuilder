@@ -7,8 +7,8 @@ describe("GameSpec → generated game data modules", () => {
   const game = GameSpecSchema.parse({ title: "Test", ...base, monetization: { ...base.monetization, gamepasses: [{ ...base.monetization.gamepasses[0]!, robloxId: 123456 }] } });
   const files = buildGameFiles(game);
 
-  it("writes the four data modules", () => {
-    expect(files.map((f) => f.path)).toEqual(["src/shared/catalog.ts", "src/shared/animations.ts", "src/shared/audio.ts", "src/shared/npcs.ts"]);
+  it("writes the six data modules", () => {
+    expect(files.map((f) => f.path)).toEqual(["src/shared/catalog.ts", "src/shared/animations.ts", "src/shared/audio.ts", "src/shared/npcs.ts", "src/shared/quests.ts", "src/shared/recipes.ts"]);
   });
 
   it("carries shop items, Robux items with their Roblox ids, NPCs and animations", () => {

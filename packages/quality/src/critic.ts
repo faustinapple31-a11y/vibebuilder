@@ -54,7 +54,8 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     composition -= 1.5;
     problems.push({ id: "background_empty", severity: "medium", message: "background has too few silhouettes (edge forest/mountains)", layer: "composition" });
   }
-  const villageLandmark = bake.landmarks.some((l) => l.type === "well" || l.type === "statue" || l.type === "windmill") || bake.placements.some((p) => p.prefab === "well" || p.prefab === "campfire");
+  const plazaProps = new Set(["well", "campfire", "fountain", "marble_statue", "totem", "small_shrine", "tiki_statue", "gingerbread_man", "sphinx_statue", "hologram", "energy_pylon", "flag_pole", "burning_barrel", "water_tower"]);
+  const villageLandmark = bake.landmarks.some((l) => l.type === "well" || l.type === "statue" || l.type === "windmill" || l.type === "fountain" || l.type === "church" || l.type === "gas_station" || l.type === "water_tower") || bake.placements.some((p) => plazaProps.has(p.prefab)) || bake.zones.some((z) => z.kind === "gameplay");
   if (spec.settlements.length > 0 && !villageLandmark) {
     composition -= 1;
     problems.push({ id: "village_no_landmark", severity: "medium", message: "village lacks a central landmark (well, statue, campfire)", layer: "buildings" });
@@ -158,7 +159,7 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
   // ---------------- architecture
   let architecture = 10;
   if (spec.settlements.length > 0) {
-    const houses = buildings.filter((p) => p.prefab === "cottage" || p.prefab === "ruin_wall");
+    const houses = buildings.filter((p) => p.category === "building" && !p.id.startsWith("layout_") && p.prefab !== "well" && p.prefab !== "bridge");
     const wanted = spec.settlements.reduce((a, b) => a + b.buildings, 0);
     if (houses.length < wanted * 0.7) {
       architecture -= 2;

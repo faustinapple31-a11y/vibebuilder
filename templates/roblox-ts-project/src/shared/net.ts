@@ -69,4 +69,19 @@ export const Remotes = {
 	ShopPromptRobux: "ShopPromptRobux",
 	NpcTalk: "NpcTalk",
 	PlaySfx: "PlaySfx",
+	/** Generic HUD values (stage, round timer, team, health, wave…): (key, label, value) */
+	HudValue: "HudValue",
+	/** Generic client → server action: (name, ...args) — validated per system. */
+	Action: "Action",
+	/** Round state broadcast: { phase, secondsLeft, message } */
+	RoundState: "RoundState",
+	/** Client-side effects: (kind, position) */
+	Fx: "Fx",
 } as const;
+
+export interface RoundStateMsg {
+	phase: "lobby" | "intermission" | "playing" | "ending";
+	secondsLeft: number;
+	message: string;
+	scores?: Record<string, number>;
+}

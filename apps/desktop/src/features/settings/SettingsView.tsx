@@ -188,7 +188,6 @@ export function SettingsView() {
 
 function KeyField({ name, label, hint }: { name: SecretName; label: string; hint: string }) {
   const has = useSettings((s) => s.keys[name]);
-  const source = useSettings((s) => s.keySources[name]);
   const setKey = useSettings((s) => s.setKey);
   const removeKey = useSettings((s) => s.removeKey);
   const [value, setValue] = useState("");
@@ -198,7 +197,7 @@ function KeyField({ name, label, hint }: { name: SecretName; label: string; hint
       <Label hint={hint}>{label}</Label>
       <div className="mt-1 flex items-center gap-1.5">
         <span className={cn("dot", has ? "dot-ok" : "")} />
-        <Input type="password" placeholder={has ? (source === "env" ? "•••••••• (from .env)" : "•••••••• (secure storage)") : "paste key"} value={value} onChange={(e) => setValue(e.target.value)} />
+        <Input type="password" placeholder={has ? "•••••••• (stored)" : "paste key"} value={value} onChange={(e) => setValue(e.target.value)} />
         <Button
           size="sm"
           variant="outline"
@@ -213,7 +212,7 @@ function KeyField({ name, label, hint }: { name: SecretName; label: string; hint
         >
           Save
         </Button>
-        {has && source === "keyring" && (
+        {has && (
           <Button size="sm" variant="ghost" icon={<Trash2 size={12} />} onClick={() => void removeKey(name)} />
         )}
       </div>

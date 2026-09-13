@@ -1,11 +1,13 @@
 import { StyleBibleSchema, type StyleBible, type StyleBibleInput } from "../schemas/style-bible";
-import type { StylePresetId } from "../schemas/world-spec";
+import { STYLE_PRESET_IDS, type StylePresetId } from "../schemas/world-spec";
+import { STYLE_FAMILIES, STYLE_FAMILY_INDEX, styleFamilyToBible } from "../taxonomy";
 
 /**
  * Built-in Style Bibles. "stylized_mystical" is the reference direction:
  * chunky low-poly, big silhouettes, giant mushrooms, desaturated palette, diffuse moonlit light, fog.
  */
-const PRESETS: Record<StylePresetId, StyleBibleInput> = {
+/** Hand-tuned bibles for the original looks; every other style is derived from the taxonomy. */
+const TUNED: Partial<Record<StylePresetId, StyleBibleInput>> = {
   stylized_mystical: {
     id: "stylized_mystical",
     name: "Stylized Mystical",
@@ -320,18 +322,22 @@ const PRESETS: Record<StylePresetId, StyleBibleInput> = {
   },
 };
 
-export const STYLE_PRESET_LIST: { id: StylePresetId; name: string; description: string }[] = [
-  { id: "stylized_mystical", name: "Stylized Mystical", description: "Chunky low-poly, giant mushrooms, moonlit fog, desaturated greens and violets." },
-  { id: "fantasy", name: "Fantasy", description: "Bright storybook fantasy with warm light and colorful foliage." },
-  { id: "medieval", name: "Medieval", description: "Earthy, grounded, stone and timber, overcast light." },
-  { id: "cartoon", name: "Cartoon", description: "Saturated, rounded shapes, high-key lighting." },
-  { id: "dark_fantasy", name: "Dark Fantasy", description: "Twisted trees, ruins, deep fog, crimson glow." },
-  { id: "cyberpunk", name: "Cyberpunk", description: "Neon, metal, asphalt, night city haze." },
-  { id: "desert", name: "Desert", description: "Sandstone, adobe, harsh sun, sparse vegetation." },
-  { id: "tropical", name: "Tropical", description: "Lush, turquoise water, bright sun." },
-  { id: "winter", name: "Winter", description: "Snow, conifers, nordic cabins, cold light." },
-  { id: "swamp", name: "Swamp", description: "Mud, twisted trees, glowing fungi, thick mist." },
-];
+/**
+ * Every style family becomes a preset: taxonomy-derived bible, overridden by the hand-tuned values
+ * above where they exist (palette/lighting), while kits/ui/audio/architecture flags always come from
+ * the taxonomy so the generator knows which building, prop and vegetation families to use.
+ */
+const PRESETS: Record<StylePresetId, StyleBibleInput> = Object.fromEntries(
+  STYLE_PRESET_IDS.map((id) => {
+    const fam = STYLE_FAMILY_INDEX[id];
+    const derived = fam ? styleFamilyToBible(fam) : { id, name: id };
+    const tuned = TUNED[id];
+    if (!tuned) return [id, derived];
+    return [id, { ...derived, ...tuned, architecture: { ...(derived.architecture ?? {}), ...(tuned.architecture ?? {}), interiors: derived.architecture?.interiors, floors: derived.architecture?.floors }, kits: derived.kits, ui: derived.ui, audioMood: derived.audioMood }];
+  }),
+) as Record<StylePresetId, StyleBibleInput>;
+
+export const STYLE_PRESET_LIST: { id: StylePresetId; name: string; description: string; group: string }[] = STYLE_FAMILIES.filter((f) => (STYLE_PRESET_IDS as readonly string[]).includes(f.id)).map((f) => ({ id: f.id as StylePresetId, name: f.name, description: f.description, group: f.group }));
 
 export function getStylePreset(id: StylePresetId): StyleBible {
   return StyleBibleSchema.parse(PRESETS[id] ?? PRESETS.stylized_mystical);

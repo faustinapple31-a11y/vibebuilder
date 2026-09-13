@@ -21,6 +21,11 @@ export class Hud {
 	private dialogueName: TextLabel;
 	private dialogueText: TextLabel;
 	private sfx = new Map<string, Sound>();
+	/** Generic value panel (stage, wave, team, lap…) filled by HudValue remotes. */
+	private values: Frame;
+	private valueRows = new Map<string, TextLabel>();
+	private banner: TextLabel;
+	private healthFill: Frame;
 	/** Set by the client bootstrap to open the shop window. */
 	public onShop: (() => void) | undefined;
 
@@ -38,6 +43,19 @@ export class Hud {
 		this.coins = this.label(`0 ${GameConfig.currency.name}`, new UDim2(1, -16, 0, 30), new UDim2(0, 12, 0, 6), 20);
 		this.coins.TextColor3 = ACCENT;
 		this.coins.Parent = panel;
+
+		// right-hand value panel + centre banner + health bar
+		this.values = this.frame(new UDim2(0, 260, 0, 8), new UDim2(1, -276, 0, 16), PANEL, 0.35);
+		this.values.Parent = this.gui;
+		this.banner = this.label("", new UDim2(0, 600, 0, 44), new UDim2(0.5, -300, 0, 20), 26);
+		this.banner.TextColor3 = TEXT;
+		this.banner.TextStrokeTransparency = 0.5;
+		this.banner.Visible = false;
+		this.banner.Parent = this.gui;
+		const healthBg = this.frame(new UDim2(0, 220, 0, 10), new UDim2(0, 16, 0, 96), PANEL, 0.25);
+		healthBg.Parent = this.gui;
+		this.healthFill = this.frame(new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), Color3.fromHex("#6fd06f"), 0);
+		this.healthFill.Parent = healthBg;
 		const barBg = this.frame(new UDim2(1, -24, 0, 12), new UDim2(0, 12, 0, 48), Color3.fromHex("#2a3042"), 0);
 		barBg.Parent = panel;
 		this.hungerFill = this.frame(new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), Color3.fromHex("#7fd07a"), 0);
@@ -116,6 +134,37 @@ export class Hud {
 		l.Font = Enum.Font.GothamBold;
 		l.TextXAlignment = Enum.TextXAlignment.Left;
 		return l;
+	}
+
+	/** Add / update a row in the right-hand value panel (empty value removes the row). */
+	setValue(key: string, label: string, value: string): void {
+		let row = this.valueRows.get(key);
+		if (value === "") {
+			row?.Destroy();
+			this.valueRows.delete(key);
+			this.values.Size = new UDim2(0, 260, 0, 8 + this.valueRows.size() * 26);
+			return;
+		}
+		if (!row) {
+			row = this.label("", new UDim2(1, -16, 0, 24), new UDim2(0, 8, 0, 4 + this.valueRows.size() * 26), 15);
+			row.TextXAlignment = Enum.TextXAlignment.Right;
+			row.RichText = true;
+			row.Parent = this.values;
+			this.valueRows.set(key, row);
+			this.values.Size = new UDim2(0, 260, 0, 8 + this.valueRows.size() * 26);
+		}
+		row.Text = `<font color="#b8c0d8">${label}</font>  <b>${value}</b>`;
+	}
+
+	/** Big centred banner (round timer, winner, wave). Empty text hides it. */
+	setBanner(text: string): void {
+		this.banner.Text = text;
+		this.banner.Visible = text !== "";
+	}
+
+	setHealth(fraction: number): void {
+		this.healthFill.Size = new UDim2(math.clamp(fraction, 0, 1), 0, 1, 0);
+		this.healthFill.BackgroundColor3 = fraction > 0.5 ? Color3.fromHex("#6fd06f") : fraction > 0.25 ? Color3.fromHex("#e0b040") : Color3.fromHex("#e05050");
 	}
 
 	setStats(stats: PlayerStats): void {

@@ -1,9 +1,17 @@
 import {
+  GENRES,
+  GENRE_INDEX,
   GameSpecSchema,
   MOONLIT_FOREST_VILLAGE,
+  STYLE_FAMILY_INDEX,
+  VEGETATION_KIT_SPECIES,
   WorldSpecSchema,
   hashString,
+  matchGenre,
+  matchStyleFamily,
   type GameSpec,
+  type GenreDef,
+  type StyleFamilyDef,
   type StylePresetId,
   type WorldSpec,
   type WorldSpecInput,
@@ -13,8 +21,10 @@ import { defaultGameContent } from "@worldforge/roblox-export";
 
 /**
  * Local rule-based interpreter (FR/EN). Not an AI: a deterministic keyword compiler that turns a
- * natural-language brief into a valid WorldSpec/GameSpec. It powers world generation when no agent
- * is installed and gives agents a solid draft to refine.
+ * natural-language brief into a valid WorldSpec/GameSpec. It is driven by the universal taxonomy
+ * (every style family and genre carries its own keywords, kits, biomes, landmarks, systems and
+ * layout), so any genre × any style resolves to a coherent world. It powers generation when no
+ * agent is installed and gives agents a solid draft to refine.
  */
 const has = (text: string, ...words: string[]) => words.some((w) => text.includes(w));
 
@@ -24,185 +34,205 @@ export interface Interpretation {
   detected: string[];
 }
 
+type LandmarkType = NonNullable<WorldSpecInput["landmarks"]>[number]["type"];
+type ZoneHint = NonNullable<WorldSpecInput["landmarks"]>[number]["preferredZone"];
+
+/** Prompt keywords → landmark type (checked in order; the first match becomes the focal landmark). */
+const LANDMARK_KEYWORDS: [LandmarkType, string[], ZoneHint][] = [
+  ["crashed_plane", ["avion", "plane", "airliner", "crash", "boeing", "airbus", "jet"], "clearing"],
+  ["castle", ["chateau", "castle", "forteresse", "fortress", "keep"], "hill"],
+  ["giant_tree", ["arbre geant", "giant tree", "grand arbre", "arbre-monde", "world tree", "arbre ancien"], "hill"],
+  ["pyramid", ["pyramide", "pyramid"], "flat"],
+  ["colosseum", ["colisee", "colosseum", "amphitheatre", "arene antique"], "flat"],
+  ["torii_gate", ["torii", "portique", "sanctuaire", "shrine"], "clearing"],
+  ["lighthouse", ["phare", "lighthouse"], "coast"],
+  ["pirate_ship", ["navire", "galion", "galleon", "bateau pirate", "pirate ship", "epave", "shipwreck", "vaisseau pirate"], "coast"],
+  ["rocket", ["fusee", "rocket", "lanceur", "launch pad"], "flat"],
+  ["ufo", ["ovni", "ufo", "soucoupe", "saucer"], "clearing"],
+  ["dome_base", ["dome", "biodome", "habitat"], "flat"],
+  ["crystal_spire", ["cristal geant", "crystal spire", "flechecristal", "cristaux geants", "giant crystal"], "ridge"],
+  ["ferris_wheel", ["grande roue", "ferris", "fete foraine", "carnival", "parc d'attraction", "amusement"], "flat"],
+  ["stadium", ["stade", "stadium", "arene sportive"], "flat"],
+  ["radio_tower", ["antenne", "radio tower", "tour radio", "pylone", "relais"], "ridge"],
+  ["skyscraper", ["gratte-ciel", "skyscraper", "tour de bureaux", "office tower"], "flat"],
+  ["skyscraper_ruin", ["immeuble effondre", "ruined skyscraper", "tour effondree", "collapsed tower"], "flat"],
+  ["water_tower", ["chateau d'eau", "water tower"], "hill"],
+  ["gas_station", ["station-service", "station service", "gas station", "pompe a essence"], "flat"],
+  ["church", ["eglise", "church", "chapelle", "chapel", "cathedrale", "cathedral"], "village"],
+  ["barn", ["grange", "barn", "etable", "silo"], "flat"],
+  ["obelisk", ["obelisque", "obelisk"], "flat"],
+  ["fountain", ["fontaine", "fountain"], "village"],
+  ["waterfall_cliff", ["cascade", "waterfall", "chute d'eau"], "riverbank"],
+  ["temple", ["temple", "sanctuaire perdu", "lost temple"], "valley"],
+  ["windmill", ["moulin", "windmill"], "hill"],
+  ["statue", ["statue", "monument", "colosse"], "clearing"],
+  ["portal", ["portail", "portal", "gate magique", "magic gate"], "forest_edge"],
+  ["tower", ["tour de guet", "watchtower", "donjon", "tour"], "ridge"],
+  ["ruins", ["ruine", "ruin", "vestige", "ancien", "ancient", "abandon"], "forest_edge"],
+  ["volcano", ["volcan", "volcano"], "ridge"],
+  ["well", ["puits", "well"], "village"],
+];
+
+const LANDMARK_ZONE: Partial<Record<LandmarkType, ZoneHint>> = Object.fromEntries(LANDMARK_KEYWORDS.map(([t, , z]) => [t, z]));
+
 export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const t = prompt.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const detected: string[] = [];
   const tag = (s: string) => detected.push(s);
 
-  // ---- style / theme
-  let stylePreset: StylePresetId = "stylized_mystical";
-  let theme = "mysterious_forest";
-  if (has(t, "cyberpunk", "neon", "futurist", "sci-fi", "scifi")) (stylePreset = "cyberpunk"), (theme = "neon_city"), tag("cyberpunk");
-  else if (has(t, "desert", "sable", "dune", "oasis")) (stylePreset = "desert"), (theme = "desert"), tag("desert");
-  else if (has(t, "neige", "snow", "hiver", "winter", "glace", "ice")) (stylePreset = "winter"), (theme = "winter"), tag("winter");
-  else if (has(t, "marais", "swamp", "marecage", "bog")) (stylePreset = "swamp"), (theme = "swamp"), tag("swamp");
-  else if (has(t, "tropical", "ile ", "island", "plage", "beach", "jungle", "paradis")) (stylePreset = "tropical"), (theme = "tropical_island"), tag("tropical");
-  else if (has(t, "cartoon", "toon", "mignon", "cute", "kawaii")) (stylePreset = "cartoon"), (theme = "cartoon_meadow"), tag("cartoon");
-  else if (has(t, "dark fantasy", "maudit", "cursed", "horreur", "horror", "sombre", "hante", "haunted", "demon")) (stylePreset = "dark_fantasy"), (theme = "cursed_lands"), tag("dark_fantasy");
-  else if (has(t, "medieval", "chateau", "castle", "chevalier", "knight", "royaume", "kingdom")) (stylePreset = "medieval"), (theme = "medieval_kingdom"), tag("medieval");
-  else if (has(t, "fantasy", "fantastique", "feerique", "magie", "magic", "enchant")) (stylePreset = "fantasy"), (theme = "fantasy_realm"), tag("fantasy");
-  else if (has(t, "myster", "brume", "brouillard", "fog", "mist", "lune", "moon", "nuit", "night")) (stylePreset = "stylized_mystical"), (theme = "mysterious_forest"), tag("mystical");
-  else if (has(t, "foret", "forest", "bois", "woods")) (stylePreset = "stylized_mystical"), (theme = "forest"), tag("forest");
-  else if (has(t, "prairie", "meadow", "campagne", "countryside", "ferme", "farm")) (stylePreset = "fantasy"), (theme = "meadow"), tag("meadow");
+  // ---- genre + style family (taxonomy keyword matching; the genre suggests a style when none is named)
+  const genre: GenreDef = matchGenre(t, GENRES) ?? GENRE_INDEX.adventure!;
+  tag(`genre:${genre.id}`);
+  const named = matchStyleFamily(t);
+  const fam: StyleFamilyDef = named ?? STYLE_FAMILY_INDEX[genre.defaultStyles[0]!] ?? STYLE_FAMILY_INDEX.stylized_mystical!;
+  tag(`style:${fam.id}${named ? "" : " (from genre)"}`);
+  const stylePreset = fam.id as StylePresetId;
+  const modern = fam.group === "modern" || fam.group === "future" || fam.group === "apocalyptic";
+  const theme = `${fam.id}_${genre.id}`;
 
-  // ---- biomes
-  const biomes: WorldSpecInput["biomes"] = [];
+  // ---- biomes: the family's preferred biomes, nudged by the prompt
   const forest = has(t, "foret", "forest", "bois", "woods", "arbre", "tree", "jungle");
   const dark = has(t, "myster", "sombre", "dark", "brume", "fog", "mist", "nuit", "night", "hante");
-  switch (stylePreset) {
-    case "desert":
-      biomes.push({ id: "desert", weight: 0.7, vegetation: "sparse" }, { id: "rocky", weight: 0.3, vegetation: "sparse" });
-      break;
-    case "winter":
-      biomes.push({ id: "snow", weight: 0.6, vegetation: "sparse" }, { id: "pine_forest", weight: 0.4, vegetation: "medium" });
-      break;
-    case "swamp":
-      biomes.push({ id: "swamp", weight: 0.6, vegetation: "dense" }, { id: "dark_forest", weight: 0.4, vegetation: "dense" });
-      break;
-    case "tropical":
-      biomes.push({ id: "beach", weight: 0.3, vegetation: "sparse", elevation: [0, 0.2] }, { id: "forest", weight: 0.5, vegetation: "dense" }, { id: "highlands", weight: 0.2, vegetation: "sparse" });
-      break;
-    case "cyberpunk":
-      biomes.push({ id: "rocky", weight: 0.6, vegetation: "none" }, { id: "meadow", weight: 0.4, vegetation: "sparse" });
-      break;
-    case "dark_fantasy":
-      biomes.push({ id: "dark_forest", weight: 0.5, vegetation: "dense" }, { id: "ruins_field", weight: 0.3, vegetation: "sparse" }, { id: "swamp", weight: 0.2, vegetation: "medium" });
-      break;
-    case "medieval":
-    case "fantasy":
-      biomes.push({ id: "meadow", weight: forest ? 0.4 : 0.6, vegetation: "sparse" }, { id: "forest", weight: forest ? 0.6 : 0.4, vegetation: "medium" });
-      break;
-    default:
-      biomes.push({ id: dark ? "dark_forest" : "forest", weight: 0.55, vegetation: "dense" }, { id: "meadow", weight: 0.3, vegetation: "sparse" });
-      if (has(t, "champignon", "mushroom", "fungi")) biomes.push({ id: "mushroom_grove", weight: 0.3, vegetation: "medium" });
-      if (has(t, "montagne", "mountain", "rocher", "rock", "falaise", "cliff")) biomes.push({ id: "rocky", weight: 0.2, vegetation: "sparse", elevation: [0.7, 1] });
-  }
+  const biomes: WorldSpecInput["biomes"] = fam.biomes.slice(0, 3).map((id, i) => ({ id: id as never, weight: [0.55, 0.3, 0.15][i]!, vegetation: fam.vegetationDensity > 0.6 ? "dense" : fam.vegetationDensity > 0.3 ? "medium" : "sparse" }));
+  if (forest && !biomes.some((b) => b.id === "forest" || b.id === "jungle" || b.id === "dark_forest" || b.id === "pine_forest")) biomes.push({ id: dark ? "dark_forest" : fam.vegetationKit === "jungle" ? "jungle" : fam.vegetationKit === "conifer" || fam.vegetationKit === "arctic" ? "pine_forest" : "forest", weight: 0.45, vegetation: "dense" });
+  if (has(t, "montagne", "mountain", "rocher", "rock", "falaise", "cliff") && !biomes.some((b) => b.id === "rocky")) biomes.push({ id: "rocky", weight: 0.2, vegetation: "sparse", elevation: [0.7, 1] });
+  if (has(t, "champignon", "mushroom", "fungi") && !biomes.some((b) => b.id === "mushroom_grove")) biomes.push({ id: "mushroom_grove", weight: 0.3, vegetation: "medium" });
+  if (has(t, "marais", "swamp", "marecage") && !biomes.some((b) => b.id === "swamp")) biomes.push({ id: "swamp", weight: 0.3, vegetation: "medium" });
+  if (has(t, "plage", "beach", "cote", "coast") && !biomes.some((b) => b.id === "beach")) biomes.push({ id: "beach", weight: 0.25, vegetation: "sparse", elevation: [0, 0.2] });
 
   // ---- terrain
   const features: NonNullable<WorldSpecInput["terrain"]>["features"] = [];
   const mountains = has(t, "montagne", "mountain", "pic", "peak", "alpin", "sommet");
-  if (mountains || stylePreset !== "cyberpunk") features.push({ type: "mountains", placement: "edge", edges: mountains ? ["north", "west", "east"] : ["north", "west"], intensity: mountains ? 1 : 0.85, reach: mountains ? 0.3 : 0.25 });
-  features.push({ type: "hills", intensity: has(t, "plat", "flat") ? 0.2 : has(t, "vallonn", "hilly", "colline", "hill") ? 0.8 : 0.55, scale: 1.1 });
+  const flatGenre = genre.layout === "city_grid" || genre.layout === "race_track" || genre.layout === "sports_field" || genre.layout === "tycoon_plots";
+  const flat = has(t, "plat", "flat") || (flatGenre && !mountains);
+  if (mountains || (!flat && fam.group !== "future")) features.push({ type: "mountains", placement: "edge", edges: mountains ? ["north", "west", "east"] : ["north", "west"], intensity: mountains ? 1 : 0.85, reach: mountains ? 0.3 : 0.25 });
+  features.push({ type: "hills", intensity: flat ? 0.15 : has(t, "vallonn", "hilly", "colline", "hill") ? 0.8 : 0.55, scale: 1.1 });
   if (has(t, "vallee", "valley", "village", "lac", "lake")) features.push({ type: "valley", center: [0.52, 0.56], radius: 0.3, depth: 0.5 });
   if (has(t, "plateau")) features.push({ type: "plateau", center: [0.3, 0.3], radius: 0.18, height: 0.6 });
   if (has(t, "falaise", "cliff", "canyon")) features.push({ type: "cliffs", intensity: 0.7 });
-  if (has(t, "cratere", "crater", "volcan", "volcano", "meteor")) features.push({ type: "crater", center: [0.65, 0.4], radius: 0.15 });
-  const relief = has(t, "plat", "flat") ? 0.3 : mountains ? 0.75 : 0.62;
+  if (has(t, "cratere", "crater", "volcan", "volcano", "meteor") || fam.id === "space_station") features.push({ type: "crater", center: [0.65, 0.4], radius: 0.15 });
+  const relief = flat ? 0.25 : mountains ? 0.75 : 0.6;
 
   // ---- water
   const rivers: WorldSpecInput["rivers"] = [];
   const lakes: WorldSpecInput["lakes"] = [];
   if (has(t, "riviere", "river", "ruisseau", "stream", "fleuve", "cours d'eau")) rivers.push({ id: "river_1", from: "north", to: "south-east", width: 16, depth: 6, meander: 0.65 }), tag("river");
   if (has(t, "lac", "lake", "etang", "pond")) lakes.push({ id: "lake_1", center: [0.32, 0.36], radius: 80 }), tag("lake");
-  if (has(t, "ile ", "island") && lakes.length === 0 && rivers.length === 0) rivers.push({ id: "channel", from: "west", to: "east", width: 40, depth: 8, meander: 0.5 });
+  if ((has(t, "ile ", "island", "lagon", "lagoon") || genre.layout === "island") && lakes.length === 0 && rivers.length === 0) rivers.push({ id: "channel", from: "west", to: "east", width: 40, depth: 8, meander: 0.5 });
+  if (fam.id === "space_station" || fam.id === "underwater") rivers.length = 0;
 
-  // ---- landmarks
+  // ---- landmarks: prompt keywords first, then the family's signature landmarks
   const landmarks: WorldSpecInput["landmarks"] = [];
-  const addLm = (id: string, type: NonNullable<WorldSpecInput["landmarks"]>[number]["type"], role: "focal" | "secondary" | "hidden", zone: NonNullable<WorldSpecInput["landmarks"]>[number]["preferredZone"]) => {
-    if (!landmarks.some((l) => l.id === id)) landmarks.push({ id, type, role, preferredZone: zone, scale: 1 });
+  const addLm = (id: string, type: LandmarkType, role: "focal" | "secondary" | "hidden", zone: ZoneHint) => {
+    if (!landmarks.some((l) => l.id === id || l.type === type)) landmarks.push({ id, type, role, preferredZone: zone, scale: 1 });
   };
-  if (has(t, "chateau", "castle", "forteresse", "fortress")) addLm("castle", "castle", "focal", "hill");
-  if (has(t, "arbre geant", "giant tree", "grand arbre", "arbre-monde", "world tree", "arbre ancien")) addLm("giant_tree", "giant_tree", "focal", "hill");
-  if (has(t, "temple")) addLm("temple", "temple", landmarks.length ? "secondary" : "focal", "valley");
-  if (has(t, "moulin", "windmill")) addLm("windmill", "windmill", landmarks.length ? "secondary" : "focal", "hill");
-  if (has(t, "statue", "monument", "colosse")) addLm("statue", "statue", "secondary", "clearing");
-  if (has(t, "portail", "portal", "gate")) addLm("portal", "portal", "hidden", "forest_edge");
-  if (has(t, "tour", "tower", "phare", "lighthouse", "donjon")) addLm("tower", "tower", "secondary", "ridge");
-  if (has(t, "ruine", "ruin", "vestige", "ancien", "ancient", "abandon")) addLm("old_ruins", "ruins", landmarks.length ? "secondary" : "focal", "forest_edge");
-  if (has(t, "volcan", "volcano")) addLm("volcano", "volcano", "focal", "ridge");
-  if (landmarks.length === 0) {
-    // every world needs a focal point
-    if (stylePreset === "cyberpunk") addLm("portal", "portal", "focal", "plateau");
-    else if (stylePreset === "desert") addLm("temple", "temple", "focal", "plateau");
-    else if (stylePreset === "medieval") addLm("castle", "castle", "focal", "hill");
-    else if (stylePreset === "fantasy" || stylePreset === "cartoon") addLm("windmill", "windmill", "focal", "hill");
-    else addLm("giant_tree", "giant_tree", "focal", "hill");
+  for (const [type, words, zone] of LANDMARK_KEYWORDS) {
+    if (!has(t, ...words)) continue;
+    addLm(type, type, landmarks.length ? "secondary" : "focal", zone);
+    tag(`landmark:${type}`);
+    if (landmarks.length >= 4) break;
   }
-  if (!landmarks.some((l) => l.role === "secondary") && !has(t, "minimal", "simple")) addLm("old_ruins", "ruins", "secondary", "forest_edge");
+  if (landmarks.length === 0) addLm(fam.landmarks[0]!, fam.landmarks[0] as LandmarkType, "focal", LANDMARK_ZONE[fam.landmarks[0] as LandmarkType] ?? "hill");
+  if (!landmarks.some((l) => l.role === "secondary") && !has(t, "minimal", "simple")) {
+    const second = fam.landmarks.find((l) => !landmarks.some((x) => x.type === l)) ?? "ruins";
+    addLm(second, second as LandmarkType, "secondary", LANDMARK_ZONE[second as LandmarkType] ?? "forest_edge");
+  }
 
   // ---- settlements
   const settlements: WorldSpecInput["settlements"] = [];
-  const abandoned = has(t, "abandon", "deserted", "ruine", "hante", "haunted", "fantome", "ghost");
+  const abandoned = has(t, "abandon", "deserted", "ruine", "hante", "haunted", "fantome", "ghost", "zombie", "apocalyp", "infect");
   const count = (() => {
-    const m = /(\d+)\s*(maisons|houses|batiments|buildings|huttes|huts|cabanes|cabins)/.exec(t);
-    return m ? Math.max(1, Math.min(30, Number(m[1]))) : undefined;
+    const m = /(\d+)\s*(maisons|houses|batiments|buildings|huttes|huts|cabanes|cabins|immeubles|blocs)/.exec(t);
+    return m ? Math.max(1, Math.min(60, Number(m[1]))) : undefined;
   })();
-  if (has(t, "ville", "town", "city", "cite")) settlements.push({ id: "town", type: abandoned ? "ruined_town" : "village", buildings: count ?? 14, layout: "organic", near: rivers[0]?.id, weathering: abandoned ? 0.9 : 0.3 }), tag("town");
-  else if (has(t, "village", "hameau", "hamlet", "colonie", "settlement")) settlements.push({ id: "village", type: abandoned ? "abandoned_village" : has(t, "hameau", "hamlet") ? "hamlet" : "village", buildings: count ?? 7, layout: "organic", near: rivers[0]?.id ?? lakes[0]?.id, weathering: abandoned ? 0.7 : 0.35 }), tag("village");
-  else if (has(t, "camp", "campement", "bivouac", "avant-poste", "outpost")) settlements.push({ id: "camp", type: has(t, "outpost", "avant-poste") ? "outpost" : "camp", buildings: count ?? 4, layout: "ring", weathering: 0.4 }), tag("camp");
-  else if (has(t, "maison", "house", "cabane", "cabin", "chaumiere", "cottage")) settlements.push({ id: "hamlet", type: "hamlet", buildings: count ?? 3, layout: "organic", weathering: 0.3 });
+  const interiors = has(t, "interieur", "interior", "inside", "meuble", "furnish", "entrer dans", "walk in") ? true : undefined;
+  const famType = fam.settlementType ?? "village";
+  if (has(t, "ville", "town", "city", "cite", "metropole", "downtown", "quartier")) {
+    const city = modern && has(t, "city", "cite", "metropole", "downtown", "gratte", "skyscraper", "immeuble");
+    settlements.push({ id: "town", type: abandoned ? (modern ? "abandoned_village" : "ruined_town") : city ? "city_district" : "town", buildings: count ?? (city ? 18 : 14), layout: city || modern ? "grid" : "organic", near: rivers[0]?.id, weathering: abandoned ? 0.9 : 0.3, interiors });
+    tag("town");
+  } else if (has(t, "village", "hameau", "hamlet", "colonie", "settlement", "banlieue", "suburb", "neighborhood", "neighbourhood", "quartier residentiel")) {
+    settlements.push({ id: "village", type: abandoned ? "abandoned_village" : has(t, "hameau", "hamlet") ? "hamlet" : famType === "city_district" ? "town" : famType, buildings: count ?? 9, layout: modern ? "grid" : "organic", near: rivers[0]?.id ?? lakes[0]?.id, weathering: abandoned ? 0.75 : 0.35, interiors });
+    tag("village");
+  } else if (has(t, "base", "camp", "campement", "bivouac", "avant-poste", "outpost", "station", "colonie")) {
+    settlements.push({ id: "base", type: has(t, "outpost", "avant-poste") ? "outpost" : has(t, "camp", "bivouac") ? "camp" : "base", buildings: count ?? 5, layout: has(t, "camp") ? "ring" : "grid", weathering: 0.4, interiors });
+    tag("base");
+  } else if (has(t, "port", "harbor", "harbour", "docks", "crique", "cove")) {
+    settlements.push({ id: "harbor", type: "harbor", buildings: count ?? 8, layout: "organic", near: rivers[0]?.id ?? lakes[0]?.id, weathering: 0.5, interiors });
+    tag("harbor");
+  } else if (has(t, "ferme", "farm", "ranch")) {
+    settlements.push({ id: "farm", type: "farmstead", buildings: count ?? 4, layout: "organic", weathering: 0.35, interiors });
+  } else if (has(t, "maison", "house", "cabane", "cabin", "chaumiere", "cottage", "manoir", "mansion")) {
+    settlements.push({ id: "hamlet", type: "hamlet", buildings: count ?? 3, layout: "organic", weathering: 0.3, interiors });
+  } else if (genre.layout === "settlement" || genre.layout === "open_world" || genre.layout === "city_grid") {
+    // most genres want a hub: the family's default settlement
+    settlements.push({ id: "hub", type: abandoned ? "abandoned_village" : (famType as never), buildings: count ?? (famType === "city_district" ? 16 : 7), layout: modern ? "grid" : "organic", weathering: abandoned ? 0.8 : 0.35, interiors });
+  }
 
   // ---- roads
   const roads: WorldSpecInput["roads"] = [];
-  const roadType = has(t, "pave", "cobble") ? "cobblestone_road" : has(t, "terre", "dirt", "sentier", "trail") ? "dirt_path" : stylePreset === "tropical" || stylePreset === "swamp" ? "wooden_walkway" : "stone_path";
+  const roadType = has(t, "pave", "cobble") ? "cobblestone_road" : has(t, "terre", "dirt", "sentier", "trail") ? "dirt_path" : fam.roadKit;
   const focalId = landmarks.find((l) => l.role === "focal")?.id;
   const mainNodes = ["spawn", ...(settlements[0] ? [settlements[0].id] : []), ...(focalId ? [focalId] : [])];
-  if (mainNodes.length >= 2) roads.push({ id: "main_path", type: roadType, connects: mainNodes, width: 7 });
+  if (mainNodes.length >= 2) roads.push({ id: "main_path", type: roadType, connects: mainNodes, width: modern ? 12 : 7 });
   const secondary = landmarks.find((l) => l.role === "secondary");
-  if (secondary && settlements[0]) roads.push({ id: "side_path", type: "dirt_path", connects: [settlements[0].id, secondary.id], width: 5 });
+  if (secondary && settlements[0]) roads.push({ id: "side_path", type: roadType === "asphalt_road" ? "concrete_road" : "dirt_path", connects: [settlements[0].id, secondary.id], width: modern ? 9 : 5 });
 
-  // ---- vegetation
+  // ---- vegetation: the family's kit species (+ prompt extras)
   type Species = NonNullable<NonNullable<WorldSpecInput["vegetation"]>["species"]>[number];
-  const species: Species[] = [];
+  const species: Species[] = (VEGETATION_KIT_SPECIES[fam.vegetationKit] ?? []).map(([sp]) => sp);
   const pushSp = (...list: Species[]) => {
     for (const x of list) if (!species.includes(x)) species.push(x);
   };
-  switch (stylePreset) {
-    case "desert":
-      pushSp("cactus", "palm", "dead_tree", "bush", "grass");
-      break;
-    case "winter":
-      pushSp("pine", "dead_tree", "bush", "grass");
-      break;
-    case "swamp":
-      pushSp("willow", "dead_tree", "giant_mushroom", "small_mushroom", "fern", "grass", "log");
-      break;
-    case "tropical":
-      pushSp("palm", "round_tree", "bush", "fern", "flower", "grass");
-      break;
-    case "cyberpunk":
-      pushSp("round_tree", "bush", "grass");
-      break;
-    case "dark_fantasy":
-      pushSp("dead_tree", "pine", "willow", "giant_mushroom", "small_mushroom", "fern", "grass", "log");
-      break;
-    case "medieval":
-    case "fantasy":
-    case "cartoon":
-      pushSp("round_tree", "birch", "pine", "bush", "grass", "flower");
-      break;
-    default:
-      pushSp("pine", "round_tree", "dead_tree", "bush", "fern", "grass", "flower", "log");
-      if (has(t, "champignon", "mushroom", "fungi") || dark) pushSp("giant_mushroom", "small_mushroom");
-  }
+  if (species.length === 0) pushSp("bush", "grass");
   if (has(t, "champignon", "mushroom")) pushSp("giant_mushroom", "small_mushroom"), tag("mushrooms");
   if (has(t, "fleur", "flower")) pushSp("flower");
-  const density = has(t, "dense", "epais", "thick", "luxuriant", "lush") ? 0.85 : has(t, "clairsem", "sparse", "vide", "empty", "aride") ? 0.3 : stylePreset === "desert" || stylePreset === "cyberpunk" ? 0.2 : 0.7;
-  const giantMushrooms = has(t, "champignons geants", "giant mushroom", "champignon geant") ? 0.7 : species.includes("giant_mushroom") ? 0.4 : 0;
+  if (has(t, "palmier", "palm")) pushSp("palm");
+  if (has(t, "cerisier", "sakura", "cherry")) pushSp("cherry_tree");
+  if (has(t, "bambou", "bamboo")) pushSp("bamboo");
+  if (has(t, "cactus")) pushSp("cactus");
+  const density = has(t, "dense", "epais", "thick", "luxuriant", "lush") ? 0.85 : has(t, "clairsem", "sparse", "vide", "empty", "aride") ? 0.3 : Math.min(0.85, 0.25 + fam.vegetationDensity * 0.75);
+  const giantMushrooms = has(t, "champignons geants", "giant mushroom", "champignon geant") ? 0.7 : species.includes("giant_mushroom") ? Math.max(0.3, fam.mushrooms ?? 0) : 0;
 
-  // ---- props
-  const sets: NonNullable<WorldSpecInput["props"]>["sets"] = [];
-  if (settlements.length) sets.push("village");
-  if (forest || stylePreset === "stylized_mystical" || stylePreset === "dark_fantasy" || stylePreset === "swamp") sets.push("forest");
-  if (landmarks.some((l) => l.type === "ruins" || l.type === "temple") || abandoned) sets.push("ruins");
-  if (has(t, "camp", "feu", "campfire", "bivouac")) sets.push("camp");
-  if (has(t, "cimetiere", "graveyard", "tombe", "grave")) sets.push("graveyard");
-  if (has(t, "ferme", "farm", "moulin")) sets.push("farm");
-  if (sets.length === 0) sets.push("forest");
+  // ---- props: the family's kits + prompt extras
+  type PropSet = NonNullable<NonNullable<WorldSpecInput["props"]>["sets"]>[number];
+  const sets = new Set<PropSet>(fam.propKits as PropSet[]);
+  if (settlements.length && !modern) sets.add("village");
+  if (forest || fam.vegetationKit === "mushroom" || fam.vegetationKit === "conifer") sets.add("forest");
+  if (landmarks.some((l) => l.type === "ruins" || l.type === "temple" || l.type === "skyscraper_ruin") || abandoned) sets.add("ruins");
+  if (has(t, "camp", "feu de camp", "campfire", "bivouac")) sets.add("camp");
+  if (has(t, "cimetiere", "graveyard", "tombe", "grave")) sets.add("graveyard");
+  if (has(t, "ferme", "farm", "moulin", "champ", "crops")) sets.add("farm");
+  if (has(t, "zombie", "apocalyp", "infect", "barricade")) sets.add("apocalypse");
+  if (has(t, "militaire", "military", "soldat", "army")) sets.add("military");
+  if (has(t, "aire de jeu", "playground", "parc", "park")) sets.add("playground");
+  if (has(t, "port", "docks", "harbor", "harbour")) sets.add("docks");
+  if (sets.size === 0) sets.add("forest");
 
-  // ---- lighting & atmosphere
+  // ---- lighting & atmosphere: the family's look, overridden by the prompt
   const night = has(t, "nuit", "night", "lune", "moon", "nocturne", "etoile", "star");
   const dusk = has(t, "crepuscule", "dusk", "coucher", "sunset");
   const dawn = has(t, "aube", "dawn", "lever", "sunrise", "matin", "morning");
-  const timeOfDay = night ? 20.5 : dusk ? 18.2 : dawn ? 6.5 : stylePreset === "cyberpunk" || stylePreset === "dark_fantasy" ? 20 : 13;
-  const mood = stylePreset === "dark_fantasy" ? "eerie" : night ? "moonlit" : dusk ? "dusk" : dawn ? "dawn" : has(t, "orage", "storm", "pluie", "rain") ? "stormy" : has(t, "nuage", "cloud", "gris", "overcast") ? "overcast" : stylePreset === "fantasy" || stylePreset === "desert" || stylePreset === "tropical" ? "golden" : stylePreset === "cartoon" ? "bright" : has(t, "myster", "brume", "fog", "mist") ? "moonlit" : "soft";
-  const fogDensity = has(t, "brume", "brouillard", "fog", "mist", "myster") ? 0.55 : stylePreset === "dark_fantasy" || stylePreset === "swamp" ? 0.65 : stylePreset === "cartoon" || stylePreset === "tropical" ? 0.15 : 0.3;
+  const timeOfDay = night ? 20.5 : dusk ? 18.2 : dawn ? 6.5 : fam.lighting.timeOfDay;
+  const mood = night ? "moonlit" : dusk ? "dusk" : dawn ? "dawn" : has(t, "orage", "storm", "pluie", "rain") ? "stormy" : has(t, "nuage", "cloud", "gris", "overcast") ? "overcast" : fam.lighting.mood;
+  const fogDensity = has(t, "brume", "brouillard", "fog", "mist", "myster") ? Math.max(0.55, fam.fog.density) : fam.fog.density;
+
+  // ---- gameplay layout from the genre (stage / plot / checkpoint counts from the prompt when given)
+  const layoutCount = (() => {
+    const m = /(\d+)\s*(stages|etapes|niveaux|levels|plots|parcelles|checkpoints|salles|rooms|portails|portals|vagues|waves)/.exec(t);
+    return m ? Math.max(2, Math.min(60, Number(m[1]))) : undefined;
+  })();
+  const layout: WorldSpecInput["layout"] = {
+    archetype: genre.layout,
+    count: layoutCount ?? { obby_course: 12, tycoon_plots: 8, lobby_portals: 6, base_defense: 10, dungeon: 6, arena: 14, race_track: 8, linear_story: 6 }[genre.layout as string] ?? 8,
+    intensity: has(t, "difficile", "hard", "extreme", "hardcore") ? 0.85 : has(t, "facile", "easy", "casual") ? 0.25 : 0.5,
+    extent: 0.45,
+  };
 
   // ---- size
   const width = has(t, "immense", "enorme", "huge", "gigantesque", "massive") ? 2048 : has(t, "grand", "large", "big", "vaste") ? 1536 : has(t, "petit", "small", "tiny", "mini") ? 768 : 1024;
 
-  // ---- name
-  const name = titleFromPrompt(prompt, stylePreset);
+  const name = titleFromPrompt(prompt, fam);
 
   const specInput: WorldSpecInput = {
     ...MOONLIT_FOREST_VILLAGE,
@@ -212,7 +242,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     theme,
     stylePreset,
     size: { width, depth: width },
-    terrain: { baseHeight: 40, relief, roughness: 0.45, erosion: 0.55, features },
+    terrain: { baseHeight: 40, relief, roughness: fam.geometry === "blocky" ? 0.3 : 0.45, erosion: 0.55, features },
     biomes,
     rivers,
     lakes,
@@ -220,101 +250,190 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     settlements,
     roads,
     vegetation: { density, clustering: 0.6, species, sizeVariation: 0.55, giantMushrooms },
-    props: { density: 0.55, sets },
+    props: { density: 0.55, sets: [...sets] },
     lighting: { timeOfDay, mood, brightness: night ? 0.5 : 0.75, shadows: true },
-    atmosphere: { fogDensity, fogColor: fogColorFor(stylePreset), haze: fogDensity, skyTint: skyFor(stylePreset) },
+    atmosphere: { fogDensity, fogColor: fam.fog.color, haze: fogDensity, skyTint: fam.palette.sky },
+    colorPalette: { primary: fam.palette.primary, secondary: fam.palette.secondary, accent: fam.palette.accent, ground: fam.palette.ground, stone: fam.palette.stone, wood: fam.palette.wood, foliage: fam.palette.foliage, water: fam.palette.water },
     cameraComposition: { spawnFacing: focalId, spawnZone: "clearing" },
-    gameplayHints: gameplayHints(t),
+    layout,
+    gameplayHints: [genre.id, ...gameplayHints(t)],
     notes: prompt,
   };
   const spec = WorldSpecSchema.parse(specInput);
-  const game = interpretGame(prompt, spec);
+  const game = interpretGame(prompt, spec, genre, fam);
   return { spec, game, detected };
 }
 
 function gameplayHints(t: string): string[] {
   const hints: string[] = [];
-  if (has(t, "surviv", "survie")) hints.push("survival");
-  if (has(t, "obby", "parcours", "platform", "saut")) hints.push("obby");
-  if (has(t, "tycoon")) hints.push("tycoon");
-  if (has(t, "simulat")) hints.push("simulator");
-  if (has(t, "rpg", "quete", "quest", "aventure", "adventure")) hints.push("rpg");
-  if (has(t, "horreur", "horror", "peur", "scary")) hints.push("horror");
-  if (has(t, "course", "racing", "race")) hints.push("racing");
-  if (has(t, "roleplay", "rp ")) hints.push("roleplay");
-  if (has(t, "combat", "fight", "battle", "arme", "weapon", "pvp")) hints.push("combat");
   if (has(t, "collect", "ramass", "recolte", "gather")) hints.push("collectibles");
   if (has(t, "pet", "animaux", "compagnon", "egg", "oeuf")) hints.push("pets");
-  if (hints.length === 0) hints.push("exploration", "collectibles");
+  if (has(t, "combat", "fight", "battle", "arme", "weapon", "pvp", "zombie", "monstre", "monster")) hints.push("combat");
+  if (has(t, "quete", "quest", "mission")) hints.push("quests");
+  if (has(t, "vehicule", "vehicle", "voiture", "car", "moto")) hints.push("vehicles");
   return hints;
 }
 
-export function interpretGame(prompt: string, spec: WorldSpec): GameSpec {
+const SYSTEM_DESCRIPTIONS: Record<string, string> = {
+  player_data: "Persistent profile, leaderstats, autosave",
+  currency: "Main currency earned and spent in-game",
+  inventory: "Items, stacks and equip slots",
+  survival_stats: "Hunger / thirst / temperature drains; eat to survive",
+  collectibles: "Pickups scattered in the world (respawning)",
+  quests: "Quest log with objectives and rewards",
+  npcs: "Villagers, merchants and quest givers with dialogue",
+  shop: "In-game shop (coins) + Robux passes/products",
+  pets: "Hatch eggs, equip pets with multipliers",
+  weapons: "Melee and ranged tools with cooldowns",
+  combat: "Health, damage, knockback, respawn",
+  progression: "Levels / XP / unlock tiers",
+  checkpoints: "Stage checkpoints and respawn points",
+  obby: "Platforming course with kill bricks and stage counter",
+  tycoon: "Plots with buy buttons, droppers, conveyors and collectors",
+  simulator_loop: "Click / collect → backpack → sell → upgrade → rebirth",
+  rounds: "Lobby + timed rounds with a winner",
+  rng_rolls: "Weighted random rolls (rarities, luck)",
+  leaderboards: "Global leaderboards (OrderedDataStore)",
+  matchmaking: "Queue players into matches / teams",
+  day_night: "Day/night cycle with events",
+  crafting: "Recipes turning gathered items into tools",
+  enemies: "AI mobs that patrol, chase and attack (zombies, monsters, guards)",
+  racing: "Vehicle checkpoints, laps and best times",
+  tower_defense: "Waves of enemies along a path; towers placed on pads",
+  farming: "Plant seeds, grow, harvest and sell crops",
+  mining: "Ore nodes, pickaxe tiers, deeper layers",
+  building: "Place parts / furniture on your plot",
+  jobs: "Jobs that pay cash over time",
+  sports: "Ball physics, goals, score and match timer",
+  puzzle: "Switches, keys, pressure plates and doors",
+  story: "Chapters with dialogue beats and set pieces",
+  clicker: "Tap to earn with auto-clickers and multipliers",
+  parkour: "Wall runs, long jumps, timed routes",
+  minigames: "Rotating minigames launched from the lobby portals",
+  trading: "Player-to-player trades with confirmation",
+  housing: "Claimable houses / plots with furniture",
+  vehicles: "Spawnable vehicles with seats and physics",
+  teams: "Team assignment, colours and spawns",
+  capture_points: "Contested zones that score for the holding team",
+  abilities: "Cooldown abilities / moves with combos",
+  rhythm: "Note tracks synced to music with scoring",
+};
+
+export function interpretGame(prompt: string, spec: WorldSpec, genreIn?: GenreDef, famIn?: StyleFamilyDef): GameSpec {
   const t = prompt.toLowerCase();
   const hints = spec.gameplayHints;
-  const genre = hints.includes("survival") ? "survival" : hints.includes("obby") ? "obby" : hints.includes("tycoon") ? "tycoon" : hints.includes("simulator") ? "simulator" : hints.includes("rpg") ? "rpg" : hints.includes("horror") ? "horror" : hints.includes("racing") ? "racing" : hints.includes("roleplay") ? "roleplay" : hints.includes("combat") ? "battle" : "adventure";
-  const systems: GameSpec["systems"] = [{ id: "player_data", description: "Persistent profile, leaderstats", params: {} }, { id: "currency", description: "Main currency", params: {} }, { id: "collectibles", description: "Collect items in the world", params: {} }];
-  if (genre === "survival") systems.push({ id: "survival_stats", description: "Hunger drains; eat to survive", params: {} }, { id: "day_night", description: "Day/night cycle", params: {} }, { id: "crafting", description: "Craft tools from gathered items", params: {} });
-  if (genre === "obby") systems.push({ id: "checkpoints", description: "Stage checkpoints", params: {} }, { id: "obby", description: "Platforming course", params: {} });
-  if (genre === "tycoon") systems.push({ id: "tycoon", description: "Buy droppers/upgrades", params: {} });
-  if (genre === "simulator") systems.push({ id: "simulator_loop", description: "Click/collect → sell → upgrade", params: {} }, { id: "shop", description: "Upgrades shop", params: {} });
-  if (genre === "rpg" || genre === "adventure") systems.push({ id: "quests", description: "Quest log", params: {} }, { id: "npcs", description: "Villagers & quest givers", params: {} }, { id: "inventory", description: "Inventory", params: {} });
-  if (genre === "horror") systems.push({ id: "rounds", description: "Survive rounds", params: {} }, { id: "day_night", description: "Permanent night", params: {} });
-  if (genre === "battle" || hints.includes("combat")) systems.push({ id: "weapons", description: "Weapons", params: {} }, { id: "combat", description: "Damage & health", params: {} });
-  if (hints.includes("pets")) systems.push({ id: "pets", description: "Hatch & equip pets", params: {} });
-  systems.push({ id: "leaderboards", description: "Global leaderboard", params: {} });
-  const ui: GameSpec["ui"] = { screens: ["hud", "inventory", "shop", "settings", ...(systems.some((s) => s.id === "quests") ? (["quests"] as const) : []), "loading"], style: spec.stylePreset === "cyberpunk" ? "sci-fi" : spec.stylePreset === "cartoon" ? "cartoon" : "stylized", accentColor: spec.colorPalette.accent };
+  const genre = genreIn ?? GENRE_INDEX[hints[0] ?? ""] ?? matchGenre(t, GENRES) ?? GENRE_INDEX.adventure!;
+  const fam = famIn ?? STYLE_FAMILY_INDEX[spec.stylePreset] ?? STYLE_FAMILY_INDEX.stylized_mystical!;
+  const ids = new Set<string>(genre.systems);
+  if (hints.includes("pets")) ids.add("pets");
+  if (hints.includes("combat")) ids.add("combat"), ids.add("weapons"), ids.add("enemies");
+  if (hints.includes("quests")) ids.add("quests"), ids.add("npcs");
+  if (hints.includes("vehicles")) ids.add("vehicles");
+  const systems: GameSpec["systems"] = [...ids].map((id) => ({ id: id as never, description: SYSTEM_DESCRIPTIONS[id] ?? id, params: {} }));
+  const ui: GameSpec["ui"] = { screens: genre.screens as never, style: fam.ui as never, accentColor: fam.uiAccent };
+  const base = defaultGameContent();
+  const currencyName = genre.currency.charAt(0).toUpperCase() + genre.currency.slice(1);
+  const enemies = genre.enemies || ids.has("enemies");
+  const zombie = /zombie|infect|apocalyp/.test(t);
+  const npcs = [
+    ...(spec.settlements.length ? base.npcs.map((n) => ({ ...n, location: spec.settlements[0]!.id })) : []),
+    ...(enemies ? [{ id: zombie ? "walker" : "grunt", name: zombie ? "Walker" : genre.id === "horror" ? "The Stalker" : "Raider", role: (zombie ? "zombie" : genre.id === "horror" ? "monster" : "enemy") as never, location: "wild", dialogue: [] }] : []),
+  ];
   return GameSpecSchema.parse({
     title: spec.name,
-    tagline: `A ${genre} experience in ${spec.theme.replace(/_/g, " ")}`,
+    tagline: `A ${genre.name.toLowerCase()} experience — ${fam.name}`,
     description: prompt,
-    genre,
-    subGenres: hints.filter((h) => h !== genre && ["survival", "adventure", "obby", "tycoon", "simulator", "rpg", "horror", "roleplay", "battle", "exploration", "puzzle", "racing"].includes(h)),
-    targetAudience: t.includes("enfant") || t.includes("kids") ? "kids" : "all",
+    genre: genre.id,
+    subGenres: hints.filter((h) => h !== genre.id && GENRE_INDEX[h]).slice(0, 3),
+    targetAudience: t.includes("enfant") || t.includes("kids") ? "kids" : genre.id === "horror" || zombie ? "teens" : "all",
     coreLoop: coreLoopFor(genre),
     systems,
-    currencies: [{ id: "coins", name: "Coins", icon: "coin", startingAmount: 0 }],
-    items: [{ id: "mushroom", name: "Glowing Mushroom", category: "food", rarity: "common", stackable: true }],
-    npcs: spec.settlements.length ? defaultGameContent().npcs.map((n) => ({ ...n, location: spec.settlements[0]!.id })) : [],
-    quests: [{ id: "first_light", title: "First Light", description: "Collect 5 glowing mushrooms.", objective: { type: "collect", target: "mushroom", count: 5 }, reward: { currency: "coins", amount: 50 } }],
+    currencies: [{ id: genre.currency, name: currencyName, icon: "coin", startingAmount: 0 }],
+    items: itemsFor(genre, fam),
+    npcs,
+    quests: questsFor(genre, spec),
     ui,
-    monetization: defaultGameContent().monetization,
-    shop: defaultGameContent().shop,
-    animations: defaultGameContent().animations,
+    monetization: base.monetization,
+    shop: { ...base.shop, title: genre.id === "survival" ? "Trader" : genre.id === "tycoon" || genre.id === "simulator" ? "Upgrades" : "Shop" },
+    animations: base.animations,
     worldBrief: spec.notes ?? "",
-    audioBrief: `${spec.lighting.mood} ${spec.theme.replace(/_/g, " ")} ambience, soft music, nature SFX`,
+    audioBrief: `${fam.audio} mood, ${spec.lighting.mood} ${fam.name.toLowerCase()} ambience`,
   });
 }
 
-function coreLoopFor(genre: string): string[] {
-  switch (genre) {
+function itemsFor(genre: GenreDef, fam: StyleFamilyDef): GameSpec["items"] {
+  const food = fam.group === "modern" || fam.group === "apocalyptic" ? { id: "canned_food", name: "Canned Food", category: "food" } : fam.group === "future" ? { id: "ration", name: "Ration Pack", category: "food" } : { id: "mushroom", name: "Glowing Mushroom", category: "food" };
+  const items: GameSpec["items"] = [{ ...food, rarity: "common", stackable: true } as never];
+  if (genre.systems.includes("weapons")) items.push({ id: "melee_1", name: fam.group === "modern" || fam.group === "apocalyptic" ? "Baseball Bat" : fam.group === "future" ? "Energy Blade" : "Sword", category: "weapon", rarity: "common", stackable: false } as never);
+  if (genre.systems.includes("crafting")) items.push({ id: "scrap", name: fam.group === "fantasy" || fam.group === "historical" ? "Wood" : "Scrap", category: "material", rarity: "common", stackable: true } as never, { id: "cloth", name: "Cloth", category: "material", rarity: "common", stackable: true } as never);
+  if (genre.systems.includes("mining")) items.push({ id: "ore_iron", name: "Iron Ore", category: "material", rarity: "common", stackable: true } as never, { id: "ore_gold", name: "Gold Ore", category: "material", rarity: "rare", stackable: true } as never);
+  if (genre.systems.includes("farming")) items.push({ id: "seed_carrot", name: "Carrot Seed", category: "material", rarity: "common", stackable: true } as never, { id: "carrot", name: "Carrot", category: "food", rarity: "common", stackable: true } as never);
+  return items;
+}
+
+function questsFor(genre: GenreDef, spec: WorldSpec): GameSpec["quests"] {
+  const cur = genre.currency;
+  switch (genre.layout) {
+    case "obby_course":
+      return [{ id: "first_stages", title: "Warm-up", description: "Reach stage 3.", objective: { type: "reach", target: "obby_stage_3", count: 1 }, reward: { currency: cur, amount: 50 } }];
+    case "tycoon_plots":
+      return [{ id: "first_plot", title: "Own a plot", description: "Claim a plot and buy your first dropper.", objective: { type: "build", target: "tycoon_plot", count: 1 }, reward: { currency: cur, amount: 100 } }];
+    case "arena":
+      return [{ id: "first_blood", title: "First blood", description: "Defeat 3 opponents in the arena.", objective: { type: "defeat", target: "player", count: 3 }, reward: { currency: cur, amount: 100 } }];
+    case "race_track":
+      return [{ id: "first_lap", title: "First lap", description: "Complete a lap of the track.", objective: { type: "reach", target: "race_start", count: 1 }, reward: { currency: cur, amount: 80 } }];
+    case "base_defense":
+      return [{ id: "wave_5", title: "Hold the line", description: "Survive 5 waves.", objective: { type: "survive", target: "wave", count: 5 }, reward: { currency: cur, amount: 150 } }];
+    case "dungeon":
+      return [{ id: "boss", title: "Into the dark", description: "Reach the boss room.", objective: { type: "reach", target: "dungeon_boss", count: 1 }, reward: { currency: cur, amount: 200 } }];
+    default:
+      return [{ id: "first_light", title: "First steps", description: `Collect 5 items and visit ${spec.landmarks[0]?.id ?? "the landmark"}.`, objective: { type: "collect", target: "any", count: 5 }, reward: { currency: cur, amount: 50 } }];
+  }
+}
+
+function coreLoopFor(genre: GenreDef): string[] {
+  switch (genre.id) {
     case "survival":
-      return ["Explore the world", "Gather food & resources", "Manage hunger", "Craft and progress", "Discover landmarks"];
+      return ["Explore and scavenge", "Manage hunger and threats", "Craft gear and fortify", "Survive the night", "Push further"];
     case "obby":
+    case "parkour":
       return ["Run the course", "Reach checkpoints", "Unlock stages", "Compete on the leaderboard"];
     case "tycoon":
-      return ["Collect income", "Buy upgrades", "Expand the base", "Prestige"];
+      return ["Collect income", "Buy upgrades", "Expand the base", "Rebirth"];
     case "simulator":
-      return ["Collect", "Sell", "Upgrade", "Unlock areas"];
+    case "clicker":
+      return ["Collect", "Sell", "Upgrade", "Unlock areas", "Rebirth"];
     case "horror":
-      return ["Survive the night", "Find clues", "Escape"];
+      return ["Explore in the dark", "Find keys", "Avoid the monster", "Escape"];
+    case "battle":
+    case "fps":
+    case "battle_royale":
+    case "fighting":
+      return ["Queue for a round", "Fight", "Earn rewards", "Unlock loadouts"];
+    case "racing":
+      return ["Pick a vehicle", "Race laps", "Beat times", "Unlock cars"];
+    case "tower_defense":
+    case "strategy":
+      return ["Place towers", "Survive waves", "Upgrade", "Unlock maps"];
+    case "roleplay":
+    case "hangout":
+      return ["Meet people", "Work jobs / hang out", "Buy houses and cars", "Customise"];
+    case "farming":
+      return ["Plant", "Water and wait", "Harvest", "Sell", "Expand"];
+    case "mining":
+      return ["Dig", "Sell ore", "Upgrade pickaxe", "Go deeper"];
     default:
       return ["Explore", "Collect", "Complete quests", "Upgrade", "Discover landmarks"];
   }
 }
 
-function titleFromPrompt(prompt: string, preset: StylePresetId): string {
-  const cleaned = prompt.replace(/^(cree|crée|créer|create|make|fais|fait|build|génère|genere|generate)[- ]?(moi|me)?\s*(un|une|a|an)?\s*(jeu|game)?\s*(roblox)?\s*(de|d'|of)?\s*/i, "").trim();
+function titleFromPrompt(prompt: string, fam: StyleFamilyDef): string {
+  const cleaned = prompt
+    .replace(/^(cree|crée|créer|create|make|fais|fait|build|génère|genere|generate)[- ]?(moi|me)?\s*(une|un|an|a)?\s*(jeu|game|map|carte|monde|world)?\s*(roblox)?\s*(pour|for)?\s*(mon|ma|my)?\s*(jeu|game)?\s*(de|d'|of)?\s*/i, "")
+    .trim();
   const words = cleaned.split(/\s+/).slice(0, 5).join(" ");
-  const base = words.length > 4 ? words.charAt(0).toUpperCase() + words.slice(1) : preset.replace(/_/g, " ");
+  const base = words.length > 4 ? words.charAt(0).toUpperCase() + words.slice(1) : fam.name;
   return base.replace(/[.,;!?]+$/, "").slice(0, 48);
-}
-
-function fogColorFor(p: StylePresetId): string {
-  return { stylized_mystical: "#7d8aa3", fantasy: "#b7c8e6", medieval: "#a7b1bf", cartoon: "#cfe9ff", dark_fantasy: "#3f4656", cyberpunk: "#2a1f4a", desert: "#e8d6b8", tropical: "#cfeeff", winter: "#d3dde8", swamp: "#7d8a73" }[p];
-}
-function skyFor(p: StylePresetId): string {
-  return { stylized_mystical: "#6d7d9a", fantasy: "#8fb4e6", medieval: "#94a5b8", cartoon: "#8fd3ff", dark_fantasy: "#2f3542", cyberpunk: "#1a1533", desert: "#9fd0ff", tropical: "#8fd8ff", winter: "#b9cce0", swamp: "#8a9a8a" }[p];
 }
 
 // ---------------------------------------------------------------------------

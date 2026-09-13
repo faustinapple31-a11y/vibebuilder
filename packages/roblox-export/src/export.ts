@@ -33,8 +33,10 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  * data modules). Projects scaffolded with an older version get the framework files re-applied once
  * (`templateUpgradeFiles`), with backups of any file that diverged.
  *   2 — shop / monetization / NPCs / animations / audio systems (Game + Toolbox tabs).
+ *   3 — universal genre systems (combat, enemies, checkpoints/obby, tycoon, simulator, rounds/teams,
+ *       racing/vehicles, tower defense, farming/mining/pets/housing, modes) + zone markers with meta.
  */
-export const TEMPLATE_VERSION = 2;
+export const TEMPLATE_VERSION = 3;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
@@ -42,6 +44,18 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/client/main.client.ts",
   "src/shared/net.ts",
   "src/shared/anim/keyframes.ts",
+  "src/shared/zones.ts",
+  "src/systems/Combat.ts",
+  "src/systems/Enemies.ts",
+  "src/systems/Checkpoints.ts",
+  "src/systems/Progression.ts",
+  "src/systems/Tycoon.ts",
+  "src/systems/Simulator.ts",
+  "src/systems/Rounds.ts",
+  "src/systems/Racing.ts",
+  "src/systems/TowerDefense.ts",
+  "src/systems/Economy.ts",
+  "src/systems/Modes.ts",
   "src/systems/PlayerData.ts",
   "src/systems/Survival.ts",
   "src/systems/Collectibles.ts",

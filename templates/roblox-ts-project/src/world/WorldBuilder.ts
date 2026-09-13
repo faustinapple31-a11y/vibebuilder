@@ -222,9 +222,10 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 			marker.Transparency = 1;
 			marker.Size = new Vector3(2, 2, 2);
 			const [cx, cz] = z.center;
-			marker.CFrame = new CFrame(cx, heightAt(cx, cz) + 4, cz);
+			marker.CFrame = new CFrame(cx, z.y !== undefined ? z.y + 2 : heightAt(cx, cz) + 4, cz);
 			marker.SetAttribute("Kind", z.kind);
 			marker.SetAttribute("Radius", z.radius);
+			if (z.meta) for (const [k, v] of pairs(z.meta)) marker.SetAttribute(k as string, v);
 			marker.Parent = zones;
 		}
 	}

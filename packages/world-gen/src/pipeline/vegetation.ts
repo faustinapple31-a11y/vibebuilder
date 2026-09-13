@@ -2,6 +2,7 @@ import { clamp, deriveSeed, smoothstep, type BiomeId, type Placement, type Place
 import { Rng } from "@worldforge/core";
 import { Simplex2D, Worley2D } from "../noise";
 import { SpatialHash } from "../grid";
+import { VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { biomeAt, distanceToEdge, isWaterAt, progress, slopeAtWorld, type GenContext } from "../context";
 
 /** Species mix per biome: [species, weight]. Filtered by spec.vegetation.species. */
@@ -18,6 +19,16 @@ const BIOME_TREES: Record<BiomeId, [VegetationSpecies, number][]> = {
   snow: [["pine", 0.9], ["dead_tree", 0.1]],
   beach: [["palm", 0.9], ["bush", 0.1]],
   ruins_field: [["dead_tree", 0.5], ["round_tree", 0.3], ["birch", 0.2]],
+  urban: [["round_tree", 0.7], ["birch", 0.3]],
+  wasteland: [["dead_tree", 0.5], ["burnt_tree", 0.35], ["cactus", 0.15]],
+  alien: [["alien_tree", 0.7], ["giant_mushroom", 0.3]],
+  moon: [],
+  tundra: [["snow_pine", 0.6], ["dead_tree", 0.3], ["pine", 0.1]],
+  jungle: [["jungle_tree", 0.6], ["palm", 0.2], ["bamboo", 0.2]],
+  ocean_floor: [["coral", 0.6], ["seaweed", 0.4]],
+  volcanic: [["dead_tree", 0.6], ["burnt_tree", 0.4]],
+  savanna: [["acacia", 0.6], ["baobab", 0.2], ["cypress", 0.2]],
+  farmland: [["round_tree", 0.6], ["birch", 0.3], ["cypress", 0.1]],
 };
 
 const BIOME_UNDERGROWTH: Record<BiomeId, [VegetationSpecies, number][]> = {
@@ -33,9 +44,34 @@ const BIOME_UNDERGROWTH: Record<BiomeId, [VegetationSpecies, number][]> = {
   snow: [["bush", 0.7], ["grass", 0.3]],
   beach: [["grass", 0.6], ["bush", 0.4]],
   ruins_field: [["grass", 0.4], ["bush", 0.3], ["fern", 0.2], ["small_mushroom", 0.1]],
+  urban: [["bush", 0.6], ["flower", 0.4]],
+  wasteland: [["grass", 0.6], ["bush", 0.4]],
+  alien: [["small_mushroom", 0.5], ["fern", 0.3], ["bush", 0.2]],
+  moon: [],
+  tundra: [["grass", 0.6], ["bush", 0.4]],
+  jungle: [["fern", 0.5], ["bush", 0.3], ["flower", 0.2]],
+  ocean_floor: [["seaweed", 0.7], ["coral", 0.3]],
+  volcanic: [["grass", 0.5], ["bush", 0.5]],
+  savanna: [["grass", 0.7], ["bush", 0.3]],
+  farmland: [["grass", 0.5], ["flower", 0.3], ["bush", 0.2]],
 };
 
 const VEG_LEVEL: Record<string, number> = { none: 0, sparse: 0.28, medium: 0.6, dense: 1.0 };
+
+/** Canopy species for a biome, blended with the style's vegetation kit (kit species win 65/35 when both exist). */
+function treeMix(ctx: GenContext, biome: BiomeId, allowed: Set<VegetationSpecies>): [VegetationSpecies, number][] {
+  const kit = VEGETATION_KIT_SPECIES[ctx.style.kits.vegetation] ?? [];
+  const kitTrees = kit.filter(([sp]) => allowed.has(sp) && !UNDERGROWTH.has(sp));
+  const biomeTrees = BIOME_TREES[biome].filter(([sp]) => allowed.has(sp));
+  if (ctx.style.kits.vegetation === "none") return [];
+  if (kitTrees.length === 0) return biomeTrees;
+  if (biomeTrees.length === 0) return kitTrees;
+  const out = new Map<VegetationSpecies, number>();
+  for (const [sp, w] of kitTrees) out.set(sp, (out.get(sp) ?? 0) + w * 0.65);
+  for (const [sp, w] of biomeTrees) out.set(sp, (out.get(sp) ?? 0) + w * 0.35);
+  return [...out.entries()];
+}
+const UNDERGROWTH = new Set<VegetationSpecies>(["bush", "fern", "grass", "flower", "log", "small_mushroom", "seaweed"]);
 
 /** Prefab id for a species. */
 export const SPECIES_PREFAB: Record<VegetationSpecies, string> = {
@@ -53,6 +89,18 @@ export const SPECIES_PREFAB: Record<VegetationSpecies, string> = {
   log: "log",
   cactus: "cactus",
   palm: "palm",
+  jungle_tree: "jungle_tree",
+  baobab: "baobab",
+  alien_tree: "alien_tree",
+  bamboo: "bamboo",
+  cherry_tree: "cherry_tree",
+  burnt_tree: "burnt_tree",
+  candy_tree: "candy_tree",
+  coral: "coral",
+  seaweed: "seaweed",
+  snow_pine: "snow_pine",
+  acacia: "acacia",
+  cypress: "cypress",
 };
 
 /**
@@ -65,7 +113,8 @@ export function placeVegetation(ctx: GenContext): void {
   const rng = new Rng(deriveSeed(ctx.seed, "vegetation"));
   const cluster = new Simplex2D(deriveSeed(ctx.seed, "veg-cluster"));
   const clearings = new Worley2D(deriveSeed(ctx.seed, "veg-clearings"));
-  const allowed = new Set<VegetationSpecies>(spec.vegetation.species);
+  // the spec's species plus the style kit's species (a "candy" or "alien" style always gets its flora)
+  const allowed = new Set<VegetationSpecies>([...spec.vegetation.species, ...(VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []).map(([sp]) => sp)]);
   const globalDensity = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9);
   const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
   for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
@@ -121,7 +170,7 @@ export function placeVegetation(ctx: GenContext): void {
     const biome = biomeAt(ctx, x, z);
     const d = densityAt(x, z, biome, true);
     if (d <= 0 || rng.next() > d) continue;
-    const mix = BIOME_TREES[biome].filter(([sp]) => allowed.has(sp));
+    const mix = treeMix(ctx, biome, allowed);
     if (mix.length === 0) continue;
     let species = rng.weighted(mix.map(([item, weight]) => ({ item, weight })));
     // giant mushrooms controlled by the spec knob
@@ -166,7 +215,7 @@ export function placeVegetation(ctx: GenContext): void {
     if (distanceToEdge(ctx, x, z) < edgeMargin) continue;
     if (isWaterAt(ctx, x, z)) continue;
     const biome = biomeAt(ctx, x, z);
-    let d = densityAt(x, z, biome, false) * 0.75;
+    let d = densityAt(x, z, biome, false) * 0.75 * (style.kits.vegetation === "none" ? 0.08 : 1);
     const rd = ctx.roadDistance.sample(x, z);
     const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
     const fg = Math.max(1 - smoothstep(2, 26, rd), 1 - smoothstep(6, 40, ds));

@@ -18,6 +18,7 @@ export type PartShape = "box" | "sphere" | "cylinder" | "wedge" | "cornerWedge";
 
 export const ROBLOX_MATERIALS = [
   "Plastic",
+  "ForceField",
   "SmoothPlastic",
   "Wood",
   "WoodPlanks",
@@ -47,6 +48,10 @@ export const ROBLOX_MATERIALS = [
   "Pavement",
   "Sandstone",
   "Foil",
+  "Rubber",
+  "DiamondPlate",
+  "CrackedLava",
+  "Salt",
 ] as const;
 export type RobloxMaterial = (typeof ROBLOX_MATERIALS)[number];
 
@@ -82,6 +87,11 @@ export const ROBLOX_MATERIAL_ENUM: Record<RobloxMaterial, number> = {
   Pavement: 1392,
   Sandstone: 912,
   Foil: 1056,
+  ForceField: 1584,
+  Rubber: 1616,
+  DiamondPlate: 1584,
+  CrackedLava: 1600,
+  Salt: 1616,
 };
 
 export interface PartLight {
@@ -102,6 +112,8 @@ export interface PartEffect {
   color?: string;
   /** Particles per second (defaults per kind). */
   rate?: number;
+  /** Particle size multiplier (defaults per kind). */
+  size?: number;
 }
 
 export interface Part {

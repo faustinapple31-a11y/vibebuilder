@@ -10,6 +10,7 @@ export * from "./schemas/style-bible";
 export * from "./schemas/game-spec";
 export * from "./schemas/manifests";
 export * from "./schemas/project";
+export * from "./taxonomy";
 export * from "./presets/style-presets";
 export { z } from "zod";
 export * from "./presets/world-presets";

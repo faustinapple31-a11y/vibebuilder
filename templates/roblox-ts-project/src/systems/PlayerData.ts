@@ -18,12 +18,48 @@ export interface Profile {
 	multipliers: Record<string, number>;
 	/** Timed buffs: stat → { value, until (os.time) }. */
 	buffs: Record<string, { value: number; until: number }>;
+	/** Generic persisted numbers used by the genre systems (stage, wins, xp, level, rebirths, wave…). */
+	stats: Record<string, number>;
 }
 
-const DEFAULT_PROFILE: Profile = { coins: GameConfig.currency.starting, hunger: GameConfig.survival.hungerMax, visits: 0, owned: [], inventory: {}, multipliers: {}, buffs: {} };
+const DEFAULT_PROFILE: Profile = { coins: GameConfig.currency.starting, hunger: GameConfig.survival.hungerMax, visits: 0, owned: [], inventory: {}, multipliers: {}, buffs: {}, stats: {} };
 
 function fresh(): Profile {
-	return { ...DEFAULT_PROFILE, owned: [], inventory: {}, multipliers: {}, buffs: {} };
+	return { ...DEFAULT_PROFILE, owned: [], inventory: {}, multipliers: {}, buffs: {}, stats: {} };
+}
+
+/** Read a persisted stat (0 when unset). */
+export function getStat(player: Player, key: string): number {
+	return profiles.get(player)?.stats[key] ?? 0;
+}
+
+/** Set a persisted stat and mirror it to leaderstats when the config lists it. */
+export function setStat(player: Player, key: string, value: number): void {
+	const p = profiles.get(player);
+	if (!p) return;
+	p.stats[key] = value;
+	const ls = player.FindFirstChild("leaderstats");
+	const v = ls?.FindFirstChild(key) as IntValue | undefined;
+	if (v) v.Value = math.floor(value);
+}
+
+export function addStat(player: Player, key: string, delta: number): number {
+	const nextValue = getStat(player, key) + delta;
+	setStat(player, key, nextValue);
+	return nextValue;
+}
+
+/** Items in the inventory (survival / rpg / farming / mining). */
+export function addItem(player: Player, item: string, count = 1): number {
+	const p = profiles.get(player);
+	if (!p) return 0;
+	p.inventory[item] = math.max(0, (p.inventory[item] ?? 0) + count);
+	replicate(player);
+	return p.inventory[item]!;
+}
+
+export function hasItem(player: Player, item: string, count = 1): boolean {
+	return (profiles.get(player)?.inventory[item] ?? 0) >= count;
 }
 
 /** Effective multiplier for a stat: permanent × active timed buff. */
@@ -51,7 +87,7 @@ function load(player: Player): Profile {
 		const [ok, data] = pcall(() => store.GetAsync(keyFor(player)));
 		if (ok && typeIs(data, "table")) {
 			const d = data as Partial<Profile>;
-			return { coins: d.coins ?? DEFAULT_PROFILE.coins, hunger: d.hunger ?? DEFAULT_PROFILE.hunger, visits: d.visits ?? 0, owned: d.owned ?? [], inventory: d.inventory ?? {}, multipliers: d.multipliers ?? {}, buffs: d.buffs ?? {} };
+			return { coins: d.coins ?? DEFAULT_PROFILE.coins, hunger: d.hunger ?? DEFAULT_PROFILE.hunger, visits: d.visits ?? 0, owned: d.owned ?? [], inventory: d.inventory ?? {}, multipliers: d.multipliers ?? {}, buffs: d.buffs ?? {}, stats: d.stats ?? {} };
 		}
 	}
 	return fresh();
@@ -97,6 +133,12 @@ function onJoin(player: Player): void {
 	coins.Name = GameConfig.currency.name;
 	coins.Value = math.floor(profile.coins);
 	coins.Parent = ls;
+	for (const key of GameConfig.leaderstats) {
+		const v = new Instance("IntValue");
+		v.Name = key;
+		v.Value = math.floor(profile.stats[key] ?? 0);
+		v.Parent = ls;
+	}
 	ls.Parent = player;
 	replicate(player);
 }

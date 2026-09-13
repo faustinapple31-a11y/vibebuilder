@@ -9,7 +9,7 @@ import {
   type WorldBake,
   type WorldSpec,
 } from "@worldforge/core";
-import { buildPrefabLibrary, PREFAB_INDEX } from "@worldforge/prefabs";
+import { buildPrefabLibrary, PREFAB_INDEX, PROP_KIT_PREFABS, VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
 import { GEN_LAYERS, type GenContext, type GenLayer, type GenerateOptions } from "./context";
@@ -21,6 +21,7 @@ import { placeLandmarks, LANDMARK_PREFAB } from "./pipeline/landmarks";
 import { chooseSpawn } from "./pipeline/spawn";
 import { generateRoads } from "./pipeline/roads";
 import { placeBuildings } from "./pipeline/buildings";
+import { placeLayout } from "./pipeline/layout";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
@@ -102,7 +103,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   ctx.water.data.fill(NaN);
 
   // ---- prefab library (always rebuilt: cheap and style-dependent) + external mesh assets
-  ctx.prefabs = buildPrefabLibrary(requiredPrefabs(spec), style, deriveSeed(seed, "prefabs"), ctx.variantCounts);
+  ctx.prefabs = buildPrefabLibrary(requiredPrefabs(spec, style), style, deriveSeed(seed, "prefabs"), ctx.variantCounts);
   for (const [id, variants] of Object.entries(options.customPrefabs ?? {})) if (variants.length > 0) ctx.prefabs[id] = variants;
   if (compatiblePrevious) {
     for (const [id, variants] of Object.entries(compatiblePrevious.prefabs)) {
@@ -175,6 +176,15 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       flattenArea(ctx, [p.position[0], p.position[2]], v.footprintRadius * 1.15, 1.0, p.position[1]);
       ctx.occupants.push({ position: p.position, radius: v.footprintRadius * p.scale, kind: "building" });
     }
+  }
+
+  // ---- gameplay layout (obby / arena / race track / tycoon plots / lobby / TD path / field / plaza / dungeon)
+  if (regenerate.has("buildings") || !compatiblePrevious) {
+    placeLayout(ctx);
+  } else {
+    for (const p of compatiblePrevious.placements) if (p.id.startsWith("layout_")) ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
+    for (const z of compatiblePrevious.zones) if (z.kind === "gameplay") ctx.zones.push({ ...z });
+    for (const [id, variants] of Object.entries(compatiblePrevious.prefabs)) if (!ctx.prefabs[id] && variants[0]?.tags.includes("layout")) ctx.prefabs[id] = variants;
   }
 
   // ---- vegetation
@@ -361,9 +371,14 @@ function addLandmarkPlacements(ctx: GenContext): void {
 }
 
 /** All prefab ids a spec can use (built once per bake). */
-export function requiredPrefabs(spec: WorldSpec): string[] {
+export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   const ids = new Set<string>();
   for (const s of spec.vegetation.species) ids.add(SPECIES_PREFAB[s]);
+  // buildings for every settlement type + kit props + kit vegetation
+  for (const id of ["house", "house_large", "shop_building", "apartment_block", "skyscraper"]) ids.add(id);
+  const kits = new Set<string>([...spec.props.sets, ...(style?.kits.props ?? [])]);
+  for (const kit of kits) for (const id of PROP_KIT_PREFABS[kit as keyof typeof PROP_KIT_PREFABS] ?? []) ids.add(id);
+  if (style) for (const [sp] of VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []) ids.add(SPECIES_PREFAB[sp] ?? sp);
   for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone", "crystal_cluster", "wisp", "tent", "hay_bale", "cart", "firefly_swarm", "mist_patch", "reeds", "lily_pad", "stone_wall", "market_stall", "lantern_string", "waterfall", "crop_plot", "flower_patch"]) ids.add(base);
   for (const l of spec.landmarks) ids.add(LANDMARK_PREFAB[l.type].prefab);
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);

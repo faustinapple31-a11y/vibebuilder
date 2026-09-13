@@ -76,11 +76,15 @@ export interface Placement {
 
 export interface Zone {
   id: string;
-  kind: "settlement" | "clearing" | "grove" | "landmark" | "spawn" | "keep";
+  kind: "settlement" | "clearing" | "grove" | "landmark" | "spawn" | "keep" | "gameplay";
   /** World-space polygon (x, z). */
   polygon: Vec2[];
   center: Vec2;
   radius: number;
+  /** Explicit marker height (gameplay anchors on floating structures); terrain height otherwise. */
+  y?: number;
+  /** Gameplay attributes written on the zone marker (stage index, plot index, team, kind…). */
+  meta?: Record<string, string | number>;
 }
 
 export interface PathPolyline {

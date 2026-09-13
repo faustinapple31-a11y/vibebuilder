@@ -1,4 +1,4 @@
-import { GameSpecSchema, WorldSpecSchema, newId, nowIso, type GameSpec, type WorldSpec } from "@worldforge/core";
+import { GENRE_INDEX, GameSpecSchema, WorldSpecSchema, newId, nowIso, type GameSpec, type WorldSpec } from "@worldforge/core";
 import { buildGameFiles } from "@worldforge/roblox-export";
 import { interpretGame, interpretModification, interpretPrompt } from "../local/interpreter";
 import type { AgentCapabilities, AgentDetection, AgentEvent, AgentSession, AgentStatus, AgentUsage, AuthResult, FileIO, IAgentProvider, PromptOptions, SessionOptions } from "../types";
@@ -121,6 +121,13 @@ export function buildConfigTs(game: GameSpec): string {
   const survival = game.systems.find((s) => s.id === "survival_stats");
   const collectibles = game.systems.find((s) => s.id === "collectibles");
   const num = (v: unknown, d: number) => (typeof v === "number" ? v : d);
+  const p = (system: string, key: string): unknown => game.systems.find((s) => s.id === system)?.params[key];
+  const genre = GENRE_INDEX[game.genre];
+  const systemIds = [...new Set(game.systems.map((s) => s.id))];
+  const enemyNpc = game.npcs.find((n) => n.role === "zombie" || n.role === "monster" || n.role === "enemy" || n.role === "boss");
+  const enemyKind = enemyNpc?.role ?? "enemy";
+  const enemyName = enemyNpc?.name ?? (enemyKind === "zombie" ? "Walker" : enemyKind === "monster" ? "The Stalker" : "Raider");
+  const leaderstats = systemIds.includes("obby") || systemIds.includes("checkpoints") ? ["Stage"] : systemIds.includes("rounds") || systemIds.includes("racing") || systemIds.includes("tower_defense") ? ["Wins"] : systemIds.includes("combat") ? ["Kills"] : systemIds.includes("progression") ? ["Level"] : systemIds.includes("simulator_loop") ? ["Rebirths"] : [];
   return `/** Gameplay constants — generated from design/game.spec.json by WorldForge (editable). */
 export const GameConfig = {
 \tname: ${JSON.stringify(game.title)},
@@ -141,6 +148,28 @@ export const GameConfig = {
 \t\tpromptText: ${JSON.stringify(typeof collectibles?.params.promptText === "string" ? collectibles.params.promptText : "Pick up")},
 \t},
 \tdataStore: { name: ${JSON.stringify(`WF_${game.title.replace(/[^A-Za-z0-9]/g, "")}_v1`)}, autosaveSeconds: 120 },
+\t/** Genre + enabled gameplay systems (ids from the WorldForge taxonomy); systems start only when listed. */
+\tgenre: ${JSON.stringify(game.genre)} as string,
+\tsystems: ${JSON.stringify(systemIds)} as string[],
+\t/** Extra leaderstats mirrored from Profile.stats. */
+\tleaderstats: ${JSON.stringify(leaderstats)} as string[],
+\tcamera: ${JSON.stringify(genre?.camera ?? "third_person")} as "third_person" | "first_person" | "top_down" | "free",
+\tlayout: ${JSON.stringify(genre?.layout ?? "settlement")} as string,
+\tcombat: { maxHealth: ${num(p("combat", "maxHealth"), 100)}, meleeDamage: ${num(p("combat", "damage"), 25)}, meleeCooldown: 0.6, respawnSeconds: 4, killReward: ${num(p("combat", "killReward"), 25)} },
+\tenemies: { kind: ${JSON.stringify(enemyKind)} as string, name: ${JSON.stringify(enemyName)}, count: ${num(p("enemies", "count"), 8)}, health: ${num(p("enemies", "health"), 80)}, damage: ${num(p("enemies", "damage"), 12)}, speed: ${num(p("enemies", "speed"), 14)}, chaseRange: ${num(p("enemies", "chaseRange"), 60)}, respawnSeconds: 25, reward: ${num(p("enemies", "reward"), 15)} },
+\trounds: { intermissionSeconds: ${num(p("rounds", "intermission"), 15)}, roundSeconds: ${num(p("rounds", "length"), 120)}, minPlayers: ${num(p("rounds", "minPlayers"), 1)}, teams: ["a", "b"] as string[], winReward: ${num(p("rounds", "winReward"), 100)} },
+\tobby: { stageReward: ${num(p("obby", "stageReward"), 10)}, finishReward: ${num(p("obby", "finishReward"), 250)} },
+\ttycoon: { claimCost: 0, buttonCosts: [50, 150, 400, 1000] as number[], dropValue: ${num(p("tycoon", "dropValue"), 3)}, dropInterval: 2, baseIncome: 1 },
+\tsimulator: { clickValue: ${num(p("simulator_loop", "clickValue"), 1)}, backpackSize: ${num(p("simulator_loop", "backpackSize"), 50)}, sellMultiplier: 1, rebirthCost: ${num(p("simulator_loop", "rebirthCost"), 5000)}, upgradeCosts: [100, 300, 900, 2700] as number[] },
+\tracing: { laps: ${num(p("racing", "laps"), 3)}, checkpointReward: 5, lapReward: 60 },
+\ttowerDefense: { waves: ${num(p("tower_defense", "waves"), 10)}, baseHp: ${num(p("tower_defense", "baseHp"), 100)}, enemiesPerWave: ${num(p("tower_defense", "enemiesPerWave"), 6)}, towerCost: ${num(p("tower_defense", "towerCost"), 100)}, towerDamage: 20, towerRange: 30, towerRate: 1 },
+\tfarming: { growSeconds: ${num(p("farming", "growSeconds"), 45)}, seedCost: 10, cropValue: ${num(p("farming", "cropValue"), 30)}, plots: ${num(p("farming", "plots"), 6)} },
+\tmining: { nodes: ${num(p("mining", "nodes"), 24)}, hitsPerNode: 4, respawnSeconds: 40, oreValue: ${num(p("mining", "oreValue"), 12)} },
+\tpets: { eggCost: ${num(p("pets", "eggCost"), 250)}, followDistance: 6, multipliers: [1.1, 1.25, 1.5, 2] as number[] },
+\tprogression: { xpPerLevel: ${num(p("progression", "xpPerLevel"), 100)}, xpPerAction: 5 },
+\tdayNight: { dayLengthSeconds: ${num(p("day_night", "dayLengthSeconds"), 600)}, startHour: ${num(p("day_night", "startHour"), 12)}, nightEnemyMultiplier: 1.5 },
+\tsports: { matchSeconds: 180, goalReward: 20 },
+\tpuzzle: { rooms: 4 },
 } as const;
 `;
 }

@@ -139,6 +139,50 @@ export const NpcConfig = {
 `;
 }
 
+export function buildQuestsTs(game: GameSpec): string {
+  const quests = game.quests.map((q) => ({ id: q.id, title: q.title, description: q.description, objective: q.objective, reward: q.reward }));
+  return `/** Quest definitions — generated from design/game.spec.json by WorldForge (editable). */
+export interface QuestDef {
+\tid: string;
+\ttitle: string;
+\tdescription: string;
+\tobjective: { type: string; target: string; count: number };
+\treward: { currency: string; amount: number };
+}
+
+export const QuestConfig = {
+\tquests: ${JSON.stringify(quests, null, "\t").replace(/\n/g, "\n\t")} as QuestDef[],
+} as const;
+`;
+}
+
+/** Crafting recipes derived from the item list (materials → tools/consumables); agents refine them. */
+export function buildRecipesTs(game: GameSpec): string {
+  const materials = game.items.filter((i) => i.category === "material").map((i) => i.id);
+  const recipes: { id: string; name: string; inputs: Record<string, number>; output: string; count: number }[] = [];
+  const has = (id: string) => materials.includes(id);
+  if (has("cloth")) recipes.push({ id: "bandage", name: "Bandage", inputs: { cloth: 2 }, output: "bandage", count: 1 });
+  if (has("scrap") && has("cloth")) recipes.push({ id: "torch", name: "Torch", inputs: { scrap: 1, cloth: 1 }, output: "torch", count: 1 });
+  if (has("scrap")) recipes.push({ id: "spikes", name: "Barricade spikes", inputs: { scrap: 3 }, output: "spikes", count: 1 });
+  if (has("ore_iron")) recipes.push({ id: "iron_ingot", name: "Iron ingot", inputs: { ore_iron: 2 }, output: "iron_ingot", count: 1 });
+  if (has("ore_gold")) recipes.push({ id: "gold_ingot", name: "Gold ingot", inputs: { ore_gold: 2 }, output: "gold_ingot", count: 1 });
+  if (has("seed_carrot")) recipes.push({ id: "carrot_stew", name: "Carrot stew", inputs: { carrot: 3 }, output: "stew", count: 1 });
+  if (recipes.length === 0) recipes.push({ id: "bandage", name: "Bandage", inputs: { cloth: 2 }, output: "bandage", count: 1 });
+  return `/** Crafting recipes — generated from design/game.spec.json by WorldForge (editable). */
+export interface RecipeDef {
+\tid: string;
+\tname: string;
+\tinputs: Record<string, number>;
+\toutput: string;
+\tcount: number;
+}
+
+export const RecipeConfig = {
+\trecipes: ${JSON.stringify(recipes, null, "\t").replace(/\n/g, "\n\t")} as RecipeDef[],
+} as const;
+`;
+}
+
 /** All data modules derived from the GameSpec (config.ts is produced by the agents package). */
 export function buildGameFiles(game: GameSpec): GeneratedGameFile[] {
   return [
@@ -146,6 +190,8 @@ export function buildGameFiles(game: GameSpec): GeneratedGameFile[] {
     { path: "src/shared/animations.ts", content: buildAnimationsTs(game) },
     { path: "src/shared/audio.ts", content: buildAudioTs(game) },
     { path: "src/shared/npcs.ts", content: buildNpcsTs(game) },
+    { path: "src/shared/quests.ts", content: buildQuestsTs(game) },
+    { path: "src/shared/recipes.ts", content: buildRecipesTs(game) },
   ];
 }
 

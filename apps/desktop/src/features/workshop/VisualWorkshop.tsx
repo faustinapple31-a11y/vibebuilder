@@ -1,7 +1,8 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Image as ImageIcon, Lock, LockOpen, RefreshCw, ScanEye, Sparkles, Wand2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { STYLE_PRESET_LIST, StyleBibleSchema, getStylePreset, hexToRgb, rgbToHex, type StylePresetId } from "@worldforge/core";
+import { GENRES, STYLE_PRESET_LIST, StyleBibleSchema, getStylePreset, hexToRgb, rgbToHex, type StylePresetId } from "@worldforge/core";
+import { useGame } from "@/stores/gameStore";
 import { interpretModification, interpretPrompt, PROVIDER_META, type AgentProviderId } from "@worldforge/agents";
 import type { GenLayer } from "@worldforge/world-gen";
 import { Button, Label, Progress, Select, Slider, Switch } from "@/components/ui";
@@ -78,9 +79,28 @@ export function VisualWorkshop() {
     const next = { ...interp.spec, name: spec?.name ?? project.meta.name, id: spec?.id ?? "main" };
     w.setSpec(next);
     w.setStyle(getStylePreset(next.stylePreset));
-    setMessage(`Interpreted: ${interp.detected.join(", ") || "default forest"} → ${next.landmarks.length} landmarks, ${next.settlements.length} settlement(s)`);
+    setMessage(`Interpreted: ${interp.detected.join(", ") || "default forest"} → ${next.landmarks.length} landmarks, ${next.settlements.length} settlement(s), layout ${next.layout.archetype}`);
+    // the GameSpec (genre, systems, quests, shop…) follows the prompt too → Game tab + generated data modules
+    await useGame.getState().load();
+    if (useGame.getState().game) await useGame.getState().update((g) => ({ ...interp.game, title: g.title, shop: g.shop.items.length ? g.shop : interp.game.shop, monetization: g.monetization }));
     await w.generate({ label: prompt.trim().slice(0, 40), specOverride: next });
   };
+
+  /** Genre chips: switch the gameplay layout archetype and the GameSpec genre/systems. */
+  const setGenre = async (genreId: string) => {
+    const genre = GENRES.find((g) => g.id === genreId);
+    if (!genre || !spec) return;
+    const next = { ...spec, layout: { ...spec.layout, archetype: genre.layout }, gameplayHints: [genre.id, ...spec.gameplayHints.filter((h) => !GENRES.some((g) => g.id === h))] };
+    w.setSpec(next);
+    await useGame.getState().load();
+    const game = useGame.getState().game;
+    if (game) {
+      const systems = genre.systems.map((id) => game.systems.find((s) => s.id === id) ?? { id: id as never, description: id, params: {} });
+      await useGame.getState().update({ genre: genre.id as never, systems, ui: { ...game.ui, screens: genre.screens as never } });
+    }
+    setMessage(`Genre ${genre.name}: layout ${genre.layout}, ${genre.systems.length} systems — regenerate to lay out the map`);
+  };
+  const currentGenre = spec?.gameplayHints.find((h) => GENRES.some((g) => g.id === h)) ?? useGame.getState().game?.genre;
 
   const pickReference = async () => {
     const file = await openDialog({ multiple: false, filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }] });
@@ -152,19 +172,33 @@ export function VisualWorkshop() {
           </div>
         </div>
         <div className="mt-3">
-          <Label>Style</Label>
+          <Label hint={`${STYLE_PRESET_LIST.length} styles`}>Style</Label>
+          {(["fantasy", "historical", "modern", "future", "apocalyptic", "nature", "themed"] as const).map((group) => (
+            <div key={group} className="mt-1 flex flex-wrap items-center gap-1">
+              <span className="w-16 text-[10px] uppercase tracking-wide text-faint">{group}</span>
+              {STYLE_PRESET_LIST.filter((p) => p.group === group).map((p) => (
+                <button
+                  key={p.id}
+                  title={p.description}
+                  onClick={() => {
+                    const preset = getStylePreset(p.id as StylePresetId);
+                    w.setStyle(preset);
+                    if (spec) w.setSpec({ ...spec, stylePreset: p.id as StylePresetId });
+                  }}
+                  className={cn("rounded-full border px-2 py-0.5 text-[11px]", spec?.stylePreset === p.id ? "border-brand bg-brand-soft text-brand" : "border-line hover:bg-panel-2")}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3">
+          <Label hint={`${GENRES.length} genres`}>Genre</Label>
           <div className="mt-1 flex flex-wrap gap-1">
-            {STYLE_PRESET_LIST.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  const preset = getStylePreset(p.id as StylePresetId);
-                  w.setStyle(preset);
-                  if (spec) w.setSpec({ ...spec, stylePreset: p.id as StylePresetId });
-                }}
-                className={cn("rounded-full border px-2 py-0.5 text-[11px]", spec?.stylePreset === p.id ? "border-brand bg-brand-soft text-brand" : "border-line hover:bg-panel-2")}
-              >
-                {p.name}
+            {GENRES.map((g) => (
+              <button key={g.id} title={`${g.description} · layout ${g.layout}`} onClick={() => void setGenre(g.id)} className={cn("rounded-full border px-2 py-0.5 text-[11px]", currentGenre === g.id ? "border-brand bg-brand-soft text-brand" : "border-line hover:bg-panel-2")}>
+                {g.name}
               </button>
             ))}
           </div>

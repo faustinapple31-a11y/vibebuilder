@@ -16,6 +16,16 @@ const BIOME_PREFS: Record<BiomeId, { elevation: [number, number]; moisture: [num
   snow: { elevation: [0.7, 1], moisture: [0.3, 1], surface: "Snow", alt: "Ice" },
   beach: { elevation: [0, 0.15], moisture: [0.5, 1], surface: "Sand", alt: "Sand" },
   ruins_field: { elevation: [0.1, 0.6], moisture: [0.2, 0.7], surface: "Ground", alt: "Grass" },
+  urban: { elevation: [0, 0.4], moisture: [0, 1], surface: "Pavement", alt: "Asphalt" },
+  wasteland: { elevation: [0, 0.6], moisture: [0, 0.4], surface: "Ground", alt: "Sand" },
+  alien: { elevation: [0.1, 0.8], moisture: [0.2, 1], surface: "Slate", alt: "Basalt" },
+  moon: { elevation: [0, 1], moisture: [0, 1], surface: "Slate", alt: "Rock" },
+  tundra: { elevation: [0.2, 0.8], moisture: [0.2, 0.7], surface: "Snow", alt: "Ground" },
+  jungle: { elevation: [0.05, 0.6], moisture: [0.6, 1], surface: "LeafyGrass", alt: "Mud" },
+  ocean_floor: { elevation: [0, 0.5], moisture: [0, 1], surface: "Sand", alt: "Rock" },
+  volcanic: { elevation: [0.4, 1], moisture: [0, 0.4], surface: "Basalt", alt: "Rock" },
+  savanna: { elevation: [0.05, 0.5], moisture: [0.1, 0.45], surface: "Grass", alt: "Ground" },
+  farmland: { elevation: [0.05, 0.4], moisture: [0.3, 0.7], surface: "Grass", alt: "Ground" },
 };
 
 export function getBiomePrefs(id: BiomeId) {

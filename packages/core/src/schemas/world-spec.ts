@@ -60,6 +60,16 @@ export const BIOME_IDS = [
   "snow",
   "beach",
   "ruins_field",
+  "urban",
+  "wasteland",
+  "alien",
+  "moon",
+  "tundra",
+  "jungle",
+  "ocean_floor",
+  "volcanic",
+  "savanna",
+  "farmland",
 ] as const;
 export const BiomeIdSchema = z.enum(BIOME_IDS);
 export type BiomeId = z.infer<typeof BiomeIdSchema>;
@@ -106,11 +116,34 @@ export const LANDMARK_TYPES = [
   "volcano",
   "campfire",
   "bridge",
+  "crashed_plane",
+  "radio_tower",
+  "skyscraper",
+  "skyscraper_ruin",
+  "water_tower",
+  "pyramid",
+  "colosseum",
+  "torii_gate",
+  "lighthouse",
+  "pirate_ship",
+  "rocket",
+  "ufo",
+  "dome_base",
+  "crystal_spire",
+  "ferris_wheel",
+  "stadium",
+  "fountain",
+  "obelisk",
+  "waterfall_cliff",
+  "gas_station",
+  "church",
+  "barn",
+  "bridge",
 ] as const;
 export const LandmarkTypeSchema = z.enum(LANDMARK_TYPES);
 export type LandmarkType = z.infer<typeof LandmarkTypeSchema>;
 
-export const ZONE_HINTS = ["hill", "ridge", "forest_edge", "riverbank", "plateau", "clearing", "village", "valley", "any"] as const;
+export const ZONE_HINTS = ["hill", "ridge", "forest_edge", "riverbank", "plateau", "clearing", "village", "valley", "coast", "flat", "outskirts", "any"] as const;
 export const ZoneHintSchema = z.enum(ZONE_HINTS);
 
 export const LandmarkSchema = z.object({
@@ -124,11 +157,19 @@ export const LandmarkSchema = z.object({
 });
 export type LandmarkSpec = z.infer<typeof LandmarkSchema>;
 
+export const SETTLEMENT_TYPES = ["village", "abandoned_village", "hamlet", "camp", "outpost", "ruined_town", "town", "city_district", "base", "harbor", "farmstead"] as const;
+export const SettlementTypeSchema = z.enum(SETTLEMENT_TYPES);
+export type SettlementType = z.infer<typeof SettlementTypeSchema>;
+
 export const SettlementSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["village", "abandoned_village", "hamlet", "camp", "outpost", "ruined_town"]).default("village"),
-  buildings: z.number().int().min(1).max(40).default(6),
+  type: SettlementTypeSchema.default("village"),
+  buildings: z.number().int().min(1).max(80).default(6),
   layout: z.enum(["organic", "grid", "ring", "linear"]).default("organic"),
+  /** Building kit override (defaults to the style's architecture kit). */
+  kit: z.string().optional(),
+  /** Generate walk-in interiors (defaults to the style's architecture.interiors). */
+  interiors: z.boolean().optional(),
   /** Prefer to be near this river/lake/landmark id, or a zone hint. */
   near: z.string().optional(),
   position: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]).optional(),
@@ -138,7 +179,7 @@ export type SettlementSpec = z.infer<typeof SettlementSchema>;
 
 export const RoadSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["stone_path", "dirt_path", "cobblestone_road", "wooden_walkway"]).default("stone_path"),
+  type: z.enum(["stone_path", "dirt_path", "cobblestone_road", "wooden_walkway", "asphalt_road", "concrete_road", "metal_walkway", "neon_road", "sand_path", "snow_path", "brick_road"]).default("stone_path"),
   /** Ordered list of node ids: "spawn", settlement ids, landmark ids, or edges. */
   connects: z.array(z.string().min(1)).min(2),
   width: z.number().min(3).max(24).default(7),
@@ -160,6 +201,18 @@ export const VEGETATION_SPECIES = [
   "log",
   "cactus",
   "palm",
+  "jungle_tree",
+  "baobab",
+  "alien_tree",
+  "bamboo",
+  "cherry_tree",
+  "burnt_tree",
+  "candy_tree",
+  "coral",
+  "seaweed",
+  "snow_pine",
+  "acacia",
+  "cypress",
 ] as const;
 export const VegetationSpeciesSchema = z.enum(VEGETATION_SPECIES);
 export type VegetationSpecies = z.infer<typeof VegetationSpeciesSchema>;
@@ -173,7 +226,7 @@ export const VegetationSchema = z.object({
   giantMushrooms: z.number().min(0).max(1).default(0.3),
 });
 
-export const PROP_SETS = ["village", "forest", "ruins", "camp", "mine", "farm", "docks", "graveyard"] as const;
+export const PROP_SETS = ["village", "forest", "ruins", "camp", "mine", "farm", "docks", "graveyard", "urban", "suburban", "apocalypse", "scifi", "cyber", "space", "western", "pirate", "industrial", "japanese", "egypt", "greek", "tropical", "arctic", "candy", "underwater", "jungle", "military", "horror", "sports", "carnival", "playground"] as const;
 export const PropsSchema = z.object({
   density: z.number().min(0).max(1).default(0.5),
   sets: z.array(z.enum(PROP_SETS)).default(["village", "forest"]),
@@ -205,6 +258,25 @@ export const ColorPaletteSchema = z.object({
   water: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#4d6f86"),
 });
 
+export const LAYOUT_ARCHETYPES = ["settlement", "city_grid", "obby_course", "arena", "race_track", "tycoon_plots", "lobby_portals", "base_defense", "island", "open_world", "dungeon", "sports_field", "hangout_plaza", "campus", "linear_story"] as const;
+export const LayoutArchetypeSchema = z.enum(LAYOUT_ARCHETYPES);
+export type LayoutArchetypeId = z.infer<typeof LayoutArchetypeSchema>;
+
+/** Gameplay layout laid on top of the terrain (obby stages, arena, tycoon plots, race track…). */
+export const LayoutSchema = z.object({
+  archetype: LayoutArchetypeSchema.default("settlement"),
+  /** Obby stages / tycoon plots / arena cover count / race checkpoints / TD path waypoints — meaning depends on the archetype. */
+  count: z.number().int().min(1).max(200).default(12),
+  /** Footprint in normalized world units (0.2 = 20% of the map). */
+  extent: z.number().min(0.1).max(1).default(0.45),
+  /** Difficulty / density 0..1 (gap sizes, cover density, wave path length). */
+  intensity: z.number().min(0).max(1).default(0.5),
+  /** Themed decoration of the gameplay structures (defaults to the style palette). */
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  position: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]).optional(),
+});
+export type LayoutSpec = z.infer<typeof LayoutSchema>;
+
 export const CameraCompositionSchema = z.object({
   /** Landmark or settlement id the spawn should face. */
   spawnFacing: z.string().optional(),
@@ -227,14 +299,38 @@ export type WorldLocks = z.infer<typeof LocksSchema>;
 export const STYLE_PRESET_IDS = [
   "stylized_mystical",
   "fantasy",
-  "medieval",
-  "cartoon",
   "dark_fantasy",
+  "elven",
+  "cartoon",
+  "medieval",
+  "viking",
+  "ancient_egypt",
+  "ancient_greece",
+  "feudal_japan",
+  "wild_west",
+  "pirate",
+  "steampunk",
+  "realistic",
+  "modern_suburban",
+  "modern_city",
+  "industrial",
+  "post_apocalyptic",
+  "wasteland",
+  "sci_fi",
   "cyberpunk",
-  "desert",
+  "space_station",
+  "alien_planet",
+  "horror_gothic",
   "tropical",
+  "jungle",
+  "desert",
   "winter",
   "swamp",
+  "underwater",
+  "candy",
+  "low_poly_minimal",
+  "voxel",
+  "military",
 ] as const;
 export const StylePresetIdSchema = z.enum(STYLE_PRESET_IDS);
 export type StylePresetId = z.infer<typeof StylePresetIdSchema>;
@@ -273,6 +369,7 @@ export const WorldSpecSchema = z.object({
   atmosphere: AtmosphereSchema.prefault({}),
   colorPalette: ColorPaletteSchema.prefault({}),
   cameraComposition: CameraCompositionSchema.prefault({}),
+  layout: LayoutSchema.prefault({}),
   locks: LocksSchema.prefault({}),
   gameplayHints: z.array(z.string()).default([]),
   /** Free-form notes from the designer/agent (not used by the generator). */

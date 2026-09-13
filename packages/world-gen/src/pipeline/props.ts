@@ -3,6 +3,7 @@ import { Rng } from "@worldforge/core";
 import { SpatialHash } from "../grid";
 import { biomeAt, distanceToEdge, isWaterAt, progress, slopeAtWorld, type GenContext } from "../context";
 import { layerFor, poissonDisk } from "./vegetation";
+import { placeKitProps } from "./kitProps";
 import { flattenArea } from "./sites";
 
 /**
@@ -111,7 +112,7 @@ export function placeRocksAndProps(ctx: GenContext): void {
         }
       }
       // crates / barrels / fences near houses
-      const houses = ctx.placements.filter((p) => p.zone === site.id && (p.prefab === "cottage" || p.prefab === "ruin_wall"));
+      const houses = ctx.placements.filter((p) => p.zone === site.id && (p.category === "building" || p.prefab === "ruin_wall"));
       for (const hse of houses) {
         const foot = (ctx.prefabs[hse.prefab]?.[hse.variant]?.footprintRadius ?? 12) * hse.scale;
         const count = Math.round(rng.float(1, 4) * density);
@@ -448,6 +449,8 @@ export function placeRocksAndProps(ctx: GenContext): void {
       else if (wet && spec.atmosphere.fogDensity > 0.25 && rng.chance(0.35)) add("mist_patch", x, z, { importance: 1.6, margin: 0, sink: false });
     }
   }
+  // ---- every other prop kit (urban, apocalypse, sci-fi, western, candy…) through the generic rules
+  placeKitProps(ctx, hash, { n });
   progress(ctx, "props:done", 1);
   void clamp;
 }

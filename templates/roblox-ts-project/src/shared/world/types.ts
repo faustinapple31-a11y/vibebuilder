@@ -113,7 +113,7 @@ export interface WorldBakeData {
 	placementMeta: PlacementMeta[];
 	lighting: LightingData;
 	spawn: { position: [number, number, number]; lookAt: [number, number, number] };
-	zones: { id: string; kind: string; center: [number, number]; radius: number }[];
+	zones: { id: string; kind: string; center: [number, number]; radius: number; y?: number; meta?: Record<string, string | number> }[];
 	landmarks: { id: string; type: string; role: string; position: [number, number, number]; scale: number }[];
 }
 

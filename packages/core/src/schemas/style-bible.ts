@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ROBLOX_MATERIALS } from "../partlist";
+import { ARCHITECTURE_KITS, AUDIO_MOODS, PROP_KITS, ROAD_KITS, UI_THEMES, VEGETATION_KITS } from "../taxonomy/types";
 
 const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const Range = z.tuple([z.number(), z.number()]);
@@ -74,13 +75,30 @@ export const StyleBibleSchema = z.object({
     .prefault({}),
   architecture: z
     .object({
-      style: z.enum(["medieval_cottage", "timber_frame", "stone_hut", "elven", "ruined", "desert_adobe", "nordic", "cyber_block"]).default("medieval_cottage"),
-      roofPitch: z.number().min(0.3).max(1.5).default(0.9),
+      style: z.enum(ARCHITECTURE_KITS).default("medieval_cottage"),
+      roofPitch: z.number().min(0.1).max(1.5).default(0.9),
       weathering: z.number().min(0).max(1).default(0.7),
       scaleVariance: z.number().min(0).max(0.6).default(0.25),
       chimneyChance: z.number().min(0).max(1).default(0.6),
+      /** Walk-in interiors (door opening, floor, furniture). */
+      interiors: z.boolean().default(true),
+      /** Floors per building [min, max]. */
+      floors: z.tuple([z.number().int().min(1).max(12), z.number().int().min(1).max(12)]).default([1, 1]),
     })
     .prefault({}),
+  /** Generation kits the style prefers (vegetation family, prop families, road surface, biomes, landmarks). */
+  kits: z
+    .object({
+      vegetation: z.enum(VEGETATION_KITS).default("temperate"),
+      props: z.array(z.enum(PROP_KITS)).default(["village", "forest"]),
+      road: z.enum(ROAD_KITS).default("stone_path"),
+      biomes: z.array(z.string()).default(["forest", "meadow"]),
+      landmarks: z.array(z.string()).default(["giant_tree", "ruins"]),
+      settlement: z.string().default("village"),
+    })
+    .prefault({}),
+  ui: z.object({ theme: z.enum(UI_THEMES).default("stylized"), accent: Hex.default("#7b4f8f") }).prefault({}),
+  audioMood: z.enum(AUDIO_MOODS).default("mystical"),
   vegetationDensity: z.number().min(0).max(1).default(0.72),
   propDensity: z.number().min(0).max(1).default(0.5),
   lighting: z

@@ -291,6 +291,10 @@ function CameraRig({ bake, mode }: { bake: WorldBake; mode: "orbit" | "fly" | "t
   const target = useMemo(() => new THREE.Vector3(village ? village.center[0] : spawn.lookAt[0], sampleHeight(bake.terrain, village ? village.center[0] : spawn.lookAt[0], village ? village.center[1] : spawn.lookAt[2]) + 6, village ? village.center[1] : spawn.lookAt[2]), [bake, village, spawn]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
+    // dev/QA hook: scripts can move the viewer camera (fly mode) through window.__wfCamera
+    if (import.meta.env.DEV) (window as unknown as { __wfCamera?: THREE.Camera }).__wfCamera = camera;
+  }, [camera]);
+  useEffect(() => {
     if (mode === "first-person") {
       camera.position.set(spawn.position[0], spawn.position[1] + 5, spawn.position[2]);
       camera.lookAt(spawn.lookAt[0], spawn.lookAt[1] + 5, spawn.lookAt[2]);
