@@ -102,18 +102,20 @@ export function start(): void {
 	action.OnServerEvent.Connect((player, name) => {
 		if (name === "melee") swing(player);
 	});
-	const setup = (player: Player) => {
-		player.CharacterAdded.Connect((char) => {
-			const hum = char.WaitForChild("Humanoid") as Humanoid;
-			hum.MaxHealth = cfg.maxHealth;
-			hum.Health = cfg.maxHealth;
-			task.defer(() => giveWeapon(player));
-			hum.Died.Connect(() => {
-				task.delay(cfg.respawnSeconds, () => {
-					if (player.Parent) player.LoadCharacter();
-				});
+	const onCharacter = (player: Player, char: Model) => {
+		const hum = char.WaitForChild("Humanoid") as Humanoid;
+		hum.MaxHealth = cfg.maxHealth;
+		hum.Health = cfg.maxHealth;
+		task.defer(() => giveWeapon(player));
+		hum.Died.Connect(() => {
+			task.delay(cfg.respawnSeconds, () => {
+				if (player.Parent) player.LoadCharacter();
 			});
 		});
+	};
+	const setup = (player: Player) => {
+		player.CharacterAdded.Connect((char) => onCharacter(player, char));
+		if (player.Character) onCharacter(player, player.Character); // the world build takes a while: characters may already exist
 	};
 	Players.PlayerAdded.Connect(setup);
 	for (const p of Players.GetPlayers()) setup(p);

@@ -90,16 +90,18 @@ export function start(): void {
 		hookKillBricks();
 		print(`[WorldForge] ${stages.size()} checkpoints`);
 	});
-	const setup = (player: Player) => {
-		player.CharacterAdded.Connect((char) => {
-			task.defer(() => {
-				const cf = spawnCFrame(player);
-				if (cf) char.PivotTo(cf);
-				hudValue.FireClient(player, "stage", "Stage", `${stageOf(player)} / ${stages.size()}`);
-			});
-			const hum = char.WaitForChild("Humanoid") as Humanoid;
-			hum.Died.Connect(() => task.delay(2, () => player.Parent && player.LoadCharacter()));
+	const onCharacter = (player: Player, char: Model) => {
+		task.defer(() => {
+			const cf = spawnCFrame(player);
+			if (cf) char.PivotTo(cf);
+			hudValue.FireClient(player, "stage", "Stage", `${stageOf(player)} / ${stages.size()}`);
 		});
+		const hum = char.WaitForChild("Humanoid") as Humanoid;
+		hum.Died.Connect(() => task.delay(2, () => player.Parent && player.LoadCharacter()));
+	};
+	const setup = (player: Player) => {
+		player.CharacterAdded.Connect((char) => onCharacter(player, char));
+		if (player.Character) onCharacter(player, player.Character);
 	};
 	Players.PlayerAdded.Connect(setup);
 	for (const p of Players.GetPlayers()) setup(p);

@@ -165,6 +165,7 @@ export function start(): void {
 	});
 	const setup = (player: Player) => {
 		player.CharacterAdded.Connect(() => task.defer(() => giveTool(player)));
+		if (player.Character) task.defer(() => giveTool(player));
 		task.delay(1, () => refresh(player));
 	};
 	Players.PlayerAdded.Connect(setup);

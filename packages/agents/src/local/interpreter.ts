@@ -264,13 +264,16 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   return { spec, game, detected };
 }
 
+/** Whole-word match for short keywords ("car" must not match "cartoon"). */
+const hasWord = (text: string, ...words: string[]) => words.some((w) => new RegExp(`(^|[^a-z0-9])${w}(?![a-z0-9])`).test(text));
+
 function gameplayHints(t: string): string[] {
   const hints: string[] = [];
   if (has(t, "collect", "ramass", "recolte", "gather")) hints.push("collectibles");
-  if (has(t, "pet", "animaux", "compagnon", "egg", "oeuf")) hints.push("pets");
+  if (hasWord(t, "pet", "pets", "animaux", "compagnon", "egg", "oeuf")) hints.push("pets");
   if (has(t, "combat", "fight", "battle", "arme", "weapon", "pvp", "zombie", "monstre", "monster")) hints.push("combat");
   if (has(t, "quete", "quest", "mission")) hints.push("quests");
-  if (has(t, "vehicule", "vehicle", "voiture", "car", "moto")) hints.push("vehicles");
+  if (hasWord(t, "vehicule", "vehicules", "vehicle", "vehicles", "voiture", "voitures", "car", "cars", "moto")) hints.push("vehicles");
   return hints;
 }
 

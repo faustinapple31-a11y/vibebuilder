@@ -192,21 +192,23 @@ export function start(): void {
 		loop();
 	});
 	// kills score points during a round
-	const setup = (player: Player) => {
-		player.CharacterAdded.Connect((char) => {
-			const hum = char.WaitForChild("Humanoid") as Humanoid;
-			hum.Died.Connect(() => {
-				if (phase !== "playing") return;
-				// last attacker is tracked by Combat via the Kills stat; credit teams via the attacker attribute
-				const tag = hum.FindFirstChild("creator") as ObjectValue | undefined;
-				const killer = tag?.Value as Player | undefined;
-				if (killer) {
-					addScore(`p${killer.UserId}`, 1);
-					const t = killer.GetAttribute("Team") as string | undefined;
-					if (t) addScore(`team_${t}`, 1);
-				}
-			});
+	const onCharacter = (char: Model) => {
+		const hum = char.WaitForChild("Humanoid") as Humanoid;
+		hum.Died.Connect(() => {
+			if (phase !== "playing") return;
+			// the last attacker is tagged by Combat ("creator" ObjectValue); credit the player and their team
+			const tag = hum.FindFirstChild("creator") as ObjectValue | undefined;
+			const killer = tag?.Value as Player | undefined;
+			if (killer) {
+				addScore(`p${killer.UserId}`, 1);
+				const t = killer.GetAttribute("Team") as string | undefined;
+				if (t) addScore(`team_${t}`, 1);
+			}
 		});
+	};
+	const setup = (player: Player) => {
+		player.CharacterAdded.Connect(onCharacter);
+		if (player.Character) onCharacter(player.Character);
 	};
 	Players.PlayerAdded.Connect(setup);
 	for (const p of Players.GetPlayers()) setup(p);

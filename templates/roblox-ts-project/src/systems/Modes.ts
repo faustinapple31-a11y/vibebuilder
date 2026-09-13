@@ -140,13 +140,15 @@ function startParkour(): void {
 			task.delay(4, () => (hum.WalkSpeed = 16));
 		}
 	});
-	const setup = (player: Player) => {
-		player.CharacterAdded.Connect((char) => {
-			const hum = char.WaitForChild("Humanoid") as Humanoid;
-			hum.StateChanged.Connect((_, st) => {
-				if (st === Enum.HumanoidStateType.Landed) jumps.set(player, 0);
-			});
+	const onCharacter = (player: Player, char: Model) => {
+		const hum = char.WaitForChild("Humanoid") as Humanoid;
+		hum.StateChanged.Connect((_, st) => {
+			if (st === Enum.HumanoidStateType.Landed) jumps.set(player, 0);
 		});
+	};
+	const setup = (player: Player) => {
+		player.CharacterAdded.Connect((char) => onCharacter(player, char));
+		if (player.Character) onCharacter(player, player.Character);
 		task.delay(1.5, () => hudValue.FireClient(player, "parkour", "Parkour", "Space ×2 double jump · Shift sprint"));
 	};
 	Players.PlayerAdded.Connect(setup);

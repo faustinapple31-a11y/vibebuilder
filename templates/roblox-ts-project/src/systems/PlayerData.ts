@@ -153,9 +153,10 @@ function installDevHook(): void {
 	if (!RunService.IsStudio()) return;
 	const hook = new Instance("BindableFunction");
 	hook.Name = "WorldForgeDev";
-	hook.OnInvoke = (command: unknown, player: unknown, amount: unknown) => {
+	hook.OnInvoke = (command: unknown, player: unknown, amount: unknown, extra?: unknown) => {
 		const p = player as Player;
 		if (command === "grantCoins") return addCoins(p, tonumber(amount) ?? 0, true);
+		if (command === "grantItem" && typeIs(amount, "string")) return addItem(p, amount, tonumber(extra) ?? 1);
 		if (command === "profile") return profiles.get(p);
 		return undefined;
 	};

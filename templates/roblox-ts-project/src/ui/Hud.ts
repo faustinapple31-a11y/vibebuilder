@@ -63,6 +63,12 @@ export class Hud {
 		const hl = this.label("Hunger", new UDim2(0, 100, 0, 14), new UDim2(0, 12, 0, 34), 12);
 		hl.TextColor3 = Color3.fromHex("#9aa3b8");
 		hl.Parent = panel;
+		// no hunger bar outside survival genres
+		if (!GameConfig.survival.enabled) {
+			barBg.Visible = false;
+			hl.Visible = false;
+			panel.Size = new UDim2(0, 220, 0, 42);
+		}
 
 		// shop button (bottom-left)
 		const shopBtn = new Instance("TextButton");

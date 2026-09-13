@@ -270,12 +270,14 @@ function startPets(): void {
 	action.OnServerEvent.Connect((player, name) => {
 		if (name === "hatch") hatch(player);
 	});
+	const onCharacter = (player: Player) => task.delay(1, () => {
+		const best = PlayerData.getStat(player, "best_pet");
+		if (best > 0) spawnFollower(player, best);
+		hudValue.FireClient(player, "pets", "Pets", "press E near the egg stand · P to hatch");
+	});
 	const setup = (player: Player) => {
-		player.CharacterAdded.Connect(() => task.delay(1, () => {
-			const best = PlayerData.getStat(player, "best_pet");
-			if (best > 0) spawnFollower(player, best);
-			hudValue.FireClient(player, "pets", "Pets", "press E near the egg stand · P to hatch");
-		}));
+		player.CharacterAdded.Connect(() => onCharacter(player));
+		if (player.Character) onCharacter(player);
 	};
 	Players.PlayerAdded.Connect(setup);
 	for (const p of Players.GetPlayers()) setup(p);
