@@ -139,8 +139,8 @@ export function stoneLantern(ctx: PrefabContext, variant: number): PrefabVariant
   b.box([0, 4.4, 0], [2.6, 0.6, 2.6], c, { material: "Slate", collide: false, lod: 1 });
   b.box([0, 5.6, 0], [2, 1.8, 2], mixHex(c, "#000000", 0.1), { material: "Slate", collide: false, lod: 1 });
   b.box([0, 5.6, 0], [1.4, 1.2, 2.1], "#ffd890", { material: "Neon", collide: false, lod: 0, light: { type: "point", color: "#ffd890", brightness: 1.2, range: 16 } });
-  b.pyramidRoof([0, 6.5, 0], 3.6, 3.6, 1.6, c, { material: "Slate", collide: false, lod: 1 });
-  b.sphere([0, 7.5, 0], 0.7, c, { material: "Slate", collide: false, lod: 0 });
+  b.pyramidRoof([0, 7.3, 0], 3.6, 3.6, 1.6, c, { material: "Slate", collide: false, lod: 1 });
+  b.sphere([0, 8.2, 0], 0.7, c, { material: "Slate", collide: false, lod: 0 });
   return done(b, "stone_lantern", variant, ["japanese", "light"], 0.2);
 }
 
@@ -599,7 +599,7 @@ export function ticketBooth(ctx: PrefabContext, variant: number): PrefabVariant 
   for (let i = 0; i < 3; i++) b.box([-2 + i * 2, 3.5, -2.55], [1, 7, 0.1], i % 2 ? "#f4f0e8" : red, { material: "SmoothPlastic", collide: false, lod: 0 });
   b.box([0, 4.6, -2.6], [3.4, 2.4, 0.2], "#a0c8e0", { material: "Glass", collide: false, lod: 0, transparency: 0.3 });
   b.box([0, 3.2, -2.8], [3.8, 0.4, 0.8], "#5a4030", { material: WOOD, collide: false, lod: 0 });
-  b.pyramidRoof([0, 7, 0], 7.5, 6.5, 2.4, red, { material: "Fabric", collide: true, lod: 1 });
+  b.pyramidRoof([0, 8.2, 0], 7.5, 6.5, 2.4, red, { material: "Fabric", collide: true, lod: 1 });
   b.box([0, 7.8, -3.4], [5, 1.2, 0.2], "#ffd040", { material: "Neon", collide: false, lod: 0, light: { type: "point", color: "#ffe080", brightness: 1, range: 14 } });
   return done(b, "ticket_booth", variant, ["carnival"], 0.3);
 }

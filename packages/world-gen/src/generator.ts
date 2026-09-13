@@ -216,7 +216,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   // ---- keep the spawn clearing clear (reused layers may predate a moved spawn)
   const [spx, , spz] = ctx.spawn.position;
   ctx.placements = ctx.placements.filter((p) => {
-    if (p.locked || p.category === "landmark" || p.category === "path") return true;
+    if (p.locked || p.category === "landmark" || p.category === "path" || p.id.startsWith("layout_")) return true; // gameplay structures may host the spawn
     const d = Math.hypot(p.position[0] - spx, p.position[2] - spz);
     const v = ctx.prefabs[p.prefab]?.[p.variant];
     const big = (v?.bounds.max[1] ?? 0) * p.scale > 6 || p.category === "building";
@@ -228,6 +228,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     const v = ctx.prefabs[p.prefab]?.[p.variant];
     if (!v) continue;
     if (p.prefab === "bridge") continue;
+    if (p.id.startsWith("layout_") || v.tags.includes("layout")) continue; // gameplay structures keep their designed height (floating obby platforms…)
     if (v.tags.includes("floating")) {
       const w = ctx.water.sample(p.position[0], p.position[2]);
       if (!Number.isNaN(w)) p.position[1] = w + 0.05;

@@ -172,7 +172,7 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 			const rotY = readF32(buf, o + 5);
 			const scale = readF32(buf, o + 6);
 			let yy = y;
-			const floating = variant.tags !== undefined && variant.tags.includes("floating");
+			const floating = variant.tags !== undefined && (variant.tags.includes("floating") || variant.tags.includes("layout"));
 			if (prefabName !== "bridge" && !floating) {
 				const hit = Workspace.Raycast(new Vector3(x, y + 150, z), new Vector3(0, -400, 0), snapParams);
 				if (hit) {

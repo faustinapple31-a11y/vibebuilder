@@ -201,6 +201,8 @@ function floorWalls(b: PartListBuilder, p: BuildingParams, y0: number, h: number
       { axis: "x", sign: 1, len: D },
     ];
     for (const side of sides) {
+      const wallKey = side.axis === "z" ? (side.sign < 0 ? `f${floor}` : `b${floor}`) : side.sign < 0 ? `l${floor}` : `r${floor}`;
+      if (damageSkip.has(wallKey)) continue;
       const n = p.windows === "strip" ? 1 : Math.max(1, Math.round((p.windowsPerSide * side.len) / (side.axis === "z" ? W : D)));
       for (let i = 0; i < n; i++) {
         const along = n === 1 ? 0 : (i / (n - 1) - 0.5) * (side.len - ww - 3);
@@ -259,7 +261,7 @@ function roof(b: PartListBuilder, p: BuildingParams, yTop: number, W: number, D:
     }
     case "pyramid": {
       const rh = Math.max(3, Math.min(W, D) * 0.45 * p.roofPitch);
-      b.pyramidRoof([0, yTop, 0], rw, rd, rh, p.roofColor, ro);
+      b.pyramidRoof([0, yTop + rh / 2, 0], rw, rd, rh, p.roofColor, ro);
       return rh;
     }
     case "shed": {
@@ -294,12 +296,12 @@ function roof(b: PartListBuilder, p: BuildingParams, yTop: number, W: number, D:
     }
     case "pagoda": {
       const rh = Math.max(2.6, D * 0.32);
-      b.pyramidRoof([0, yTop, 0], rw + 2.5, rd + 2.5, rh, p.roofColor, ro);
+      b.pyramidRoof([0, yTop + rh / 2, 0], rw + 2.5, rd + 2.5, rh, p.roofColor, ro);
       // upturned eave beams at the corners
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box([sx * (rw / 2 + 1.2), yTop + 0.6, sz * (rd / 2 + 1.2)], [3, 0.5, 0.5], p.trimColor, { material: "Wood", collide: false, lod: 0, rotation: [0, sx * sz * -45, sx * 20] });
       // second tier
       b.box([0, yTop + rh + 1.2, 0], [W * 0.55, 2.4, D * 0.55], p.wallColor, { material: p.wallMat, collide: false, lod: 1 });
-      b.pyramidRoof([0, yTop + rh + 2.4, 0], W * 0.75, D * 0.75, rh * 0.7, p.roofColor, ro);
+      b.pyramidRoof([0, yTop + rh + 2.4 + rh * 0.35, 0], W * 0.75, D * 0.75, rh * 0.7, p.roofColor, ro);
       b.box([0, yTop + rh * 1.7 + 3.2, 0], [0.5, 2, 0.5], p.trimColor, { material: "Metal", collide: false, lod: 0 });
       return rh * 1.7 + 3;
     }
@@ -318,7 +320,7 @@ function roof(b: PartListBuilder, p: BuildingParams, yTop: number, W: number, D:
   }
 }
 
-function furniture(b: PartListBuilder, p: BuildingParams, y: number, W: number, D: number, rng: PrefabContext["rng"], floor: number): void {
+function furniture(b: PartListBuilder, p: BuildingParams, y: number, W: number, D: number, rng: PrefabContext["rng"], floor: number, damageSkip: Set<string> = new Set()): void {
   if (p.furniture === "none" || !p.interiors) return;
   const iw = W - WALL_T * 2 - 1;
   const id = D - WALL_T * 2 - 1;
@@ -346,7 +348,7 @@ function furniture(b: PartListBuilder, p: BuildingParams, y: number, W: number, 
       b.box([iw * 0.25, y + 1.1, 0], [0.7, 2.2, 0.7], dark, wood);
       for (const sz of [-1, 1]) b.cylinder([iw * 0.25, y + 0.8, sz * 2.3], 1.4, 1.6, dark, wood);
       // shelf + chest
-      b.box([-iw / 2 - 0.5, y + 4.5, -id / 2 + 2], [1, 3, 3.5], p.trimColor, { ...wood, collide: false });
+      if (!damageSkip.has(`l${floor}`)) b.box([-iw / 2 - 0.5, y + 4.5, -id / 2 + 2], [1, 3, 3.5], p.trimColor, { ...wood, collide: false });
       b.box([iw / 2 - 1.8, y + 0.9, id / 2 - 1.6], [3, 1.8, 2], dark, wood);
       // fireplace on the back wall
       if (p.chimney && floor === 0) {
@@ -455,7 +457,7 @@ export function house(ctx: PrefabContext, variant: number, opts: { kit?: Archite
     const y0 = base + f * H;
     if (f === 0) b.box([0, y0 - 0.25, 0], [W - WALL_T, 0.5, D - WALL_T], floorColor, { material: floorMat, collide: true, lod: 2 });
     floorWalls(b, p, y0, H, f, W, D, damageSkip);
-    if (walkable && f < interiorFloors) furniture(b, p, y0, W, D, rng, f);
+    if (walkable && f < interiorFloors) furniture(b, p, y0, W, D, rng, f, damageSkip);
     if (f < p.floors - 1) {
       // upper slab with a stair opening along the right wall
       const openW = 3.6;
@@ -558,7 +560,7 @@ export function house(ctx: PrefabContext, variant: number, opts: { kit?: Archite
     b.box([0, yTop + 0.5, 0], [W + 6, 1.4, D + 6], "#f0ece0", { material: "Marble", collide: true, lod: 2 }); // entablature
     b.box([0, 1.1, 0], [W + 7, 1.2, D + 7], "#e8e4dc", { material: "Marble", collide: true, lod: 2 }); // stylobate
     b.box([0, 2.2, 0], [W + 5, 1.2, D + 5], "#ece8dc", { material: "Marble", collide: true, lod: 2 });
-    b.box([0, base + 1.4, -D / 2 - 3.6], [6, 0.4, 0.4], p.trimColor, { material: "Marble", collide: false, lod: 0 });
+    b.box([0, 1.9, -D / 2 - 3.4], [6, 0.4, 0.4], p.trimColor, { material: "Marble", collide: false, lod: 0 });
   }
   // battered (sloped) outer skin for egyptian pylons
   if (p.battered) {
@@ -579,7 +581,11 @@ export function house(ctx: PrefabContext, variant: number, opts: { kit?: Archite
       b.box([Math.cos(a) * r, 0.6, Math.sin(a) * r], [rng.float(1.5, 3), rng.float(0.8, 1.6), rng.float(1.5, 3)], mixHex(p.wallColor, style.palette.stone, 0.5), { material: style.materials.stoneWall, collide: true, lod: 0, rotation: [0, rng.float(0, 90), rng.float(-15, 15)] });
     }
     for (let i = 0; i < 2; i++) b.box([(i - 0.5) * W * 0.5, base + H * 0.55, -D / 2 - 0.5], [3.2, 0.5, 0.3], mixHex(p.trimColor, "#000000", 0.25), { material: "Wood", collide: false, lod: 0, rotation: [0, 0, i ? 18 : -14] });
-    b.box([W / 2 + 0.6, base + H * 0.5, D * 0.1], [0.4, H * 0.9, D * 0.5], style.palette.foliageAlt, { material: "LeafyGrass", collide: false, lod: 0, transparency: 0.15 });
+    // vines climb a wall that damage did not remove, so they always touch the building
+    const vineOpts = { material: "LeafyGrass" as RobloxMaterial, collide: false, lod: 0 as const, transparency: 0.15 };
+    if (!damageSkip.has("b0")) b.box([W * 0.15, base + H * 0.5, D / 2 + 0.6], [W * 0.4, H * 0.9, 0.4], style.palette.foliageAlt, vineOpts);
+    else if (!damageSkip.has("l0")) b.box([-W / 2 - 0.6, base + H * 0.5, D * 0.1], [0.4, H * 0.9, D * 0.5], style.palette.foliageAlt, vineOpts);
+    else b.box([W / 2 + 0.6, base + H * 0.5, D * 0.1], [0.4, H * 0.9, D * 0.5], style.palette.foliageAlt, vineOpts);
   }
   const tags = ["building", kit, p.interiors ? "interior" : "shell", `floors:${p.floors}`];
   return b.build({ id: `${opts.prefabId ?? "house"}/${variant}`, prefab: opts.prefabId ?? "house", category: "building", sinkDepth: p.stilts > 0 ? 1.2 : 1.0, tags });

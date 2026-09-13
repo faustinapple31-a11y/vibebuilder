@@ -1,4 +1,4 @@
-import { AssetManifestSchema, AudioManifestSchema, GameSpecSchema, QAReportSchema, WorldSpecSchema, z, type GameSpec, type WorldSpec } from "@worldforge/core";
+import { AssetManifestSchema, AudioManifestSchema, GENRES, GameSpecSchema, QAReportSchema, STYLE_FAMILIES, WorldSpecSchema, z, type GameSpec, type WorldSpec } from "@worldforge/core";
 import type { AgentRole } from "./types";
 
 export interface RoleDefinition {
@@ -25,6 +25,14 @@ Project conventions:
 - Validate with \`npx rbxtsc\` before finishing when you touched TypeScript.
 - Reply with a concise summary (max 6 lines) of what you produced when done.`;
 
+/** Compact taxonomy reference injected into the design / world prompts (ids are validated by the schemas). */
+const STYLE_CATALOG = STYLE_FAMILIES.map((f) => `  ${f.id} — ${f.name} (${f.group}): ${f.description} | buildings: ${f.architecture.kit}, vegetation: ${f.vegetationKit}, props: ${f.propKits.join("/")}, roads: ${f.roadKit}, biomes: ${f.biomes.join("/")}, landmarks: ${f.landmarks.join("/")}`).join("\n");
+const GENRE_CATALOG = GENRES.map((g) => `  ${g.id} — ${g.name}: ${g.description} | layout: ${g.layout}, systems: ${g.systems.join("/")}, camera: ${g.camera}, fits styles: ${g.defaultStyles.join("/")}`).join("\n");
+const LAYOUT_NOTES = `Layout archetypes (worldSpec.layout.archetype) lay gameplay structures on the terrain and create zone markers the runtime systems use:
+  settlement/open_world (village or town hub), city_grid (streets + blocks), obby_course (stages with checkpoints, count = stages), arena (walls, covers, team spawns, capture point),
+  race_track (loop road with checkpoint gates), tycoon_plots (N plots with claim/buy buttons, conveyor, collector), lobby_portals (plaza + N minigame portals), base_defense (enemy path + tower pads + base),
+  sports_field (pitch + goals + stands), hangout_plaza (plaza + stage), dungeon (chain of rooms + boss room), linear_story (checkpoints along the main road).`;
+
 function schemaText(schema: z.ZodType): string {
   try {
     return JSON.stringify(z.toJSONSchema(schema, { unrepresentable: "any" }), null, 1);
@@ -46,7 +54,12 @@ export const ROLES: Record<AgentRole, RoleDefinition> = {
 
 ROLE: Game Designer. Turn the user's idea into a GameSpec JSON written to design/game.spec.json.
 The GameSpec describes genre, core loop, systems (from the allowed list), currencies, items, NPCs, quests, UI screens and monetization.
-Choose systems that a small team could realistically ship; prefer 4-7 systems. Keep ids snake_case.`,
+Every genre below has a runtime implementation in the template (src/systems/*): pick the genre that matches the idea and start from its system list,
+then add/remove systems the idea needs (the config generator turns them into src/shared/config.ts and the systems start automatically).
+NPC roles "zombie" / "monster" / "enemy" / "boss" spawn as AI enemies when the "enemies" system is on. Keep ids snake_case.
+
+GENRES:
+${GENRE_CATALOG}`,
   },
   world: {
     id: "world",
@@ -61,6 +74,18 @@ Choose systems that a small team could realistically ship; prefer 4-7 systems. K
 ROLE: World Designer / level designer. Produce a WorldSpec JSON at worlds/main/world.spec.json.
 Think like a level designer: one FOCAL landmark visible from the spawn and the settlement, secondary landmarks along roads, a hidden one to discover,
 foreground detail near paths, background silhouettes (mountains on the edges), biome transitions, a river or lake that shapes the layout.
+Pick the stylePreset that matches the idea (modern city, post-apocalyptic, sci-fi, western, candy… — not only fantasy): the style decides the building kit
+(houses come with walk-in interiors), the props, the vegetation, the road surface. Set layout.archetype from the game genre (see below) so the map has the
+gameplay structures the runtime expects. Settlement types: village, abandoned_village, hamlet, camp, outpost, ruined_town, town, city_district (grid of
+apartment blocks/skyscrapers/shops), base, harbor, farmstead. Landmarks include crashed_plane, radio_tower, skyscraper(_ruin), water_tower, pyramid,
+colosseum, torii_gate, lighthouse, pirate_ship, rocket, ufo, dome_base, crystal_spire, ferris_wheel, stadium, fountain, obelisk, waterfall_cliff,
+gas_station, church, barn, plus the classic giant_tree/ruins/tower/castle/statue/windmill/temple/portal/well/mountain_peak/volcano/campfire/bridge.
+
+STYLES (stylePreset):
+${STYLE_CATALOG}
+
+${LAYOUT_NOTES}
+
 Rules:
 - Every id must be unique; roads.connects must reference "spawn", settlement ids, landmark ids or edges.
 - Exactly one landmark with role "focal".

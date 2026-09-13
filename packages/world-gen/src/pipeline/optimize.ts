@@ -32,14 +32,17 @@ export function defaultBudget(worldW: number, worldD: number): PerformanceBudget
 export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): BakeStats {
   progress(ctx, "optimize", 0);
   const byCat = new Map<PrefabCategory, Placement[]>();
+  // gameplay layout structures (obby stages, plots, gates…) are never trimmed: the runtime depends on them
+  const essential = (p: Placement) => p.id.startsWith("layout_");
   for (const p of ctx.placements) {
+    if (essential(p)) continue;
     let arr = byCat.get(p.category);
     if (!arr) byCat.set(p.category, (arr = []));
     arr.push(p);
   }
   const partsOf = (p: Placement) => ctx.prefabs[p.prefab]?.[p.variant]?.parts.length ?? 0;
   const trimmed: Record<string, number> = {};
-  const kept: Placement[] = [];
+  const kept: Placement[] = ctx.placements.filter(essential);
   for (const [cat, arr] of byCat) {
     const max = budget.maxInstances[cat] ?? Infinity;
     if (arr.length <= max) {
@@ -54,8 +57,8 @@ export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): Ba
   // parts cap
   let parts = kept.reduce((s, p) => s + partsOf(p), 0);
   if (parts > budget.maxParts) {
-    kept.sort((a, b) => (b.locked ? 1 : 0) - (a.locked ? 1 : 0) || b.importance - a.importance);
-    while (parts > budget.maxParts && kept.length > 0) {
+    kept.sort((a, b) => (b.locked || essential(b) ? 1 : 0) - (a.locked || essential(a) ? 1 : 0) || b.importance - a.importance);
+    while (parts > budget.maxParts && kept.length > 0 && !essential(kept[kept.length - 1]!)) {
       const p = kept.pop()!;
       parts -= partsOf(p);
       trimmed[p.category] = (trimmed[p.category] ?? 0) + 1;

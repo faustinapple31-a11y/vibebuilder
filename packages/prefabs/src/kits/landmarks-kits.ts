@@ -170,7 +170,7 @@ export function pyramid(ctx: PrefabContext, variant: number): PrefabVariant {
     b.box([0, (i + 0.5) * (H / steps) - 1, 0], [S * f, H / steps + 0.2, S * f], i % 2 ? col : mixHex(col, "#000000", 0.06), { material: "Sandstone", collide: true, lod: 2 });
   }
   // capstone + entrance + stairs on the front face
-  b.pyramidRoof([0, H - 1, 0], S / steps, S / steps, H / steps * 1.4, "#e8d8a0", { material: "Sandstone", collide: true, lod: 1 });
+  b.pyramidRoof([0, H - 1 + (H / steps) * 0.7, 0], S / steps, S / steps, (H / steps) * 1.4, "#e8d8a0", { material: "Sandstone", collide: true, lod: 1 });
   b.box([0, 4, -S / 2 + 2], [8, 8, 6], mixHex(col, "#000000", 0.3), { material: "Sandstone", collide: true, lod: 1 });
   b.box([0, 4, -S / 2 - 0.2], [4.5, 7, 1], "#141008", { material: "Slate", collide: false, lod: 1 });
   b.wedge([0, H * 0.45, -S / 4 - 2], [10, H * 0.9, S / 2 + 4], mixHex(col, "#ffffff", 0.05), { material: "Sandstone", collide: true, lod: 2, rotation: [0, 0, 0] });
@@ -246,7 +246,7 @@ export function lighthouse(ctx: PrefabContext, variant: number): PrefabVariant {
   b.cylinder([0, H + 6, 0], 7.5, 7, "#c0e0f0", { material: "Glass", collide: true, lod: 1, transparency: 0.4 });
   b.sphere([0, H + 6, 0], 3.5, "#fff8d0", { material: "Neon", collide: false, lod: 1, light: { type: "point", color: "#fff0c0", brightness: 3, range: 120 } });
   b.cylinder([0, H + 10, 0], 9, 1, "#3a3a40", { material: METAL, collide: true, lod: 1 });
-  b.pyramidRoof([0, H + 10.5, 0], 8, 8, 4, red, { material: METAL, collide: false, lod: 1 });
+  b.pyramidRoof([0, H + 12.5, 0], 8, 8, 4, red, { material: METAL, collide: false, lod: 1 });
   b.box([0, 5, -6.5], [4, 7, 0.6], "#5a4030", { material: "Wood", collide: false, lod: 1 });
   for (let i = 1; i < 5; i++) b.box([0, 2 + i * 8, -(6.5 - i * 0.8)], [1.6, 2.2, 0.3], "#2a3040", { material: "Glass", collide: false, lod: 0 });
   b.box([0, 2.6, -8], [5, 0.5, 5], "#8a8a88", { material: "Cobblestone", collide: true, lod: 1 });
@@ -479,7 +479,7 @@ export function obelisk(ctx: PrefabContext, variant: number): PrefabVariant {
     const f = 1 - i / 4;
     b.box([0, 7 + (i + 0.5) * (H / 4), 0], [7 * (0.6 + f * 0.4), H / 4 + 0.2, 7 * (0.6 + f * 0.4)], col, { material: "Sandstone", collide: true, lod: 2 });
   }
-  b.pyramidRoof([0, 7 + H, 0], 4.6, 4.6, 4, "#e8c060", { material: METAL, collide: false, lod: 1 });
+  b.pyramidRoof([0, 7 + H + 2, 0], 4.6, 4.6, 4, "#e8c060", { material: METAL, collide: false, lod: 1 });
   for (let i = 0; i < 6; i++) b.box([0, 12 + i * 6, -3.6 + i * 0.28], [2, 3, 0.15], i % 2 ? style.palette.accent : "#8a6a30", { material: "SmoothPlastic", collide: false, lod: 0 });
   return done(b, "obelisk", variant, ["egypt", "statue"], 1.0, 9);
 }
@@ -572,7 +572,7 @@ export function church(ctx: PrefabContext, variant: number): PrefabVariant {
   b.box([0, H + 12, -L / 2 + 6], [10, H * 2 + 8, 10], wall, { material: style.materials.wall, collide: true, lod: 2 });
   for (const sx of [-1, 1]) b.box([sx * 5.05, H * 2 + 2, -L / 2 + 6], [0.3, 6, 4], "#1a1a20", { material: "SmoothPlastic", collide: false, lod: 1 });
   b.box([0, H * 2 + 2, -L / 2 + 0.95], [4, 6, 0.3], "#1a1a20", { material: "SmoothPlastic", collide: false, lod: 1 });
-  b.pyramidRoof([0, H * 2 + 16, -L / 2 + 6], 12, 12, 16, roof, { material: style.materials.roof, collide: true, lod: 2 });
+  b.pyramidRoof([0, H * 2 + 24, -L / 2 + 6], 12, 12, 16, roof, { material: style.materials.roof, collide: true, lod: 2 });
   b.box([0, H * 2 + 35, -L / 2 + 6], [0.6, 4, 0.6], "#d8c060", { material: METAL, collide: false, lod: 0 });
   b.box([0, H * 2 + 35.8, -L / 2 + 6], [2.4, 0.6, 0.6], "#d8c060", { material: METAL, collide: false, lod: 0 });
   b.cylinder([0, H * 2 + 2, -L / 2 + 6], 2.4, 2.6, "#b08a30", { material: METAL, collide: false, lod: 0 });

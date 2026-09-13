@@ -223,7 +223,8 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
     return pv[0]?.footprintRadius ?? 12;
   })();
   const cell = avgFoot * 2 + 6 + streetW; // block pitch
-  const half = Math.floor(R / cell);
+  // grid just big enough for the requested buildings (plus the plaza cell), capped by the site radius
+  const half = Math.min(Math.floor(R / cell), Math.max(1, Math.ceil((Math.sqrt(s.buildings + 2) - 1) / 2)));
   if (half < 1) return;
   const yaw = rng.float(0, Math.PI / 2);
   const cosY = Math.cos(yaw);

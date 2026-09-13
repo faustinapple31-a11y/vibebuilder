@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getStylePreset, partBounds, type Part, type Vec3 } from "@worldforge/core";
+import { STYLE_PRESET_IDS, getStylePreset, partBounds, type Part, type Vec3 } from "@worldforge/core";
 import { PREFAB_DEFINITIONS, buildPrefabVariants } from "../src";
 
 /**
@@ -26,7 +26,7 @@ function looseParts(parts: Part[]): number[] {
 }
 
 describe("prefab connectivity", () => {
-  for (const styleId of ["stylized_mystical", "fantasy", "desert", "cyberpunk", "winter", "tropical"] as const) {
+  for (const styleId of STYLE_PRESET_IDS) {
     const style = getStylePreset(styleId);
     it(`no floating parts in any prefab (${styleId})`, () => {
       const failures: string[] = [];
