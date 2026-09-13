@@ -18,6 +18,8 @@ export default defineConfig({
     },
   },
   test: {
+    // world generation tests build 1024x1024 worlds; keep headroom when Studio/the app share the CPU
+    testTimeout: 30000,
     include: ["packages/**/*.test.ts", "scripts/**/*.test.ts"],
   },
 });
