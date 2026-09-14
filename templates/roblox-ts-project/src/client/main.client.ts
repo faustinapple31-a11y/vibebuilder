@@ -4,11 +4,13 @@ import { Remotes, waitRemoteEvent, type PlayerStats, type RoundStateMsg, type Sh
 import { Hud } from "ui/Hud";
 import { AudioConfig } from "shared/audio";
 import { ShopUi } from "ui/ShopUi";
+import { startWeather } from "client/Weather";
 
 /** Client bootstrap: HUD, shop window, NPC dialogue, SFX, world loading overlay. */
 const hud = new Hud();
 const shop = new ShopUi();
 hud.onShop = () => shop.toggle();
+startWeather();
 UserInputService.InputBegan.Connect((input, processed) => {
 	if (!processed && input.KeyCode === Enum.KeyCode.B) shop.toggle();
 });

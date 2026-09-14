@@ -25,6 +25,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "modern",
     uiAccent: "#3a7ad0",
     audio: "chill",
+    weather: "none", clouds: 0.35, walls: "none", terrainTint: 0.35,
   },
   {
     id: "modern_city",
@@ -49,6 +50,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "modern",
     uiAccent: "#ff6a3a",
     audio: "chill",
+    weather: "none", clouds: 0.4, walls: "none", terrainTint: 0.3,
   },
   {
     id: "industrial",
@@ -73,6 +75,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "military",
     uiAccent: "#e0a020",
     audio: "industrial",
+    weather: "ash", weatherIntensity: 0.2, clouds: 0.8, walls: "none", terrainTint: 0.5,
   },
   {
     id: "post_apocalyptic",
@@ -97,6 +100,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "military",
     uiAccent: "#c04a2a",
     audio: "tense",
+    weather: "ash", weatherIntensity: 0.5, clouds: 0.85, walls: "scrap", terrainTint: 0.65,
   },
   {
     id: "wasteland",
@@ -121,6 +125,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "military",
     uiAccent: "#d05020",
     audio: "tense",
+    weather: "sandstorm", weatherIntensity: 0.4, clouds: 0.3, walls: "scrap", terrainTint: 0.7,
   },
   {
     id: "sci_fi",
@@ -145,6 +150,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "sci-fi",
     uiAccent: "#30c0ff",
     audio: "electronic",
+    weather: "none", clouds: 0.3, walls: "energy_fence", terrainTint: 0.6,
   },
   {
     id: "cyberpunk",
@@ -169,6 +175,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "sci-fi",
     uiAccent: "#ff3fa0",
     audio: "electronic",
+    weather: "rain", weatherIntensity: 0.6, clouds: 0.9, walls: "none", terrainTint: 0.6,
   },
   {
     id: "space_station",
@@ -193,6 +200,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "sci-fi",
     uiAccent: "#ff9030",
     audio: "electronic",
+    weather: "none", clouds: 0, walls: "energy_fence", terrainTint: 0.8,
   },
   {
     id: "alien_planet",
@@ -218,6 +226,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "sci-fi",
     uiAccent: "#40ffd0",
     audio: "mystical",
+    weather: "spores", weatherIntensity: 0.5, clouds: 0.4, walls: "none", terrainTint: 0.9,
   },
   {
     id: "horror_gothic",
@@ -242,6 +251,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "horror",
     uiAccent: "#c03030",
     audio: "horror",
+    weather: "rain", weatherIntensity: 0.35, clouds: 0.95, walls: "stone_crenellated", terrainTint: 0.7,
   },
   {
     id: "tropical",
@@ -266,6 +276,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "cartoon",
     uiAccent: "#ff8040",
     audio: "tropical",
+    weather: "none", clouds: 0.3, walls: "none", terrainTint: 0.6,
   },
   {
     id: "jungle",
@@ -290,6 +301,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#ffb020",
     audio: "ambient_nature",
+    weather: "fireflies", weatherIntensity: 0.4, clouds: 0.5, walls: "bamboo", terrainTint: 0.65,
   },
   {
     id: "desert",
@@ -313,6 +325,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#2f8fbf",
     audio: "western",
+    weather: "sandstorm", weatherIntensity: 0.25, clouds: 0.05, walls: "adobe", terrainTint: 0.6,
   },
   {
     id: "winter",
@@ -337,6 +350,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "minimal",
     uiAccent: "#ff8040",
     audio: "chill",
+    weather: "snow", weatherIntensity: 0.6, clouds: 0.7, walls: "ice", snowLine: 0.2, terrainTint: 0.5,
   },
   {
     id: "swamp",
@@ -362,6 +376,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "stylized",
     uiAccent: "#a0d040",
     audio: "ambient_nature",
+    weather: "fireflies", weatherIntensity: 0.5, clouds: 0.75, walls: "none", terrainTint: 0.7,
   },
   {
     id: "underwater",
@@ -386,6 +401,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "cartoon",
     uiAccent: "#ff7a50",
     audio: "ambient_nature",
+    weather: "bubbles", weatherIntensity: 0.6, clouds: 0, walls: "none", terrainTint: 0.85,
   },
   {
     id: "candy",
@@ -409,6 +425,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "candy",
     uiAccent: "#ff4a8a",
     audio: "cheerful",
+    weather: "petals", weatherIntensity: 0.4, clouds: 0.3, walls: "picket", terrainTint: 0.95,
   },
   {
     id: "low_poly_minimal",
@@ -432,6 +449,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "minimal",
     uiAccent: "#f0a040",
     audio: "chill",
+    weather: "none", clouds: 0.3, walls: "none", terrainTint: 0.8,
   },
   {
     id: "voxel",
@@ -455,6 +473,7 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "retro",
     uiAccent: "#e0a020",
     audio: "retro",
+    weather: "none", clouds: 0.4, walls: "none", terrainTint: 0.75,
   },
   {
     id: "military",
@@ -479,5 +498,6 @@ export const STYLE_FAMILIES_B: StyleFamilyDef[] = [
     ui: "military",
     uiAccent: "#d0a030",
     audio: "tense",
+    weather: "dust", weatherIntensity: 0.2, clouds: 0.6, walls: "sandbags", terrainTint: 0.45,
   },
 ];

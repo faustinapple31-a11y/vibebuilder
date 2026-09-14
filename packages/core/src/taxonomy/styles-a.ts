@@ -24,6 +24,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "stylized",
     uiAccent: "#7b4f8f",
     audio: "mystical",
+    weather: "spores", weatherIntensity: 0.35, clouds: 0.5, walls: "none", terrainTint: 0.6,
   },
   {
     id: "fantasy",
@@ -47,6 +48,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#e0b050",
     audio: "orchestral",
+    weather: "petals", weatherIntensity: 0.2, clouds: 0.4, walls: "stone_crenellated", terrainTint: 0.55,
   },
   {
     id: "dark_fantasy",
@@ -71,6 +73,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "horror",
     uiAccent: "#6fbf5f",
     audio: "horror",
+    weather: "ash", weatherIntensity: 0.3, clouds: 0.85, walls: "stone_crenellated", terrainTint: 0.7,
   },
   {
     id: "elven",
@@ -93,6 +96,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#9fd0a0",
     audio: "orchestral",
+    weather: "petals", weatherIntensity: 0.3, clouds: 0.3, walls: "none", terrainTint: 0.6,
   },
   {
     id: "cartoon",
@@ -115,6 +119,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "cartoon",
     uiAccent: "#ff7ab0",
     audio: "cheerful",
+    weather: "none", clouds: 0.35, walls: "picket", terrainTint: 0.75,
   },
   {
     id: "medieval",
@@ -138,6 +143,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#b03030",
     audio: "epic",
+    weather: "leaves", weatherIntensity: 0.2, clouds: 0.55, walls: "stone_crenellated", terrainTint: 0.45,
   },
   {
     id: "viking",
@@ -160,6 +166,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#c07030",
     audio: "epic",
+    weather: "snow", weatherIntensity: 0.25, clouds: 0.75, walls: "palisade", snowLine: 0.7, terrainTint: 0.5,
   },
   {
     id: "ancient_egypt",
@@ -183,6 +190,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#2f8fbf",
     audio: "orchestral",
+    weather: "dust", weatherIntensity: 0.3, clouds: 0.1, walls: "adobe", terrainTint: 0.6,
   },
   {
     id: "ancient_greece",
@@ -206,6 +214,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#c05030",
     audio: "orchestral",
+    weather: "none", clouds: 0.25, walls: "marble", terrainTint: 0.5,
   },
   {
     id: "feudal_japan",
@@ -228,6 +237,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#c03030",
     audio: "orchestral",
+    weather: "petals", weatherIntensity: 0.45, clouds: 0.4, walls: "bamboo", terrainTint: 0.55,
   },
   {
     id: "wild_west",
@@ -252,6 +262,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "retro",
     uiAccent: "#a03020",
     audio: "western",
+    weather: "dust", weatherIntensity: 0.35, clouds: 0.2, walls: "palisade", terrainTint: 0.6,
   },
   {
     id: "pirate",
@@ -276,6 +287,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "fantasy",
     uiAccent: "#c0302a",
     audio: "tropical",
+    weather: "none", clouds: 0.5, walls: "palisade", terrainTint: 0.5,
   },
   {
     id: "steampunk",
@@ -300,6 +312,7 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "retro",
     uiAccent: "#c8963a",
     audio: "industrial",
+    weather: "ash", weatherIntensity: 0.25, clouds: 0.7, walls: "none", terrainTint: 0.5,
   },
   {
     id: "realistic",
@@ -323,5 +336,6 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     ui: "minimal",
     uiAccent: "#c08040",
     audio: "ambient_nature",
+    weather: "none", clouds: 0.45, walls: "none", terrainTint: 0.25,
   },
 ];

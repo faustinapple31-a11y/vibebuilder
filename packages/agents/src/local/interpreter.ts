@@ -100,6 +100,8 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "marais", "swamp", "marecage") && !biomes.some((b) => b.id === "swamp")) biomes.push({ id: "swamp", weight: 0.3, vegetation: "medium" });
   if (has(t, "plage", "beach", "cote", "coast") && !biomes.some((b) => b.id === "beach")) biomes.push({ id: "beach", weight: 0.25, vegetation: "sparse", elevation: [0, 0.2] });
 
+  const famType = fam.settlementType ?? "village";
+
   // ---- terrain
   const features: NonNullable<WorldSpecInput["terrain"]>["features"] = [];
   const mountains = has(t, "montagne", "mountain", "pic", "peak", "alpin", "sommet");
@@ -111,6 +113,12 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "plateau")) features.push({ type: "plateau", center: [0.3, 0.3], radius: 0.18, height: 0.6 });
   if (has(t, "falaise", "cliff", "canyon")) features.push({ type: "cliffs", intensity: 0.7 });
   if (has(t, "cratere", "crater", "volcan", "volcano", "meteor") || fam.id === "space_station") features.push({ type: "crater", center: [0.65, 0.4], radius: 0.15 });
+  // ocean: an island (prompt, battle-royale layout, tropical / pirate families) or a coast (beach, harbor, lighthouse…)
+  const dry = fam.id === "space_station" || fam.id === "underwater" || fam.id === "desert" || fam.id === "wasteland";
+  const island = !dry && (has(t, "ile ", "ile,", "ile.", "island", "lagon", "lagoon", "archipel", "atoll") || genre.layout === "island" || fam.id === "tropical" || fam.id === "pirate");
+  const coast = !dry && !island && (has(t, "littoral", "coast", "plage", "beach", "port", "harbor", "harbour", "docks", "phare", "lighthouse", "bord de mer", "rivage", "seaside", "ocean") || famType === "harbor");
+  if (island) features.push({ type: "island", center: [0.5, 0.5], radius: has(t, "grande ile", "big island", "large island") ? 0.44 : 0.36, ruggedness: 0.55 }), tag("island");
+  else if (coast) features.push({ type: "coast", edges: ["south"], reach: 0.22, ruggedness: 0.5 }), tag("coast");
   const relief = flat ? 0.25 : mountains ? 0.75 : 0.6;
 
   // ---- water
@@ -118,7 +126,6 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const lakes: WorldSpecInput["lakes"] = [];
   if (has(t, "riviere", "river", "ruisseau", "stream", "fleuve", "cours d'eau")) rivers.push({ id: "river_1", from: "north", to: "south-east", width: 16, depth: 6, meander: 0.65 }), tag("river");
   if (has(t, "lac", "lake", "etang", "pond")) lakes.push({ id: "lake_1", center: [0.32, 0.36], radius: 80 }), tag("lake");
-  if ((has(t, "ile ", "island", "lagon", "lagoon") || genre.layout === "island") && lakes.length === 0 && rivers.length === 0) rivers.push({ id: "channel", from: "west", to: "east", width: 40, depth: 8, meander: 0.5 });
   if (fam.id === "space_station" || fam.id === "underwater") rivers.length = 0;
 
   // ---- landmarks: prompt keywords first, then the family's signature landmarks
@@ -146,7 +153,6 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     return m ? Math.max(1, Math.min(60, Number(m[1]))) : undefined;
   })();
   const interiors = has(t, "interieur", "interior", "inside", "meuble", "furnish", "entrer dans", "walk in") ? true : undefined;
-  const famType = fam.settlementType ?? "village";
   if (has(t, "ville", "town", "city", "cite", "metropole", "downtown", "quartier")) {
     const city = modern && has(t, "city", "cite", "metropole", "downtown", "gratte", "skyscraper", "immeuble");
     settlements.push({ id: "town", type: abandoned ? (modern ? "abandoned_village" : "ruined_town") : city ? "city_district" : "town", buildings: count ?? (city ? 18 : 14), layout: city || modern ? "grid" : "organic", near: rivers[0]?.id, weathering: abandoned ? 0.9 : 0.3, interiors });

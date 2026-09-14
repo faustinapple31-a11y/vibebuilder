@@ -88,6 +88,19 @@ export function applyLighting(l: LightingData): void {
 	sky.SunAngularSize = l.sky.sunAngularSize;
 	sky.MoonAngularSize = l.sky.moonAngularSize;
 	sky.StarCount = l.sky.starCount;
+	sky.CelestialBodiesShown = l.sky.celestialBodies !== false;
+	// clouds (Lighting.Clouds lives under Terrain)
+	const clouds = (Workspace.Terrain.FindFirstChildOfClass("Clouds") ?? new Instance("Clouds", Workspace.Terrain)) as Clouds;
+	if (l.clouds) {
+		clouds.Enabled = l.clouds.enabled;
+		clouds.Cover = l.clouds.cover;
+		clouds.Density = l.clouds.density;
+		clouds.Color = hexToColor3(l.clouds.color);
+	} else clouds.Enabled = false;
+	// weather: published as attributes; src/client/Weather.ts renders the particle layer around the camera
+	Lighting.SetAttribute("WeatherKind", l.weather?.kind ?? "none");
+	Lighting.SetAttribute("WeatherIntensity", l.weather?.intensity ?? 0);
+	Lighting.SetAttribute("WeatherColor", hexToColor3(l.weather?.color ?? "#ffffff"));
 	// Lighting technology (NotScriptable outside edit mode → pcall). ShadowMap by default: Future with hundreds of
 	// point lights has hung the GPU driver (DXGI_ERROR_DEVICE_HUNG) on a big bake.
 	pcall(() => {
@@ -102,6 +115,17 @@ export function applyLighting(l: LightingData): void {
 		terrain.WaterWaveSize = t.waterWaveSize;
 		terrain.WaterWaveSpeed = t.waterWaveSpeed;
 	}
+	// style-driven terrain colors (candy = pink grass, alien = violet ground, dark fantasy = desaturated)
+	if (l.terrainColors) {
+		for (const [name, hex] of pairs(l.terrainColors)) {
+			const mat = Enum.Material.GetEnumItems().find((m) => m.Name === (name as string));
+			if (mat) pcall(() => Workspace.Terrain.SetMaterialColor(mat, hexToColor3(hex as string)));
+		}
+	}
+	// grass decoration (property removed from recent Studio builds → guarded, dynamic access)
+	pcall(() => {
+		(Workspace.Terrain as unknown as { Decoration: boolean }).Decoration = l.terrainDecoration === true;
+	});
 }
 
 export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): BuildReport {

@@ -32,8 +32,8 @@ export function defaultBudget(worldW: number, worldD: number): PerformanceBudget
 export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): BakeStats {
   progress(ctx, "optimize", 0);
   const byCat = new Map<PrefabCategory, Placement[]>();
-  // gameplay layout structures (obby stages, plots, gates…) are never trimmed: the runtime depends on them
-  const essential = (p: Placement) => p.id.startsWith("layout_");
+  // gameplay layout structures (obby stages, plots, gates…) and settlement dressing (walls, piers, fields) are never trimmed
+  const essential = (p: Placement) => p.id.startsWith("layout_") || p.id.startsWith("dress_");
   for (const p of ctx.placements) {
     if (essential(p)) continue;
     let arr = byCat.get(p.category);

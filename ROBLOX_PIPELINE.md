@@ -198,6 +198,16 @@ par le générateur avec leurs attributs. Le HUD affiche un panneau de valeurs g
 une bannière de round (`RoundState`) et une barre de vie ; raccourcis : V véhicule, P œuf, Q/F
 capacités, Shift sprint, R rebirth, double saut (parkour), clic pour construire (sandbox).
 
+### Environnement : météo, nuages, couleurs de terrain, portes
+
+`WorldBuilder.applyLighting` applique en plus du Lighting : `Terrain:SetMaterialColor` pour chaque
+matériau (couleurs de la palette du style), `Clouds` (couverture / densité / couleur), `Sky.CelestialBodiesShown`
+(faux dans l'espace) et publie la météo en attributs de `Lighting` (`WeatherKind`, `WeatherIntensity`,
+`WeatherColor`). `src/client/Weather.ts` rend la couche de particules autour de la caméra (textures
+moteur `rbxasset://` uniquement) et réagit aux changements d'attributs (un système d'orage peut les
+modifier à chaud). `src/systems/Doors.ts` pose un ProximityPrompt sur chaque part `Door` du monde et
+la fait pivoter autour de sa charnière (fermeture automatique après 10 s). Template **v4**.
+
 ## 8. Bridge MCP Studio (implémenté)
 
 Roblox Studio embarque un serveur MCP (`StudioMCP.exe`, transport stdio). L'app le détecte à côté de l'exécutable

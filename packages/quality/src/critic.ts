@@ -82,6 +82,24 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     problems.push({ id: "river_missing", severity: "medium", message: "a river was requested but almost no water was carved", layer: "water" });
     fixes.push({ type: "regenerate", layers: ["water"], newSeed: true });
   }
+  // ocean features: an island needs real sea around it (and land inside), a coast a real shoreline
+  const island = spec.terrain.features.find((f) => f.type === "island");
+  const coast = spec.terrain.features.find((f) => f.type === "coast");
+  if (island && s.waterCoverage < 0.12) {
+    terrain -= 2;
+    problems.push({ id: "island_no_ocean", severity: "high", message: `island requested but only ${(s.waterCoverage * 100).toFixed(0)}% of the map is water`, layer: "terrain" });
+    fixes.push({ type: "spec_patch", path: "terrain.features", op: "set", value: spec.terrain.features.map((f) => (f.type === "island" ? { ...f, radius: Math.max(0.2, f.radius - 0.08) } : f)) });
+  }
+  if (island && s.waterCoverage > 0.8) {
+    terrain -= 3;
+    problems.push({ id: "island_drowned", severity: "critical", message: "the island is almost entirely under water", layer: "terrain" });
+    fixes.push({ type: "spec_patch", path: "terrain.features", op: "set", value: spec.terrain.features.map((f) => (f.type === "island" ? { ...f, radius: Math.min(0.6, f.radius + 0.1) } : f)) });
+  }
+  if (coast && s.waterCoverage < 0.05) {
+    terrain -= 1.5;
+    problems.push({ id: "coast_no_sea", severity: "medium", message: "a coast was requested but the sea did not form", layer: "terrain" });
+    fixes.push({ type: "spec_patch", path: "terrain.features", op: "set", value: spec.terrain.features.map((f) => (f.type === "coast" ? { ...f, reach: Math.min(0.6, f.reach + 0.08) } : f)) });
+  }
   // road slopes
   for (const road of bake.paths.filter((p) => p.kind === "road")) {
     let steep = 0;
@@ -170,6 +188,22 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     if (houses.length >= 4 && hv < Math.min(houses.length, 3)) {
       architecture -= 2;
       problems.push({ id: "buildings_identical", severity: "medium", message: "houses look identical (too few variants used)", layer: "buildings" });
+    }
+    // settlement dressing the style / spec calls for
+    const dress = bake.placements.filter((p) => p.id.startsWith("dress_"));
+    const wallSegments = dress.filter((p) => p.prefab === "town_wall").length;
+    if (style.environment.walls !== "none" && spec.settlements.some((st) => st.type !== "camp" && st.type !== "outpost" && st.type !== "city_district") && wallSegments < 8) {
+      architecture -= 1;
+      problems.push({ id: "walls_missing", severity: "low", message: `the style has a ${style.environment.walls} wall kit but the settlement got ${wallSegments} wall segments`, layer: "buildings" });
+    }
+    if (spec.settlements.some((st) => st.type === "harbor") && !dress.some((p) => p.prefab === "pier")) {
+      architecture -= 1;
+      problems.push({ id: "harbor_no_pier", severity: "medium", message: "harbor settlement without a pier (no reachable shore)", layer: "buildings" });
+      fixes.push({ type: "regenerate", layers: ["buildings"], newSeed: true });
+    }
+    if ((spec.settlements.some((st) => st.type === "farmstead") || spec.props.sets.includes("farm")) && !dress.some((p) => p.prefab === "farm_field")) {
+      architecture -= 0.5;
+      problems.push({ id: "fields_missing", severity: "low", message: "farm requested but no field could be placed (no flat ground near the settlement)", layer: "buildings" });
     }
     // slope under buildings
     let steep = 0;

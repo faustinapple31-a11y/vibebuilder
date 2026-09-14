@@ -77,6 +77,20 @@ des genres (systèmes, layout, caméra) — `STYLE_CATALOG` / `GENRE_CATALOG` da
 les JSON produits utilisent uniquement des ids valides ; l'interpréteur local (`interpretPrompt`)
 suit exactement les mêmes tables, ce qui garantit qu'un prompt sans agent donne un monde cohérent.
 
+### 3c. Skills Claude Code
+
+Chaque projet généré embarque ses skills dans `.claude/skills/` (chargées automatiquement par Claude Code
+dans le dossier du projet, ré-appliquées à chaque mise à niveau du template) : `worldforge-world`
+(édition WorldSpec / StyleBible, features île & côte, murs, météo), `worldforge-gameplay` (systèmes,
+remotes, zones, PlayerData), `worldforge-ui`, `worldforge-assets` (catalogue, passes / produits, audio,
+animations, toolbox), `worldforge-qa` (checklists de play-test par genre, `qa/report.json`),
+`worldforge-publish` (build, Open Cloud, checklist de sortie) et `roblox-ts-pitfalls`. Un `CLAUDE.md`
+de projet les référence. Les prompts des rôles pointent vers la skill de leur périmètre et vers les
+skills utilisateur (`~/.claude/skills`) quand elles existent : `roblox-best-practices`, `roblox-opsec`,
+`roblox-game`, `ui-ux-pro-max`, `design`. L'outil `Skill` est autorisé pour tous les rôles ; l'onglet
+Réglages liste les skills projet + utilisateur détectées. Le dépôt WorldForge lui-même a ses skills de
+développement (`.claude/skills/` : add-style, add-genre, add-prefab, map-quality, studio-verify, release).
+
 ## 4. Orchestrateur
 
 ```

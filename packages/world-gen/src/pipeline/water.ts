@@ -2,8 +2,8 @@ import { chaikin, deriveSeed, resamplePolyline, smoothstep, type Vec2 } from "@w
 import { Rng } from "@worldforge/core";
 import { Simplex2D } from "../noise";
 import { astar } from "../pathfinding";
-import { distanceToPolylinesGrid } from "../grid";
-import { edgeToWorld, progress, type GenContext } from "../context";
+import { distanceToMaskGrid, distanceToPolylinesGrid } from "../grid";
+import { edgeToWorld, progress, seaLevelOf, type GenContext } from "../context";
 
 /**
  * Stage 7: rivers and lakes.
@@ -29,10 +29,24 @@ export function generateWater(ctx: GenContext): void {
     carveLake(ctx, lake);
   }
 
+  // ocean: every cell under the sea level is flooded (island / coast features lowered the terrain there)
+  const sea = seaLevelOf(spec);
+  if (Number.isFinite(sea)) {
+    const h = ctx.heights;
+    for (let i = 0; i < h.data.length; i++) {
+      if (h.data[i]! < sea - 0.3 && Number.isNaN(ctx.water.data[i]!)) ctx.water.data[i] = sea;
+    }
+  }
+
   // distance-to-water grid for biome moisture and placement rules
   const waterLines = ctx.paths.filter((p) => p.kind === "river").map((p) => ({ points: p.points, width: p.width }));
   const lakeCircles = spec.lakes.map((l) => ({ points: circlePoints(normToWorldLocal(ctx, l.center), l.radius, 24), width: 2 }));
   ctx.waterDistance = distanceToPolylinesGrid(ctx.heights, [...waterLines, ...lakeCircles], 400);
+  if (Number.isFinite(sea)) {
+    // shoreline distance from the flooded cells themselves (bays, headlands)
+    const shore = distanceToMaskGrid(ctx.heights, (i) => !Number.isNaN(ctx.water.data[i]!), 400);
+    ctx.waterDistance.map((x, z, v, i) => Math.min(v, shore.data[i]!));
+  }
   // lakes: inside radius → negative distance
   for (const l of spec.lakes) {
     const c = normToWorldLocal(ctx, l.center);

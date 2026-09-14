@@ -44,6 +44,21 @@ export const TerrainFeatureSchema = z.discriminatedUnion("type", [
     center: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]).default([0.5, 0.5]),
     radius: z.number().min(0.05).max(0.5).default(0.15),
   }),
+  /** Land inside `radius` (fraction of the world size), ocean beyond it, beaches on the ring. */
+  z.object({
+    type: z.literal("island"),
+    center: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]).default([0.5, 0.5]),
+    radius: z.number().min(0.15).max(0.6).default(0.36),
+    /** Coastline irregularity 0..1 (bays and headlands). */
+    ruggedness: z.number().min(0).max(1).default(0.5),
+  }),
+  /** Ocean along the listed edges: the land drops under the sea level within `reach` of the edge. */
+  z.object({
+    type: z.literal("coast"),
+    edges: z.array(EdgeSchema).default(["south"]),
+    reach: z.number().min(0.05).max(0.6).default(0.22),
+    ruggedness: z.number().min(0).max(1).default(0.5),
+  }),
 ]);
 export type TerrainFeature = z.infer<typeof TerrainFeatureSchema>;
 
@@ -355,6 +370,8 @@ export const WorldSpecSchema = z.object({
       roughness: z.number().min(0).max(1).default(0.4),
       erosion: z.number().min(0).max(1).default(0.5),
       features: z.array(TerrainFeatureSchema).default([]),
+      /** Ocean surface height (studs) for island / coast features; default baseHeight - 6. */
+      seaLevel: z.number().min(-50).max(200).optional(),
     })
     .prefault({}),
   biomes: z.array(BiomeSchema).min(1).prefault([{ id: "forest", weight: 0.6, vegetation: "dense" }, { id: "meadow", weight: 0.4, vegetation: "sparse" }]),

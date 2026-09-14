@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { EFFECT_PRESETS, GLOWING_EFFECTS, TERRAIN_MATERIAL_COLORS, TERRAIN_MATERIALS, hashString, hexToRgb, type Part, type PrefabVariant, type TerrainData } from "@worldforge/core";
+import { EFFECT_PRESETS, GLOWING_EFFECTS, TERRAIN_MATERIAL_COLORS, TERRAIN_MATERIALS, hashString, hexToRgb, type Part, type PrefabVariant, type TerrainData, type TerrainMaterial } from "@worldforge/core";
 
 /** Unit primitives matching the PartList conventions (see packages/core/src/partlist.ts). */
 const unit = {
@@ -158,13 +158,14 @@ export function clearGeometryCache(): void {
 }
 
 /** Terrain mesh geometry with vertex colors (by material or by biome). */
-export function terrainGeometry(t: TerrainData, biomeColors: boolean): THREE.BufferGeometry {
+export function terrainGeometry(t: TerrainData, biomeColors: boolean, materialColors?: Partial<Record<TerrainMaterial, string>>): THREE.BufferGeometry {
   const { width, depth, cellSize, origin } = t;
   const g = new THREE.BufferGeometry();
   const pos = new Float32Array(width * depth * 3);
   const col = new Float32Array(width * depth * 3);
   const palette = TERRAIN_MATERIALS.map((m) => {
-    const [r, gg, b] = hexToRgb(TERRAIN_MATERIAL_COLORS[m]);
+    // style-driven colors from the bake (what Roblox shows after Terrain:SetMaterialColor), viewer defaults otherwise
+    const [r, gg, b] = hexToRgb(materialColors?.[m] ?? TERRAIN_MATERIAL_COLORS[m]);
     return new THREE.Color().setRGB(r, gg, b, THREE.SRGBColorSpace);
   });
   const biomePalette = ["#4f7a4a", "#8a5a9a", "#c9a65a", "#5a8fb0", "#7a6a50", "#9a4a4a", "#4a9a8a", "#b08a4a", "#6a6aa0", "#a0c0a0", "#c0b0a0", "#a08080"].map((h) => new THREE.Color(h));

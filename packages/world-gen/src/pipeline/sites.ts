@@ -1,6 +1,6 @@
 import { TERRAIN_MATERIAL_INDEX, deriveSeed, lerp, smootherstep, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
-import { normToWorld, progress, type GenContext, type SettlementSite } from "../context";
+import { normToWorld, progress, seaLevelOf, type GenContext, type SettlementSite } from "../context";
 
 /**
  * Stage 8: settlement site selection + flattening.
@@ -20,7 +20,7 @@ export function selectSettlementSites(ctx: GenContext): void {
     if (s.position) {
       center = normToWorld(ctx, s.position);
     } else {
-      center = findFlatSite(ctx, slope, radius, s.near, rng);
+      center = findFlatSite(ctx, slope, radius, s.near, rng, s.type === "harbor");
     }
     const baseHeight = flattenArea(ctx, center, radius, 0.55);
     const site: SettlementSite = { id: s.id, center, radius, baseHeight, spec: s };
@@ -40,7 +40,7 @@ export function circlePoly(c: Vec2, r: number, n: number): Vec2[] {
   return out;
 }
 
-function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["slopeGrid"]>, radius: number, near: string | undefined, rng: Rng): Vec2 {
+function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["slopeGrid"]>, radius: number, near: string | undefined, rng: Rng, shore = false): Vec2 {
   const h = ctx.heights;
   const step = 3; // cells
   const rc = Math.ceil(radius / ctx.cellSize);
@@ -73,6 +73,13 @@ function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["
       if (count === 0) continue;
       const [wx, wz] = h.toWorld(x, z);
       let score = (sSum / count) * 3 + (hMax - hMin) / 40 + (water / count) * 12;
+      if (shore) {
+        // harbor: the edge of the settlement touches the water (river, lake or sea), on low ground
+        const d = ctx.waterDistance.get(x, z);
+        score += Math.abs(d - radius * 0.95) / 25;
+        const sea = seaLevelOf(ctx.spec);
+        if (Number.isFinite(sea)) score += Math.max(0, (hMin + hMax) / 2 - sea - 8) / 12;
+      }
       if (nearRiver) {
         const d = ctx.waterDistance.get(x, z);
         // want to be close to the river but not in it

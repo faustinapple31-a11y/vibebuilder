@@ -84,6 +84,16 @@ circuit, parcelles tycoon, lobby à portails, chemin de vagues, stade, plaza, do
 listes complètes dans [TAXONOMY.md](TAXONOMY.md) ; `npx tsx scripts/demo-prompt.ts "<idée>" --build`
 produit un projet Roblox complet à partir de n'importe quel prompt.
 
+### Génération de map (v4)
+
+Îles et côtes réelles (océan, plages, ponton, galion à l'ancre), enceintes avec tours de porte
+selon le style (pierre crénelée, palissade, sacs de sable, ferraille, bambou, adobe, marbre, clôture
+énergétique, piquets, glace), champs cultivés, cimetière derrière l'église, parvis éclairés autour des
+landmarks, marquages routiers en ville, portes qui s'ouvrent, couleurs de terrain, nuages et météo
+(pluie, neige, cendres, pétales, lucioles…) dérivés du style et du mood. Détails dans
+[WORLD_GENERATION.md](WORLD_GENERATION.md) ; chaque projet généré embarque des skills Claude Code
+(`.claude/skills/worldforge-*`) et un `CLAUDE.md` pour que les agents travaillent avec les bons repères.
+
 ## Architecture
 
 Voir [ARCHITECTURE.md](ARCHITECTURE.md), [WORLD_GENERATION.md](WORLD_GENERATION.md), [AGENT_SYSTEM.md](AGENT_SYSTEM.md),

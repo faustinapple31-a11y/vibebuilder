@@ -1,7 +1,7 @@
 import { clamp, deriveSeed, lerp, smoothstep, smootherstep, type TerrainFeature } from "@worldforge/core";
 import { Simplex2D } from "../noise";
 import { Grid } from "../grid";
-import { normToWorld, progress, type GenContext } from "../context";
+import { normToWorld, progress, seaLevelOf, type GenContext } from "../context";
 
 /**
  * Stage 1-5: base heightmap, large forms, spec features, secondary detail, erosion.
@@ -35,18 +35,23 @@ export function generateTerrain(ctx: GenContext): void {
   });
 
   progress(ctx, "terrain:features", 0.3);
-  for (const f of t.features) applyFeature(ctx, f, ridge, amplitude);
+  ctx.ocean = undefined;
+  ctx.shore = undefined;
+  for (const f of t.features) if (f.type !== "island" && f.type !== "coast") applyFeature(ctx, f, ridge, amplitude);
 
-  // border rise so the world reads as a contained valley (background silhouettes)
+  // border rise so the world reads as a contained valley (background silhouettes) — not over the ocean
   const borderReach = Math.min(worldW, worldD) * 0.09;
-  h.map((x, z, v) => {
+  const oceanFeatures = t.features.filter((f) => f.type === "island" || f.type === "coast");
+  const ocean = oceanFeatures.length ? computeOceanMask(ctx, oceanFeatures, ridge) : undefined;
+  h.map((x, z, v, i) => {
     const wx = origin[0] + x * cellSize;
     const wz = origin[1] + z * cellSize;
     const dEdge = Math.min(wx - origin[0], origin[0] + worldW - wx, wz - origin[1], origin[1] + worldD - wz);
-    const m = 1 - smoothstep(0, borderReach, dEdge);
+    const m = (1 - smoothstep(0, borderReach, dEdge)) * (1 - (ocean ? ocean.data[i]! : 0));
     const r = ridge.ridged(wx / 160, wz / 160, 3);
     return v + m * m * (26 + r * 30);
   });
+  if (ocean) applyOcean(ctx, ocean, ridge);
 
   progress(ctx, "terrain:detail", 0.55);
   // secondary detail, stronger on slopes (rockier), subtle on flats
@@ -78,12 +83,97 @@ export function generateTerrain(ctx: GenContext): void {
 
   progress(ctx, "terrain:erosion", 0.7);
   erode(ctx, t.erosion);
+  // erosion and detail must not lift the sea floor back above the surface
+  if (ocean) {
+    const sea = seaLevelOf(spec);
+    const oc = ocean;
+    h.map((x, z, v, i) => {
+      const m = oc.data[i]!;
+      return m > 0.5 ? Math.min(v, sea - 2 - (m - 0.5) * 24) : v;
+    });
+  }
 
   // guard: never flat
   if (h.std() < 8) {
     h.map((x, z, v) => v + macro.fbm((origin[0] + x * cellSize) / 220, (origin[1] + z * cellSize) / 220, 3) * 12);
   }
   progress(ctx, "terrain:done", 1);
+}
+
+/**
+ * Signed shoreline distance (fraction of the feature size: negative inland, positive seaward) from island /
+ * coast features, warped by noise so bays and headlands appear. Returns the ocean mask (0 land → 1 open sea)
+ * and stores the shoreline distance on the context (`ctx.shore`) for `applyOcean`.
+ */
+function computeOceanMask(ctx: GenContext, features: TerrainFeature[], ridge: Simplex2D): Grid {
+  const { origin, cellSize, worldW, worldD } = ctx;
+  const size = Math.max(worldW, worldD);
+  const sd = new Grid(ctx.width, ctx.depth, cellSize, origin);
+  sd.data.fill(-1);
+  sd.map((x, z) => {
+    const wx = origin[0] + x * cellSize;
+    const wz = origin[1] + z * cellSize;
+    let best = -1;
+    for (const f of features) {
+      if (f.type === "island") {
+        const c = normToWorld(ctx, f.center);
+        const r = f.radius * size;
+        const wobble = ridge.fbm(wx / (r * 0.9), wz / (r * 0.9), 3) * r * 0.35 * f.ruggedness + ridge.noise2(wx / 60 + 5, wz / 60 - 3) * r * 0.06 * f.ruggedness;
+        const d = Math.hypot(wx - c[0], wz - c[1]) + wobble;
+        best = Math.max(best, (d - r * 0.95) / r);
+      } else if (f.type === "coast") {
+        const reach = f.reach * size;
+        for (const e of f.edges) {
+          let d = Infinity;
+          if (e.includes("north")) d = Math.min(d, wz - origin[1]);
+          if (e.includes("south")) d = Math.min(d, origin[1] + worldD - wz);
+          if (e.includes("east")) d = Math.min(d, origin[0] + worldW - wx);
+          if (e.includes("west")) d = Math.min(d, wx - origin[0]);
+          if (!Number.isFinite(d)) continue;
+          const wobble = ridge.fbm(wx / 220 + 3, wz / 220 + 8, 3) * reach * 0.45 * f.ruggedness;
+          best = Math.max(best, (reach * 0.8 - (d + wobble)) / reach);
+        }
+      }
+    }
+    return best;
+  });
+  ctx.shore = sd;
+  const mask = new Grid(ctx.width, ctx.depth, cellSize, origin);
+  mask.map((_x, _z, _v, i) => smoothstep(-0.02, 0.22, sd.data[i]!));
+  ctx.ocean = mask;
+  return mask;
+}
+
+/**
+ * Shape the coast: the land slopes down to a beach over a wide band (no cliffs between a settlement and its
+ * pier), a shallow shelf follows the waterline, then the floor drops with the ocean mask (gentle relief).
+ */
+function applyOcean(ctx: GenContext, mask: Grid, ridge: Simplex2D): void {
+  const sea = seaLevelOf(ctx.spec);
+  const h = ctx.heights;
+  const { origin, cellSize } = ctx;
+  const sd = ctx.shore;
+  if (!sd) return;
+  h.map((x, z, v, i) => {
+    const d = sd.data[i]!;
+    if (d < -0.55) return v;
+    const wx = origin[0] + x * cellSize;
+    const wz = origin[1] + z * cellSize;
+    const n = ridge.fbm(wx / 140, wz / 140, 3);
+    // coastal plain: inland height eases down to a few studs above the sea over ~half the island radius
+    const coastal = smoothstep(-0.55, -0.04, d);
+    const plain = sea + 5 + (1 - coastal) * 10 + n * 2.5;
+    let out = lerp(v, Math.min(v, plain), coastal);
+    // beach → shelf → floor
+    const m = mask.data[i]!;
+    if (d > -0.04) {
+      const beach = sea + 2.5 - smoothstep(-0.04, 0.04, d) * 3.5; // crosses the waterline at the shore
+      const floor = sea - 6 - m * m * 28 + n * 6;
+      const target = lerp(beach, floor, smoothstep(0.04, 0.6, d));
+      out = Math.min(out, target);
+    }
+    return out;
+  });
 }
 
 function applyFeature(ctx: GenContext, f: TerrainFeature, ridge: Simplex2D, amplitude: number): void {

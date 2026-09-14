@@ -35,8 +35,10 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *   2 — shop / monetization / NPCs / animations / audio systems (Game + Toolbox tabs).
  *   3 — universal genre systems (combat, enemies, checkpoints/obby, tycoon, simulator, rounds/teams,
  *       racing/vehicles, tower defense, farming/mining/pets/housing, modes) + zone markers with meta.
+ *   4 — environment: weather particle layer (client), clouds / terrain colors from the bake, opening
+ *       doors (ProximityPrompt), settlement dressing zones (walls, docks, graveyard), project skills.
  */
-export const TEMPLATE_VERSION = 3;
+export const TEMPLATE_VERSION = 4;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
@@ -56,6 +58,8 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/systems/TowerDefense.ts",
   "src/systems/Economy.ts",
   "src/systems/Modes.ts",
+  "src/systems/Doors.ts",
+  "src/client/Weather.ts",
   "src/systems/PlayerData.ts",
   "src/systems/Survival.ts",
   "src/systems/Collectibles.ts",
@@ -82,6 +86,9 @@ export function templateUpgradeFiles(opts: ScaffoldOptions, existing: Set<string
     if (f.path === "worldforge.json" || f.path.endsWith(".gitkeep")) return false;
     if (RUNTIME_TEMPLATE_PREFIXES.some((p) => f.path.startsWith(p))) return false;
     if (FRAMEWORK_TEMPLATE_FILES.includes(f.path)) return true;
+    // agent skills shipped with the project are framework docs: always refreshed
+    if (f.path.startsWith(".claude/skills/worldforge-") || f.path === ".claude/skills/roblox-ts-pitfalls/SKILL.md") return true;
+    if ((f.path.startsWith(".claude/") || f.path === "CLAUDE.md") && !existing.has(f.path)) return true;
     return f.path.startsWith("src/") && !existing.has(f.path);
   });
 }

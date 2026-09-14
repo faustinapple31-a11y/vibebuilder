@@ -11,6 +11,7 @@ import * as fp from "./kits/props-future";
 import * as tp from "./kits/props-themed";
 import * as kv from "./kits/vegetation-kits";
 import * as kl from "./kits/landmarks-kits";
+import * as kw from "./kits/dressing";
 
 export type PrefabBuilder = (ctx: PrefabContext, variant: number) => PrefabVariant;
 
@@ -245,6 +246,14 @@ export const PREFAB_DEFINITIONS: PrefabDefinition[] = [
   def("gas_station", "landmark", kl.gasStation, 3, 34, ["landmark", "urban", "apocalypse"]),
   def("church", "landmark", kl.church, 3, 50, ["landmark", "village", "interior"]),
   def("barn", "landmark", kl.barn, 3, 40, ["landmark", "farm", "interior"]),
+  // ---- settlement dressing (walls & gates per wall kit, piers, fields)
+  def("town_wall", "prop", kw.townWall, 4, 14, ["wall", "settlement_wall"]),
+  def("gate_tower", "prop", kw.gateTower, 2, 20, ["wall", "gate", "tower"]),
+  def("pier", "prop", kw.pier, 2, 40, ["docks", "water"]),
+  def("farm_field", "prop", kw.farmField, 4, 75, ["farm", "field"]),
+  def("road_stripe", "path", kw.roadStripe, 2, 1, ["road", "marking"]),
+  def("crosswalk", "path", kw.crosswalk, 1, 6, ["road", "marking"]),
+  def("kerb", "path", kw.kerb, 3, 1, ["road", "kerb"]),
 ];
 
 export const PREFAB_INDEX: Record<string, PrefabDefinition> = Object.fromEntries(PREFAB_DEFINITIONS.map((d) => [d.id, d]));

@@ -17,6 +17,7 @@ import * as Racing from "systems/Racing";
 import * as TowerDefense from "systems/TowerDefense";
 import * as Economy from "systems/Economy";
 import * as Modes from "systems/Modes";
+import * as Doors from "systems/Doors";
 import { GameConfig } from "shared/config";
 import { getRemoteEvent, Remotes } from "shared/net";
 
@@ -55,4 +56,5 @@ Racing.start();
 TowerDefense.start();
 Economy.start();
 Modes.start();
+Doors.start();
 print(`[WorldForge] genre ${GameConfig.genre} — systems: ${GameConfig.systems.join(", ")}`);

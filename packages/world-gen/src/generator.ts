@@ -22,6 +22,7 @@ import { chooseSpawn } from "./pipeline/spawn";
 import { generateRoads } from "./pipeline/roads";
 import { placeBuildings } from "./pipeline/buildings";
 import { placeLayout } from "./pipeline/layout";
+import { placeDressing } from "./pipeline/dressing";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
@@ -167,8 +168,17 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   // ---- buildings
   if (regenerate.has("buildings") || !compatiblePrevious) {
     placeBuildings(ctx);
+    placeDressing(ctx);
   } else {
     for (const p of compatiblePrevious.placements) {
+      if (p.id.startsWith("dress_")) {
+        // settlement dressing (walls, fields, piers, markings) belongs to the buildings layer
+        const dv = ctx.prefabs[p.prefab]?.[p.variant];
+        if (!dv) continue;
+        ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
+        if (dv.tags.includes("wall") || dv.tags.includes("field")) ctx.occupants.push({ position: p.position, radius: dv.footprintRadius * p.scale, kind: "building" });
+        continue;
+      }
       if (p.category !== "building" || p.prefab === "bridge") continue;
       const v = ctx.prefabs[p.prefab]?.[p.variant];
       if (!v) continue;
@@ -176,6 +186,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       flattenArea(ctx, [p.position[0], p.position[2]], v.footprintRadius * 1.15, 1.0, p.position[1]);
       ctx.occupants.push({ position: p.position, radius: v.footprintRadius * p.scale, kind: "building" });
     }
+    for (const z of compatiblePrevious.zones) if (z.kind === "gameplay" && (z.id.endsWith("_walls") || z.id.endsWith("_docks") || z.id === "graveyard")) ctx.zones.push({ ...z });
   }
 
   // ---- gameplay layout (obby / arena / race track / tycoon plots / lobby / TD path / field / plaza / dungeon)
@@ -198,7 +209,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   if (regenerate.has("props") || !compatiblePrevious) {
     placeRocksAndProps(ctx);
   } else {
-    for (const p of compatiblePrevious.placements) if (p.category === "rock" || p.category === "prop" || p.category === "path") ctx.placements.push({ ...p });
+    for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_")) ctx.placements.push({ ...p });
   }
 
   // ---- locked placements survive the regeneration of their layer (manual inserts, hero meshes)
@@ -230,8 +241,9 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     if (p.prefab === "bridge") continue;
     if (p.id.startsWith("layout_") || v.tags.includes("layout")) continue; // gameplay structures keep their designed height (floating obby platforms…)
     if (v.tags.includes("floating")) {
+      // on water: the hull sits at its waterline (sinkDepth); vines / balloons keep their height
       const w = ctx.water.sample(p.position[0], p.position[2]);
-      if (!Number.isNaN(w)) p.position[1] = w + 0.05;
+      if (!Number.isNaN(w)) p.position[1] = w + 0.05 - (v.tags.includes("water") ? v.sinkDepth * p.scale : 0);
       continue;
     }
     const conform = conformFactor(p, v);
@@ -318,7 +330,7 @@ export function groundHeightFor(ctx: GenContext, v: PrefabVariant, x: number, z:
 function conformFactor(p: Placement, v: PrefabVariant): number {
   if (p.category === "building" || p.category === "landmark") return 0;
   if (p.category === "rock" || p.category === "path") return 1;
-  if (p.category === "prop") return v.tags.includes("ambience") || v.tags.includes("glow") ? 0 : 1;
+  if (p.category === "prop") return v.tags.includes("ambience") || v.tags.includes("glow") || v.tags.includes("wall") || v.tags.includes("field") || v.tags.includes("docks") ? 0 : 1;
   if (p.category === "vegetation") {
     if (v.tags.includes("tree") || v.tags.includes("giant")) return 0.3;
     return 0.85;
@@ -382,6 +394,9 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   if (style) for (const [sp] of VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []) ids.add(SPECIES_PREFAB[sp] ?? sp);
   for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone", "crystal_cluster", "wisp", "tent", "hay_bale", "cart", "firefly_swarm", "mist_patch", "reeds", "lily_pad", "stone_wall", "market_stall", "lantern_string", "waterfall", "crop_plot", "flower_patch"]) ids.add(base);
   for (const l of spec.landmarks) ids.add(LANDMARK_PREFAB[l.type].prefab);
+  // settlement dressing: walls & gates (when the style has a wall kit), fields, piers, road markings
+  if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
+  for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post"]) ids.add(id);
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
 }
 

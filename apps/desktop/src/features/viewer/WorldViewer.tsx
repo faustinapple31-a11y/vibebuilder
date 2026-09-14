@@ -83,7 +83,7 @@ function Scene({ bake }: { bake: WorldBake }) {
 }
 
 function Terrain({ bake, wireframe, biomeColors }: { bake: WorldBake; wireframe: boolean; biomeColors: boolean }) {
-  const geo = useMemo(() => terrainGeometry(bake.terrain, biomeColors), [bake.terrain, biomeColors]);
+  const geo = useMemo(() => terrainGeometry(bake.terrain, biomeColors, bake.lighting.terrainColors), [bake.terrain, biomeColors, bake.lighting.terrainColors]);
   useEffect(() => () => geo.dispose(), [geo]);
   const select = useWorld((s) => s.select);
   return (

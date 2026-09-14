@@ -1,6 +1,7 @@
 import type { Vec2, Vec3 } from "./math";
 import type { PrefabCategory, PrefabVariant } from "./partlist";
 import type { BiomeId, LandmarkType } from "./schemas/world-spec";
+import type { WeatherKind } from "./taxonomy/types";
 
 /** Roblox Terrain materials we write. Index = value stored in `materials` array. */
 export const TERRAIN_MATERIALS = [
@@ -121,12 +122,25 @@ export interface RobloxLightingSettings {
   colorCorrection: { saturation: number; contrast: number; tintColor: string; brightness: number };
   bloom: { intensity: number; size: number; threshold: number };
   sunRays: { intensity: number; spread: number };
-  sky: { sunAngularSize: number; moonAngularSize: number; starCount: number };
+  sky: { sunAngularSize: number; moonAngularSize: number; starCount: number; celestialBodies: boolean };
   /** Lighting.Technology — "ShadowMap" is the safe default; "Future" adds dynamic light shadows (heavier on the GPU). */
   technology: "ShadowMap" | "Future";
   /** Workspace.Terrain water shader. */
   terrain: { waterColor: string; waterTransparency: number; waterReflectance: number; waterWaveSize: number; waterWaveSpeed: number };
+  /**
+   * Style-driven terrain material colors (Terrain:SetMaterialColor): the grass of a candy world is
+   * pink, a dark-fantasy forest is desaturated, an alien planet is violet. Missing entries keep the
+   * Roblox default. Also used by the viewer.
+   */
+  terrainColors: Partial<Record<TerrainMaterial, string>>;
+  /** Terrain grass decoration (animated grass blades on Grass/LeafyGrass). */
+  terrainDecoration: boolean;
+  /** Lighting.Clouds. */
+  clouds: { enabled: boolean; cover: number; density: number; color: string };
+  /** Ambient weather / particle layer rendered by the client around the camera. */
+  weather: { kind: WeatherKind; intensity: number; color: string };
 }
+
 
 export interface BakeStats {
   counts: Record<PrefabCategory, number>;

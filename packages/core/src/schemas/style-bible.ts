@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ROBLOX_MATERIALS } from "../partlist";
-import { ARCHITECTURE_KITS, AUDIO_MOODS, PROP_KITS, ROAD_KITS, UI_THEMES, VEGETATION_KITS } from "../taxonomy/types";
+import { ARCHITECTURE_KITS, AUDIO_MOODS, PROP_KITS, ROAD_KITS, UI_THEMES, VEGETATION_KITS, WALL_KITS, WEATHER_KINDS } from "../taxonomy/types";
 
 const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const Range = z.tuple([z.number(), z.number()]);
@@ -98,6 +98,21 @@ export const StyleBibleSchema = z.object({
     })
     .prefault({}),
   ui: z.object({ theme: z.enum(UI_THEMES).default("stylized"), accent: Hex.default("#7b4f8f") }).prefault({}),
+  /** Environment dressing: weather particles, clouds, snow line, terrain recoloring, settlement walls. */
+  environment: z
+    .object({
+      weather: z.enum(WEATHER_KINDS).default("none"),
+      weatherIntensity: z.number().min(0).max(1).default(0.5),
+      cloudCover: z.number().min(0).max(1).default(0.45),
+      /** Normalized elevation (0..1 of the height range) above which bare ground turns to snow; > 1 disables. */
+      snowLine: z.number().min(0).max(1.5).default(0.9),
+      /** 0 = Roblox default terrain colors, 1 = fully palette-driven. */
+      terrainTint: z.number().min(0).max(1).default(0.55),
+      grassDecoration: z.boolean().default(true),
+      /** Ring wall around the main settlement. */
+      walls: z.enum(WALL_KITS).default("none"),
+    })
+    .prefault({}),
   audioMood: z.enum(AUDIO_MOODS).default("mystical"),
   vegetationDensity: z.number().min(0).max(1).default(0.72),
   propDensity: z.number().min(0).max(1).default(0.5),

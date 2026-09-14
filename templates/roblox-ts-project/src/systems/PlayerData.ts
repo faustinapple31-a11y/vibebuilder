@@ -148,12 +148,20 @@ function onLeave(player: Player): void {
 	profiles.delete(player);
 }
 
+/** Extra Studio-only QA commands other systems register (`Doors` → "toggleDoor", …). */
+const devCommands = new Map<string, (a: unknown, b: unknown, c?: unknown) => unknown>();
+export function registerDevCommand(command: string, handler: (a: unknown, b: unknown, c?: unknown) => unknown): void {
+	devCommands.set(command, handler);
+}
+
 /** Studio-only QA hook: `ServerStorage.WorldForgeDev:Invoke("grantCoins", player, amount)` from the app's play-test / Luau console. */
 function installDevHook(): void {
 	if (!RunService.IsStudio()) return;
 	const hook = new Instance("BindableFunction");
 	hook.Name = "WorldForgeDev";
 	hook.OnInvoke = (command: unknown, player: unknown, amount: unknown, extra?: unknown) => {
+		const custom = typeIs(command, "string") ? devCommands.get(command) : undefined;
+		if (custom) return custom(player, amount, extra);
 		const p = player as Player;
 		if (command === "grantCoins") return addCoins(p, tonumber(amount) ?? 0, true);
 		if (command === "grantItem" && typeIs(amount, "string")) return addItem(p, amount, tonumber(extra) ?? 1);

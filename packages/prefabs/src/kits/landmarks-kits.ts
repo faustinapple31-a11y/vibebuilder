@@ -290,7 +290,7 @@ export function pirateShip(ctx: PrefabContext, variant: number): PrefabVariant {
   if (wrecked) {
     for (let i = 0; i < 8; i++) b.box([jitter(rng, 20), 0.6, jitter(rng, 30)], [rng.float(2, 5), 0.5, rng.float(1, 2)], wood, { material: "WoodPlanks", collide: false, lod: 0, rotation: [jitter(rng, 20), rng.float(0, 180), jitter(rng, 20)] });
   }
-  return done(b, "pirate_ship", variant, ["pirate", "vehicle", wrecked ? "wrecked" : "ship", "water"], wrecked ? 4 : 5, 30);
+  return done(b, "pirate_ship", variant, ["pirate", "vehicle", wrecked ? "wrecked" : "ship", "water", "floating"], wrecked ? 4 : 5, 30);
 }
 
 export function rocket(ctx: PrefabContext, variant: number): PrefabVariant {

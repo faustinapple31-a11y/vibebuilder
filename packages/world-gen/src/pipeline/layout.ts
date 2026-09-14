@@ -1,7 +1,7 @@
 import { TERRAIN_MATERIAL_INDEX, deriveSeed, mixHex, type Placement, type PrefabVariant, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { PartListBuilder } from "@worldforge/prefabs";
-import { progress, slopeAtWorld, type GenContext } from "../context";
+import { inBounds, progress, slopeAtWorld, type GenContext } from "../context";
 import { carveRoad, refreshRoadDistance } from "./roads";
 import { flattenArea } from "./sites";
 
@@ -135,6 +135,27 @@ function obbyCourse(api: LayoutApi, stages: number, intensity: number, extent: n
   const totalLen = stages * stepsPerStage;
   const turnEvery = 6;
   let stepI = 0;
+  // highest ground under a platform footprint (centre + 4 offsets): platforms must clear slopes, not just their centre
+  const groundMax = (px: number, pz: number, r: number) => Math.max(ground(ctx, px, pz), ground(ctx, px + r, pz), ground(ctx, px - r, pz), ground(ctx, px, pz + r), ground(ctx, px, pz - r));
+  // steer: keep the course inside the map and away from hillsides (the heading whose ground ahead rises least)
+  const steer = () => {
+    const margin = 60;
+    const ahead = (h: number, d: number): [number, number] => [x + Math.cos(h) * d, z + Math.sin(h) * d];
+    const [ax, az] = ahead(heading, 60);
+    if (!inBounds(ctx, ax, az, margin)) heading = Math.atan2(cz - z, cx - x) + rng.float(-0.4, 0.4);
+    let best = heading;
+    let bestRise = Infinity;
+    for (const h of [heading, heading + 0.7, heading - 0.7, heading + 1.4, heading - 1.4]) {
+      const [bx, bz] = ahead(h, 34);
+      if (!inBounds(ctx, bx, bz, margin)) continue;
+      const rise = groundMax(bx, bz, 10) - y;
+      if (rise < bestRise) {
+        bestRise = rise;
+        best = h;
+      }
+    }
+    if (groundMax(ax, az, 10) - y > 6) heading = best;
+  };
   for (let s = 0; s < stages; s++) {
     const col = palette[s % palette.length]!;
     // stage platform with checkpoint pad
@@ -150,13 +171,14 @@ function obbyCourse(api: LayoutApi, stages: number, intensity: number, extent: n
     for (let k = 0; k < stepsPerStage; k++) {
       stepI++;
       if (stepI % turnEvery === 0) heading += rng.float(-0.9, 0.9);
+      steer();
       const kind = rng.next();
       const len = kind < 0.25 ? 14 : 8;
       const w = kind < 0.25 ? 3 : kind < 0.5 ? 6 : 8;
       x += Math.cos(heading) * (len / 2 + gap + 4);
       z += Math.sin(heading) * (len / 2 + gap + 4);
       y += rng.float(1.5, 3.5 + intensity * 2);
-      const gY = ground(ctx, x, z);
+      const gY = groundMax(x, z, len / 2);
       if (y < gY + 3) y = gY + 3;
       const pb = new PartListBuilder();
       pb.box([0, -0.75, 0], [w, 1.5, len], col, { material: "SmoothPlastic", collide: true, lod: 2 });
@@ -167,10 +189,11 @@ function obbyCourse(api: LayoutApi, stages: number, intensity: number, extent: n
       if (kind >= 0.5 && kind <= 0.75) pb.box([0, 2.5, 0], [1.2, 5, 1.2], mixHex(col, "#000000", 0.2), { material: "SmoothPlastic", collide: true, lod: 0 }); // obstacle pole
       api.place("obby_step", build(pb, "obby_step"), [x, y, z], -heading + Math.PI / 2, undefined, undefined, Math.max(w, len) * 0.6);
     }
+    steer();
     x += Math.cos(heading) * (gap + 14);
     z += Math.sin(heading) * (gap + 14);
     y += 2;
-    const gY = ground(ctx, x, z);
+    const gY = groundMax(x, z, 9);
     if (y < gY + 3) y = gY + 3;
     void totalLen;
     void extent;

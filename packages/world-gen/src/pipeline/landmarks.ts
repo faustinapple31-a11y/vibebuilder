@@ -4,7 +4,7 @@ import { distanceToEdge, hasLineOfSight, normToWorld, progress, type GenContext 
 import { flattenArea, circlePoly } from "./sites";
 
 /** Landmark type → prefab id and approximate height (for visibility tests) and footprint. */
-export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; height: number; footprint: number }> = {
+export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; height: number; footprint: number; water?: boolean }> = {
   giant_tree: { prefab: "giant_tree", height: 90, footprint: 30 },
   ruins: { prefab: "ancient_ruins", height: 22, footprint: 30 },
   tower: { prefab: "tower", height: 50, footprint: 14 },
@@ -27,7 +27,7 @@ export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; hei
   colosseum: { prefab: "colosseum", height: 36, footprint: 42 },
   torii_gate: { prefab: "torii_gate", height: 28, footprint: 14 },
   lighthouse: { prefab: "lighthouse", height: 56, footprint: 12 },
-  pirate_ship: { prefab: "pirate_ship", height: 60, footprint: 32 },
+  pirate_ship: { prefab: "pirate_ship", height: 60, footprint: 32, water: true },
   rocket: { prefab: "rocket", height: 80, footprint: 22 },
   ufo: { prefab: "ufo", height: 40, footprint: 24 },
   dome_base: { prefab: "dome_base", height: 22, footprint: 26 },
@@ -65,13 +65,16 @@ export function placeLandmarks(ctx: GenContext): void {
     const info = LANDMARK_PREFAB[lm.type];
     const scaleMult = lm.scale;
     let pos: Vec2 | null = lm.position ? normToWorld(ctx, lm.position) : null;
+    // ships and other water landmarks moor on the sea / lake near the shore when the map has water
+    const afloat = info.water === true ? searchWaterPosition(ctx, info, viewpoints, rng) : null;
+    if (afloat) pos = afloat;
     if (!pos) {
       pos = searchPosition(ctx, lm, info, slope, minH, range, viewpoints, rng);
     }
     if (!pos) continue;
-    // flatten footprint and get base height
+    // flatten footprint and get base height (water landmarks sit at the water surface, terrain untouched)
     const footprint = info.footprint * scaleMult;
-    const base = lm.type === "well" && ctx.sites[0] ? ctx.heights.sample(pos[0], pos[1]) : flattenArea(ctx, pos, footprint * 1.25, 0.9);
+    const base = afloat ? ctx.water.sample(pos[0], pos[1]) : lm.type === "well" && ctx.sites[0] ? ctx.heights.sample(pos[0], pos[1]) : flattenArea(ctx, pos, footprint * 1.25, 0.9);
     const position: Vec3 = [pos[0], base, pos[1]];
     const corridors = viewpoints.map((v) => ({
       from: v.id,
@@ -83,6 +86,56 @@ export function placeLandmarks(ctx: GenContext): void {
     ctx.occupants.push({ position, radius: footprint, kind: "landmark" });
   }
   progress(ctx, "landmarks:done", 1);
+}
+
+/**
+ * Water landmark search: a water cell with water all around the footprint, land within ~50 studs
+ * (moored near the coast), preferably visible from the settlements and not too far from them.
+ */
+function searchWaterPosition(ctx: GenContext, info: { height: number; footprint: number }, viewpoints: { id: string; pos: Vec2 }[], rng: Rng): Vec2 | null {
+  const h = ctx.heights;
+  const water = (x: number, z: number) => !Number.isNaN(ctx.water.sample(x, z));
+  let best: Vec2 | null = null;
+  let bestScore = -Infinity;
+  const r = info.footprint * 0.55;
+  for (let z = 2; z < ctx.depth - 2; z += 4) {
+    for (let x = 2; x < ctx.width - 2; x += 4) {
+      const i = z * ctx.width + x;
+      if (Number.isNaN(ctx.water.data[i]!)) continue;
+      const [wx, wz] = h.toWorld(x, z);
+      if (distanceToEdge(ctx, wx, wz) < 40) continue;
+      let clear = true;
+      let landNear = false;
+      for (let k = 0; k < 8 && clear; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        if (!water(wx + Math.cos(a) * r, wz + Math.sin(a) * r)) clear = false;
+        if (!water(wx + Math.cos(a) * 50, wz + Math.sin(a) * 50)) landNear = true;
+      }
+      if (!clear || !landNear) continue;
+      // depth: the hull needs a few studs of water
+      if (ctx.water.data[i]! - h.data[i]! < 4) continue;
+      let vis = 0;
+      let near = 0;
+      for (const v of viewpoints) {
+        const d = Math.hypot(wx - v.pos[0], wz - v.pos[1]);
+        near = Math.max(near, d < 80 ? 0.3 : d < 260 ? 1 : 260 / d);
+        const from: Vec3 = [v.pos[0], h.sample(v.pos[0], v.pos[1]) + 6, v.pos[1]];
+        if (hasLineOfSight(ctx, from, [wx, ctx.water.data[i]! + info.height * 0.5, wz], 8)) vis += 1;
+      }
+      vis /= Math.max(1, viewpoints.length);
+      let iso = 1;
+      for (const other of ctx.landmarks) {
+        const d = Math.hypot(wx - other.position[0], wz - other.position[2]);
+        if (d < 120) iso *= d / 120;
+      }
+      const score = (0.4 + vis) * near * iso * (0.85 + rng.next() * 0.3);
+      if (score > bestScore) {
+        bestScore = score;
+        best = [wx, wz];
+      }
+    }
+  }
+  return best;
 }
 
 function roleRank(role: string): number {
@@ -136,6 +189,23 @@ function searchPosition(
         case "riverbank":
           fit = wd > 6 && wd < 40 ? 1.0 : 0.05;
           break;
+        case "coast":
+          // any shore (sea, lake, river) — low ground next to the water
+          fit = wd > 4 && wd < 36 ? 1.0 - hn * 0.3 : 0.05;
+          break;
+        case "flat":
+          fit = s < 0.12 ? 1.0 : s < 0.25 ? 0.4 : 0.05;
+          break;
+        case "outskirts": {
+          const site = ctx.sites[0];
+          if (!site) {
+            fit = 0.5;
+            break;
+          }
+          const d = Math.hypot(wx - site.center[0], wz - site.center[1]);
+          fit = d > site.radius + 20 && d < site.radius * 2.2 + 60 ? 1.0 : 0.1;
+          break;
+        }
         case "forest_edge": {
           const b = ctx.biomeIds[ctx.biomes[i]!]!;
           const near = ctx.biomeIds[ctx.biomes[Math.min(ctx.biomes.length - 1, i + 6)]!]!;

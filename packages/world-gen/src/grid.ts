@@ -190,6 +190,42 @@ export function distanceToPolylinesGrid(grid: Grid, polylines: { points: Vec2[];
   return out;
 }
 
+/**
+ * Distance (world units) from every cell to the nearest cell where `inside` is true — two-pass
+ * chamfer transform (3-4 metric), exact enough for shore bands and placement rules.
+ */
+export function distanceToMaskGrid(grid: Grid, inside: (i: number) => boolean, maxDist: number): Grid {
+  const { width, depth, cellSize } = grid;
+  const out = new Grid(width, depth, cellSize, grid.origin);
+  const d = out.data;
+  const INF = maxDist / cellSize + 2;
+  for (let i = 0; i < d.length; i++) d[i] = inside(i) ? 0 : INF;
+  const relax = (i: number, j: number, cost: number) => {
+    const v = d[j]! + cost;
+    if (v < d[i]!) d[i] = v;
+  };
+  for (let z = 0; z < depth; z++) {
+    for (let x = 0; x < width; x++) {
+      const i = z * width + x;
+      if (x > 0) relax(i, i - 1, 1);
+      if (z > 0) relax(i, i - width, 1);
+      if (x > 0 && z > 0) relax(i, i - width - 1, 1.4142);
+      if (x < width - 1 && z > 0) relax(i, i - width + 1, 1.4142);
+    }
+  }
+  for (let z = depth - 1; z >= 0; z--) {
+    for (let x = width - 1; x >= 0; x--) {
+      const i = z * width + x;
+      if (x < width - 1) relax(i, i + 1, 1);
+      if (z < depth - 1) relax(i, i + width, 1);
+      if (x < width - 1 && z < depth - 1) relax(i, i + width + 1, 1.4142);
+      if (x > 0 && z < depth - 1) relax(i, i + width - 1, 1.4142);
+    }
+  }
+  for (let i = 0; i < d.length; i++) d[i] = Math.min(maxDist, d[i]! * cellSize);
+  return out;
+}
+
 /** Simple spatial hash for placement collision queries. */
 export class SpatialHash<T extends { position: [number, number, number]; radius: number }> {
   private cells = new Map<string, T[]>();

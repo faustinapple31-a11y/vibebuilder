@@ -179,7 +179,8 @@ function floorWalls(b: PartListBuilder, p: BuildingParams, y0: number, h: number
     b.box([-doorW / 2 - 0.35, y0 + doorH / 2, -D / 2], [0.7, doorH, t + 0.3], p.trimColor, { material: "Wood", collide: true, lod: 1 });
     b.box([doorW / 2 + 0.35, y0 + doorH / 2, -D / 2], [0.7, doorH, t + 0.3], p.trimColor, { material: "Wood", collide: true, lod: 1 });
     b.box([0, y0 + doorH + 0.3, -D / 2], [doorW + 1.4, 0.6, t + 0.3], p.trimColor, { material: "Wood", collide: false, lod: 1 });
-    if (p.kit !== "scifi_module" && p.kit !== "igloo") b.box([-doorW / 2 + 0.3, y0 + doorH / 2 - 0.2, -D / 2 + t / 2 + 0.3], [0.4, doorH - 0.4, doorW - 0.6], mixHex(p.trimColor, "#000000", 0.25), { material: "Wood", collide: false, lod: 0, rotation: [0, 12, 0] });
+    // door leaf: closed in the wall plane, hinge on its -X edge; the runtime `Doors` system adds the prompt + swing
+    if (p.kit !== "scifi_module" && p.kit !== "igloo") b.box([0, y0 + doorH / 2 - 0.2, -D / 2], [doorW - 0.6, doorH - 0.4, 0.4], mixHex(p.trimColor, "#000000", 0.25), { material: p.kit === "cyber_block" || p.kit === "modern_house" || p.kit === "apartment_block" ? "Metal" : "Wood", collide: true, lod: 0, name: "Door" });
   } else if (!damageSkip.has(`f${floor}`)) {
     b.box([0, y0 + h / 2, -D / 2], [W, h, t], p.wallColor, wallOpts);
   }

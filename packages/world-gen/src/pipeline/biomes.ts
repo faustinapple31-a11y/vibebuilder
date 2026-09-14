@@ -1,6 +1,6 @@
 import { TERRAIN_MATERIAL_INDEX, clamp, deriveSeed, type BiomeId, type TerrainMaterial } from "@worldforge/core";
 import { Simplex2D } from "../noise";
-import { progress, type GenContext } from "../context";
+import { progress, seaLevelOf, type GenContext } from "../context";
 
 /** Default elevation / moisture preferences per biome (0..1). */
 const BIOME_PREFS: Record<BiomeId, { elevation: [number, number]; moisture: [number, number]; surface: TerrainMaterial; alt: TerrainMaterial }> = {
@@ -46,6 +46,10 @@ export function generateBiomes(ctx: GenContext): void {
   const slope = ctx.heights.slopeGrid();
   const transition = ctx.style.biomeTransition;
   const biomes = spec.biomes.map((b, i) => ({ ...b, prefs: BIOME_PREFS[b.id], index: i, noiseOffset: i * 37.1 }));
+  const snowLine = ctx.style.environment.snowLine;
+  const sea = seaLevelOf(spec);
+  const arctic = ctx.style.kits.vegetation === "arctic";
+  const beachMat: TerrainMaterial = arctic ? "Snow" : ctx.style.id === "alien_planet" ? "Slate" : "Sand";
   ctx.biomeIds = spec.biomes.map((b) => b.id);
 
   progress(ctx, "biomes", 0);
@@ -84,13 +88,16 @@ export function generateBiomes(ctx: GenContext): void {
       else if (forest && patch < -0.5) mat = "LeafyGrass"; // moss
       else if ((b.id === "meadow" || b.id === "highlands") && patch > 0.55) mat = "LeafyGrass"; // lush tufts
       const sandy = b.id === "desert" || b.id === "beach";
+      const hAbs = ctx.heights.data[i]!;
+      const seaShore = Number.isFinite(sea) && hAbs < sea + 5 && wd < 16;
       if (!Number.isNaN(ctx.water.data[i]!)) mat = "Water";
+      else if (seaShore) mat = s > 0.7 ? "Rock" : beachMat; // beach ring around the ocean
       else if (s > 0.85) mat = detail > 0.2 ? "Basalt" : "Rock";
       else if (s > 0.62) mat = detail > 0 ? "Rock" : "Slate";
       else if (s > 0.45 && detail > 0.3) mat = "Ground"; // scree / bare slope
       else if (wd < 3) mat = sandy ? "Sand" : detail > 0.1 ? "Sand" : "Mud"; // sandy banks with mud
       else if (wd < 9 && detail > -0.2) mat = sandy ? "Sand" : "Ground";
-      else if (h > 0.9 && b.id !== "desert") mat = detail > 0 ? "Snow" : "Rock";
+      else if (h > snowLine && b.id !== "desert") mat = detail > 0 || h > snowLine + 0.05 ? "Snow" : "Rock"; // snow line (style-driven)
       ctx.materials[i] = TERRAIN_MATERIAL_INDEX[mat];
     }
   }

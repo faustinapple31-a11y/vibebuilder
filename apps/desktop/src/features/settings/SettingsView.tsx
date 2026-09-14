@@ -1,7 +1,8 @@
-import { CheckCircle2, Circle, Download, KeyRound, RefreshCw, Trash2, XCircle } from "lucide-react";
-import { useState } from "react";
+import { BookOpen, CheckCircle2, Circle, Download, KeyRound, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { CLAUDE_EFFORTS, CLAUDE_MODELS, CODEX_EFFORTS, CODEX_MODELS, GEMINI_MODELS, OPENCODE_MODELS, PROVIDER_META, PROVIDER_ORDER, type AgentProviderId, type PermissionMode } from "@worldforge/agents";
 import { Button, Input, Label, Select, Switch } from "@/components/ui";
+import { listSkills, type SkillInfo } from "@/lib/skills";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/stores/projectStore";
 import { useSettings, type SecretName } from "@/stores/settingsStore";
@@ -181,6 +182,7 @@ export function SettingsView() {
             </div>
           )}
         </section>
+        <SkillsPanel projectPath={project?.path} home={s.paths?.home} />
       </div>
     </div>
   );
@@ -217,5 +219,53 @@ function KeyField({ name, label, hint }: { name: SecretName; label: string; hint
         )}
       </div>
     </div>
+  );
+}
+
+/** Claude Code skills the agents can invoke: shipped with the project (.claude/skills) and installed by the user (~/.claude/skills). */
+function SkillsPanel({ projectPath, home }: { projectPath?: string; home?: string }) {
+  const [skills, setSkills] = useState<SkillInfo[]>([]);
+  useEffect(() => {
+    let live = true;
+    void Promise.all([projectPath ? listSkills(projectPath, "project") : Promise.resolve([]), home ? listSkills(home, "user") : Promise.resolve([])]).then(([p, u]) => {
+      if (live) setSkills([...p, ...u]);
+    });
+    return () => {
+      live = false;
+    };
+  }, [projectPath, home]);
+  const project = skills.filter((k) => k.scope === "project");
+  const user = skills.filter((k) => k.scope === "user");
+  return (
+    <section className="panel p-4">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+        <BookOpen size={14} /> Agent skills
+      </h3>
+      <p className="mb-2 text-xs text-muted">
+        Claude Code skills available to the swarm: the project ships its own (world, gameplay, UI, assets, QA, publish, roblox-ts) and your user skills (~/.claude/skills) are picked up automatically.
+      </p>
+      {[
+        ["Project", project],
+        ["User", user],
+      ].map(([label, list]) => (
+        <div key={label as string} className="mb-2">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">
+            {label as string} · {(list as SkillInfo[]).length}
+          </div>
+          {(list as SkillInfo[]).length === 0 ? (
+            <div className="text-[11px] text-faint">{label === "Project" ? (projectPath ? "none (older project — reopen it to upgrade the template)" : "open a project") : "none installed"}</div>
+          ) : (
+            <ul className="space-y-1 text-xs">
+              {(list as SkillInfo[]).map((k) => (
+                <li key={k.path} className="flex items-start gap-2" title={k.path}>
+                  <code className="shrink-0 rounded bg-panel-2 px-1 py-0.5 text-[11px]">/{k.name}</code>
+                  <span className="line-clamp-2 text-muted">{k.description}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }

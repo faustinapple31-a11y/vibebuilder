@@ -84,6 +84,14 @@ export type LayoutArchetype = "settlement" | "city_grid" | "obby_course" | "aren
 export const UI_THEMES = ["stylized", "minimal", "fantasy", "sci-fi", "cartoon", "horror", "modern", "retro", "military", "candy"] as const;
 export type UiTheme = (typeof UI_THEMES)[number];
 
+/** Ambient weather / particle layer the client renders around the camera. */
+export const WEATHER_KINDS = ["none", "rain", "snow", "ash", "dust", "petals", "spores", "fireflies", "embers", "bubbles", "leaves", "sandstorm"] as const;
+export type WeatherKind = (typeof WEATHER_KINDS)[number];
+
+/** Ring wall built around the main settlement (see packages/prefabs/src/kits/walls). */
+export const WALL_KITS = ["none", "stone_crenellated", "palisade", "sandbags", "scrap", "bamboo", "adobe", "marble", "energy_fence", "picket", "ice"] as const;
+export type WallKit = (typeof WALL_KITS)[number];
+
 export const AUDIO_MOODS = ["mystical", "cheerful", "epic", "tense", "horror", "chill", "electronic", "western", "tropical", "orchestral", "retro", "ambient_nature", "industrial"] as const;
 export type AudioMood = (typeof AUDIO_MOODS)[number];
 
@@ -134,6 +142,17 @@ export interface StyleFamilyDef {
   ui: UiTheme;
   uiAccent: string;
   audio: AudioMood;
+  /** Ambient particle weather (defaults to none; the mood can still add rain/snow). */
+  weather?: WeatherKind;
+  weatherIntensity?: number;
+  /** Cloud cover 0..1 (default 0.45). */
+  clouds?: number;
+  /** Normalized elevation above which bare ground turns to snow (default 0.9; >1 never). */
+  snowLine?: number;
+  /** Ring wall kit around the main settlement (default none). */
+  walls?: WallKit;
+  /** How strongly the palette recolors the terrain materials (default 0.55). */
+  terrainTint?: number;
 }
 
 export interface GenreDef {

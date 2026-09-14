@@ -23,7 +23,13 @@ Project conventions:
 - The world itself is NOT hand-built: it comes from worlds/main/world.spec.json (WorldSpec) which WorldForge's deterministic generator turns into assets/world/WorldBake.json. Never edit WorldBake.json.
 - Keep code maintainable by humans: small modules, typed remotes (src/shared/net.ts), config in src/shared/config.ts.
 - Validate with \`npx rbxtsc\` before finishing when you touched TypeScript.
-- Reply with a concise summary (max 6 lines) of what you produced when done.`;
+- Reply with a concise summary (max 6 lines) of what you produced when done.
+Skills: the project ships Claude Code skills in .claude/skills/ — worldforge-world (WorldSpec / StyleBible editing, terrain features incl. island & coast, walls, weather),
+worldforge-gameplay (systems, remotes, zones, PlayerData), worldforge-ui (HUD / shop / theme), worldforge-assets (catalog, passes, products, audio, animations),
+worldforge-qa (compile / runtime / play-test checklists, qa/report.json), worldforge-publish (build, Open Cloud, pre-release checklist) and roblox-ts-pitfalls
+(what compiles under rbxtsc). Read the SKILL.md of the skill matching your role before working (Read tool, or the Skill tool when available). When the user's
+machine also has the roblox-best-practices, roblox-opsec, roblox-game, ui-ux-pro-max or design skills installed, use them for Luau standards, exploit-surface
+audits, genre design notes and visual polish respectively.`;
 
 /** Compact taxonomy reference injected into the design / world prompts (ids are validated by the schemas). */
 const STYLE_CATALOG = STYLE_FAMILIES.map((f) => `  ${f.id} — ${f.name} (${f.group}): ${f.description} | buildings: ${f.architecture.kit}, vegetation: ${f.vegetationKit}, props: ${f.propKits.join("/")}, roads: ${f.roadKit}, biomes: ${f.biomes.join("/")}, landmarks: ${f.landmarks.join("/")}`).join("\n");
@@ -49,7 +55,7 @@ export const ROLES: Record<AgentRole, RoleDefinition> = {
     outputs: ["design/game.spec.json"],
     outputFile: "design/game.spec.json",
     schema: GameSpecSchema,
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill"],
     systemPrompt: `${COMMON}
 
 ROLE: Game Designer. Turn the user's idea into a GameSpec JSON written to design/game.spec.json.
@@ -68,7 +74,7 @@ ${GENRE_CATALOG}`,
     outputs: ["worlds/main/world.spec.json"],
     outputFile: "worlds/main/world.spec.json",
     schema: WorldSpecSchema,
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill"],
     systemPrompt: `${COMMON}
 
 ROLE: World Designer / level designer. Produce a WorldSpec JSON at worlds/main/world.spec.json.
@@ -80,6 +86,11 @@ gameplay structures the runtime expects. Settlement types: village, abandoned_vi
 apartment blocks/skyscrapers/shops), base, harbor, farmstead. Landmarks include crashed_plane, radio_tower, skyscraper(_ruin), water_tower, pyramid,
 colosseum, torii_gate, lighthouse, pirate_ship, rocket, ufo, dome_base, crystal_spire, ferris_wheel, stadium, fountain, obelisk, waterfall_cliff,
 gas_station, church, barn, plus the classic giant_tree/ruins/tower/castle/statue/windmill/temple/portal/well/mountain_peak/volcano/campfire/bridge.
+Terrain features: mountains, hills, valley, plateau, cliffs, crater, island (land inside radius, ocean + beaches around — pirate / tropical / battle royale),
+coast (ocean along an edge — harbors, lighthouses, beaches). The generator dresses settlements by itself: ring walls with gates when the style has a wall kit,
+crop fields (farm prop set / farmland biome / farmstead), a pier with boats on any shore-side settlement or harbor, a graveyard behind a church, paved grounds
+with lights around focal landmarks, lane markings on asphalt streets, style weather (rain, snow, petals, ash, fireflies…), clouds and palette-tinted terrain.
+Use the worldforge-world skill (.claude/skills/worldforge-world/SKILL.md) as the field reference.
 
 STYLES (stylePreset):
 ${STYLE_CATALOG}
@@ -101,36 +112,41 @@ Do NOT place individual objects: the generator does that from the spec.`,
     outputs: ["design/asset.manifest.json"],
     outputFile: "design/asset.manifest.json",
     schema: AssetManifestSchema,
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill"],
     systemPrompt: `${COMMON}
 
 ROLE: Asset Manager. Read design/game.spec.json and worlds/main/world.spec.json, then write design/asset.manifest.json listing the assets the game needs
 and how each is resolved: "prefab" (procedural prefab ids available: pine_tree, round_tree, dead_tree, willow, birch, giant_mushroom, small_mushroom, bush, fern, grass, flower, log, cactus, palm, boulder, rock_cluster, stone, cliff_block, cottage, ruin_wall, ruin_arch, watchtower, well, bridge, fence, stone_path_slab, lantern_post, crate, barrel, bench, signpost, campfire, cart_wheel, gravestone, giant_tree, ancient_ruins, tower, portal, statue, windmill, temple),
-"registry" (local library id), "generate" (AI image/mesh/audio provider with a prompt) or "roblox" (asset id the user owns). Prefer prefabs; use "generate" only for icons, UI art, music and SFX.`,
+"registry" (local library id), "generate" (AI image/mesh/audio provider with a prompt) or "roblox" (asset id the user owns). Prefer prefabs; use "generate" only for icons, UI art, music and SFX.
+Reference: .claude/skills/worldforge-assets/SKILL.md (catalog, passes / products with robloxId 0 until publish, audio manifest, toolbox licences).`,
   },
   gameplay: {
     id: "gameplay",
     title: "Gameplay",
     activity: "Building gameplay",
     outputs: ["src/systems/**/*.ts", "src/server/**/*.ts", "src/shared/**/*.ts"],
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash(npx rbxtsc*)", "Bash(npm run build*)", "Bash(npm install*)"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill", "Bash(npx rbxtsc*)", "Bash(npm run build*)", "Bash(npm install*)"],
     systemPrompt: `${COMMON}
 
 ROLE: Gameplay Engineer (roblox-ts). Implement the systems listed in design/game.spec.json as modules under src/systems/, wired from src/server/main.server.ts.
-Existing systems: PlayerData (profiles + leaderstats), Survival (hunger), Collectibles (ProximityPrompt pickups). Extend or add systems; keep remotes typed in src/shared/net.ts;
-put tunables in src/shared/config.ts. Server-authoritative: never trust the client for currency or damage. Run \`npx rbxtsc\` and fix every error before finishing.`,
+Existing systems (all genre-gated by GameConfig.systems): PlayerData, Survival, Collectibles, Shop, Npcs, Audio, Combat, Enemies, Checkpoints, Progression, Tycoon,
+Simulator, Rounds, Racing, TowerDefense, Economy (farming / mining / crafting / pets / housing / trading), Modes, Doors. Extend or add systems; keep remotes typed in
+src/shared/net.ts; anchor on zone markers (src/shared/zones.ts); put tunables in src/shared/config.ts. Server-authoritative: never trust the client for currency or
+damage. Start from .claude/skills/worldforge-gameplay/SKILL.md and .claude/skills/roblox-ts-pitfalls/SKILL.md; apply roblox-best-practices and roblox-opsec when
+installed. Run \`npx rbxtsc\` and fix every error before finishing.`,
   },
   ui: {
     id: "ui",
     title: "UI",
     activity: "Building UI",
     outputs: ["src/ui/**/*.ts", "src/client/**/*.ts"],
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash(npx rbxtsc*)"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill", "Bash(npx rbxtsc*)"],
     systemPrompt: `${COMMON}
 
 ROLE: UI Engineer (roblox-ts, Instances-based UI, no external UI framework). Implement the screens listed in design/game.spec.json (ui.screens) under src/ui/,
 mounted from src/client/main.client.ts. Match the game's style: read worlds/main/style.bible.json for the palette (use its accent/glow colors), rounded corners (UICorner), readable Gotham fonts,
-mobile-friendly sizes (UDim2 scale + UIAspectRatioConstraint where needed). Keep the existing Hud API (setStats/notify/loading). Run \`npx rbxtsc\` and fix errors.`,
+mobile-friendly sizes (UDim2 scale + UIAspectRatioConstraint where needed). Keep the existing Hud API (setStats/setValue/setBanner/setHealth/notify/say/loading).
+Follow .claude/skills/worldforge-ui/SKILL.md (theme table per ui.theme, mobile rules); use ui-ux-pro-max / design when installed. Run \`npx rbxtsc\` and fix errors.`,
   },
   audio: {
     id: "audio",
@@ -139,7 +155,7 @@ mobile-friendly sizes (UDim2 scale + UIAspectRatioConstraint where needed). Keep
     outputs: ["design/audio.manifest.json"],
     outputFile: "design/audio.manifest.json",
     schema: AudioManifestSchema,
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill"],
     systemPrompt: `${COMMON}
 
 ROLE: Audio Designer. Write design/audio.manifest.json: music tracks (loops), SFX (pickup, UI, footsteps, ambience) with generation prompts suited to the game's mood.
@@ -152,22 +168,24 @@ WorldForge's audio provider (ElevenLabs or other, configured by the user) will r
     outputs: ["qa/report.json"],
     outputFile: "qa/report.json",
     schema: QAReportSchema,
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash(npx rbxtsc*)"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill", "Bash(npx rbxtsc*)"],
     systemPrompt: `${COMMON}
 
 ROLE: QA Engineer. You receive compiler diagnostics, Roblox Studio runtime logs and a metrics-based world critique. Fix TypeScript/Luau errors at their root cause,
-then write qa/report.json (scores /10 per axis, problems, fixes). Never silence errors with pcall; never delete features to make errors disappear.`,
+then write qa/report.json (score /100, axis scores /10, problems, fixes). Never silence errors with pcall; never delete features to make errors disappear.
+Follow .claude/skills/worldforge-qa/SKILL.md (runtime log markers, play-test checklist per genre, report schema); run roblox-opsec on remotes / purchases when installed.`,
   },
   integration: {
     id: "integration",
     title: "Integration",
     activity: "Integrating",
     outputs: ["README.md"],
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash(npx rbxtsc*)"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill", "Bash(npx rbxtsc*)"],
     systemPrompt: `${COMMON}
 
 ROLE: Integration Engineer. Verify that gameplay systems, UI and the world builder fit together: remotes exist on both sides, config values are consistent with design/game.spec.json,
-main.server.ts starts every system, main.client.ts mounts every screen. Run \`npx rbxtsc\`; fix integration errors; update README.md with a short "How to play / How it works" section.`,
+main.server.ts starts every system, main.client.ts mounts every screen. Run \`npx rbxtsc\`; fix integration errors; update README.md with a short "How to play / How it works" section.
+Use .claude/skills/worldforge-publish/SKILL.md for the pre-release checklist (security, performance, mobile, content, monetization).`,
   },
   vision: {
     id: "vision",
@@ -176,7 +194,7 @@ main.server.ts starts every system, main.client.ts mounts every screen. Run \`np
     outputs: ["qa/vision.json"],
     outputFile: "qa/vision.json",
     schema: QAReportSchema,
-    allowedTools: ["Read", "Write", "Glob"],
+    allowedTools: ["Read", "Write", "Glob", "Skill"],
     systemPrompt: `${COMMON}
 
 ROLE: Art Director / Visual Quality Critic. Look at the provided screenshot(s) of the world (Read the image files) and rate: composition, lighting, terrain, vegetation, architecture,
@@ -188,7 +206,7 @@ and propose fixes as WorldSpec patches (spec_patch with a dotted path) or layer 
     title: "Assistant",
     activity: "Working",
     outputs: [],
-    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash(npx rbxtsc*)", "Bash(npm run build*)"],
+    allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Skill", "Bash(npx rbxtsc*)", "Bash(npm run build*)"],
     systemPrompt: `${COMMON}
 
 ROLE: General assistant for this project. Do what the user asks, prefer editing the WorldSpec (worlds/main/world.spec.json) for world changes and TypeScript for gameplay/UI.`,

@@ -86,9 +86,15 @@ export interface LightingData {
 	colorCorrection: { saturation: number; contrast: number; tintColor: string; brightness: number };
 	bloom: { intensity: number; size: number; threshold: number };
 	sunRays: { intensity: number; spread: number };
-	sky: { sunAngularSize: number; moonAngularSize: number; starCount: number };
+	sky: { sunAngularSize: number; moonAngularSize: number; starCount: number; celestialBodies?: boolean };
 	technology?: "ShadowMap" | "Future";
 	terrain?: { waterColor: string; waterTransparency: number; waterReflectance: number; waterWaveSize: number; waterWaveSpeed: number };
+	/** Terrain:SetMaterialColor per material name (hex). */
+	terrainColors?: { [material: string]: string };
+	terrainDecoration?: boolean;
+	clouds?: { enabled: boolean; cover: number; density: number; color: string };
+	/** Ambient weather rendered by the client (src/client/Weather.ts) from Lighting attributes. */
+	weather?: { kind: string; intensity: number; color: string };
 }
 
 export interface WorldBakeData {

@@ -74,8 +74,12 @@ export interface GenContext {
   biomeIds: BiomeId[];
   /** Distance (studs) to nearest road centerline edge; large when none. */
   roadDistance: Grid;
-  /** Distance to river/lake edge. */
+  /** Distance to river/lake/ocean edge. */
   waterDistance: Grid;
+  /** Ocean mask 0..1 (island / coast features); undefined when the spec has no ocean. */
+  ocean?: Grid;
+  /** Signed shoreline distance (fraction of the feature size, negative inland) for the ocean features. */
+  shore?: Grid;
 
   // structures
   zones: Zone[];
@@ -95,6 +99,13 @@ export interface GenContext {
   variantCounts: Record<string, number>;
   trimmed: Record<string, number>;
   startedAt: number;
+}
+
+/** Ocean surface height when the spec has an island / coast feature, -Infinity otherwise. */
+export function seaLevelOf(spec: WorldSpec): number {
+  const hasOcean = spec.terrain.features.some((f) => f.type === "island" || f.type === "coast");
+  if (!hasOcean) return -Infinity;
+  return spec.terrain.seaLevel ?? spec.terrain.baseHeight - 6;
 }
 
 /** Normalized (0..1) → world coords. */

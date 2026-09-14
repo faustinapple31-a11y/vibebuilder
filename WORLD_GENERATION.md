@@ -140,7 +140,9 @@ seed
 heightmap de base
  ↓ 2. fBm simplex avec domain warping (grandes formes) + curves (relief/plateaux/vallées)
 grandes formes de terrain
- ↓ 3. features de la spec : montagnes en bordure (ridged noise masqué), collines, vallée centrale, falaises, plateaux
+ ↓ 3. features de la spec : montagnes en bordure (ridged noise masqué), collines, vallée centrale, falaises, plateaux,
+      **île** (terre dans le rayon, océan + plages autour) et **côte** (océan le long d'un bord) — masque océan à
+      littoral bruité, plateau côtier puis fond qui descend ; la bordure relevée est supprimée au-dessus de l'océan
 bruit secondaire
  ↓ 4. détail (petites bosses, roughness), jamais seul : masqué par la pente
 passe d'érosion
@@ -148,7 +150,9 @@ passe d'érosion
 masques de biomes
  ↓ 6. hauteur + humidité (bruit) + distance à l'eau + weights de la spec → biome par cellule + matériaux
 rivières & lacs
- ↓ 7. source haute → A* descendant → lit creusé + berges + eau ; lacs par remplissage de bassins
+ ↓ 7. source haute → A* descendant → lit creusé + berges + eau ; lacs par remplissage de bassins ; **océan** : toute
+      cellule sous le niveau de la mer (`terrain.seaLevel`, défaut baseHeight − 6) est inondée ; distance à l'eau par
+      transformée de distance (chamfer) sur les cellules d'eau → bande de plage (sable, neige en style arctique)
 sites & aplanissement
  ↓ 8. sélection du site de village (score de planéité intégral) + aplanissement progressif
 routes
@@ -157,11 +161,24 @@ landmarks
  ↓ 10. placement par rôle (focal sur colline, secondaires en périphérie) + view corridors (raycast heightmap)
 bâtiments
  ↓ 11. layout organique autour d'une place, orientation vers le centre/route, contrainte de pente, non-chevauchement
+habillage (dressing)
+ ↓ 11b. `pipeline/dressing.ts` — **enceinte** en anneau autour du peuplement principal avec **tours de porte** là où
+       les routes la traversent (kit de mur du style : pierre crénelée, palissade, sacs de sable, ferraille, bambou,
+       adobe, marbre, clôture énergétique, piquets, glace ; sol nivelé sous chaque segment), **champs** cultivés
+       (set farm / biome farmland / ferme), **ponton** avec barques depuis un port ou tout peuplement au bord de l'eau
+       (rayon vers l'eau la plus proche), **cimetière** derrière l'église (ou en lisière), **parvis** des landmarks
+       (disque pavé + lumières + bancs du kit), **marquages** des rues asphalte/béton (bandes, passages piétons,
+       bordures). Ids `dress_*` : jamais élagués par le budget, restaurés avec la couche bâtiments.
 végétation
  ↓ 12. Poisson-disk par biome, clusters/clairières (bruit), évitement routes/bâtiments/eau/pentes, variation espèce/échelle/rotation
 props
  ↓ 13. sets contextuels : village (lanternes, caisses, tonneaux, clôtures, bancs), forêt (troncs, pierres, champignons), ruines (débris, colonnes)
 optimisation
+ ↓ 13b. éclairage : Lighting + Atmosphere + effets, **couleurs de terrain** teintées par la palette
+       (`Terrain:SetMaterialColor`, `environment.terrainTint`), **nuages** (`Clouds`, couverture par mood),
+       **météo** (pluie, neige, cendres, poussière, pétales, spores, lucioles, braises, bulles, feuilles, tempête de
+       sable — style + mood, rendue côté client autour de la caméra), ligne de neige par style, ciel sans astres
+       pour l'espace
  ↓ 14. budgets par catégorie, tri par importance visuelle, LOD, groupement par variante
 WorldBake
 ```
@@ -252,6 +269,14 @@ props de rivage). Les peuplements `town` / `city_district` / `base` utilisent un
 carvées (asphalte, béton, métal…) dimensionnée au nombre de bâtiments. `pipeline/layout.ts` pose
 l'archétype de gameplay (`spec.layout`) et ses zones — ces structures ne sont ni élaguées par le
 budget ni recollées au sol (plateformes d'obby flottantes). Voir [TAXONOMY.md](TAXONOMY.md).
+
+### 6c. Landmarks sur l'eau et portes qui s'ouvrent
+
+Les landmarks marqués `water` (galion pirate) cherchent une position **sur l'eau** (eau tout autour de
+l'empreinte, terre à moins de 50 studs, visible depuis les peuplements) et flottent à leur ligne de
+flottaison (`sinkDepth`) ; sans eau ils s'échouent sur la terre comme avant. Les zones `coast`, `flat`
+et `outskirts` des landmarks sont maintenant scorées. Chaque bâtiment à intérieur a une porte fermée
+nommée `Door` (charnière −X) que le système `Doors` du template ouvre au ProximityPrompt.
 
 ## 7. Analyse d'image → StyleBible
 

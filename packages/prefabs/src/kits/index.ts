@@ -1,6 +1,7 @@
 import type { PropKit } from "@worldforge/core";
 
 export * from "./buildings";
+export { WALL_SEGMENT } from "./dressing";
 export * as modernProps from "./props-modern";
 export * as futureProps from "./props-future";
 export * as themedProps from "./props-themed";

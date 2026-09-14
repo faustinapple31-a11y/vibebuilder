@@ -281,15 +281,17 @@ export function placeRocksAndProps(ctx: GenContext): void {
       const wd = ctx.waterDistance.sample(x, z);
       const biome = biomeAt(ctx, x, z);
       const sandy = biome === "desert" || biome === "beach";
+      // freshwater only: no lily pads or reeds on the sea (island / coast features)
+      const sea = ctx.ocean ? ctx.ocean.sample(x, z) > 0.05 || (ctx.shore?.sample(x, z) ?? -1) > -0.12 : false;
       if (isWaterAt(ctx, x, z)) {
         // lily pads: lakes/pools (slow water) close to the shore, not on the river's main current
         const depth = ctx.water.sample(x, z) - ctx.heights.sample(x, z);
-        if (depth > 0.6 && depth < 4.5 && wd < 0.5 && !sandy && rng.chance(0.22)) {
+        if (depth > 0.6 && depth < 4.5 && wd < 0.5 && !sandy && !sea && rng.chance(0.22)) {
           add("lily_pad", x, z, { importance: 3.2, margin: 0, onWater: true, scale: rng.float(0.8, 1.3) });
         }
         continue;
       }
-      if (wd < 6 && !sandy && slopeAtWorld(ctx, x, z) < 0.5 && ctx.roadDistance.sample(x, z) > 4 && rng.chance(0.55)) {
+      if (wd < 6 && !sandy && !sea && slopeAtWorld(ctx, x, z) < 0.5 && ctx.roadDistance.sample(x, z) > 4 && rng.chance(0.55)) {
         add("reeds", x, z, { importance: 3.2, margin: 0, scale: rng.float(0.8, 1.4) });
       }
     }

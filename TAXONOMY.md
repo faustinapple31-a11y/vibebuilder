@@ -21,7 +21,16 @@ Chaque famille définit : palette (15 couleurs), matériaux Roblox, géométrie 
 blocky / angular / rounded), **kit d'architecture** (générateur de bâtiments), **kit de végétation**,
 **kits de props**, **surface des routes**, biomes préférés, landmarks signature, type de
 peuplement, éclairage (heure, mood, ambient, exposition, saturation), brouillard, thème UI, ambiance
-audio et **mots-clés FR/EN** pour l'interpréteur. `styleFamilyToBible()` en dérive une StyleBible
+audio, **environnement** (`weather` + intensité, `clouds`, `snowLine`, `walls`, `terrainTint`) et
+**mots-clés FR/EN** pour l'interpréteur.
+
+| Environnement | Valeurs |
+|---|---|
+| `weather` | none, rain, snow, ash, dust, petals, spores, fireflies, embers, bubbles, leaves, sandstorm (le mood `stormy` force pluie/neige, `eerie` des spores, la nuit des lucioles dans les styles tempérés) |
+| `walls` (enceinte du peuplement) | none, stone_crenellated, palisade, sandbags, scrap, bamboo, adobe, marble, energy_fence, picket, ice |
+| `clouds` | couverture 0..1 (`Lighting.Clouds`) |
+| `snowLine` | altitude normalisée de la neige (0.2 hiver, 0.9 défaut, >1 jamais) |
+| `terrainTint` | 0 = couleurs Roblox, 1 = palette (`Terrain:SetMaterialColor`) | `styleFamilyToBible()` en dérive une StyleBible
 complète ; les 10 looks historiques gardent leurs valeurs affinées à la main (`style-presets.ts`).
 
 ## 2. Kits (`packages/prefabs/src/kits/`)
