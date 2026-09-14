@@ -313,13 +313,16 @@ async function runPlan(plan: Plan, userPrompt: string): Promise<void> {
   const histId = await historyRepo.add(cur.row.id, plan.kind, "swarm", userPrompt);
 
   const paneFor = async (task: TaskState): Promise<Pane> => {
-    // wait for an idle pane (prefer matching role / free ones), create if allowed
+    // wait for an idle pane (prefer matching role / free ones), create if allowed. The pane is reserved
+    // synchronously (status running + taskId) so two parallel tasks can never share it while their sessions start.
     for (;;) {
       const panes = store.getState().panes;
       const idle = panes.filter((p) => p.status !== "running");
-      const match = idle.find((p) => p.role === task.role) ?? idle.find((p) => p.role === "chat") ?? idle[0];
-      if (match) return match;
-      if (panes.length < 8) return store.getState().addPane(settings.defaults.provider);
+      const match = idle.find((p) => p.role === task.role) ?? idle.find((p) => p.role === "chat") ?? idle[0] ?? (panes.length < 8 ? store.getState().addPane(settings.defaults.provider) : undefined);
+      if (match) {
+        store.getState().updatePane(match.id, { status: "running", statusText: "Starting…", taskId: task.id, title: task.title, role: task.role });
+        return store.getState().panes.find((p) => p.id === match.id) ?? match;
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
   };
@@ -343,7 +346,14 @@ async function runPlan(plan: Plan, userPrompt: string): Promise<void> {
         providerId = "local-rules";
       }
       const provider = getProvider(providerId);
-      const session = await provider.startSession({ cwd: cur.path, model: pane.model || undefined, effort: pane.effort || undefined, permissionMode: pane.permissionMode, role: task.role, systemPrompt: ROLES[task.role].systemPrompt, allowedTools: pane.permissionMode === "bypass" ? undefined : ROLES[task.role].allowedTools });
+      let session: AgentSession;
+      try {
+        session = await provider.startSession({ cwd: cur.path, model: pane.model || undefined, effort: pane.effort || undefined, permissionMode: pane.permissionMode, role: task.role, systemPrompt: ROLES[task.role].systemPrompt, allowedTools: pane.permissionMode === "bypass" ? undefined : ROLES[task.role].allowedTools });
+      } catch (err) {
+        // release the reserved pane so the next task can use it
+        store.getState().updatePane(pane.id, { status: "error", statusText: `Failed to start: ${String(err)}`.slice(0, 80), taskId: undefined });
+        throw err;
+      }
       const runId = await runsRepo.startAgent({ projectId: cur.row.id, provider: providerId, role: task.role, model: pane.model || null, prompt: `[${plan.kind}] ${userPrompt}` });
       store.getState().updatePane(pane.id, { role: task.role, title: task.title, status: "running", statusText: ROLES[task.role].activity, session, taskId: task.id, startedAt: Date.now(), runId, log: [...pane.log, entry("user", `${task.title}: ${userPrompt}`)] });
       return { provider, session };
