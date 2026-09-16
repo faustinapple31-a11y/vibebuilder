@@ -54,11 +54,12 @@ void main() {
          + texture2D(tSand, xz / uTiles.w).rgb * w.w;
   // keep the palette / height tint of the flat view (colour attribute is linear)
   float lum = dot(vColor, vec3(0.299, 0.587, 0.114));
-  c *= mix(vec3(1.0), vColor / max(lum, 0.05), 0.35) * mix(1.0, lum * 2.2, 0.35);
+  // hue of the palette tint, only a little of its brightness (the textures carry their own values)
+  c *= mix(vec3(1.0), vColor / max(lum, 0.05), 0.35) * mix(1.0, clamp(lum * 2.2, 0.6, 1.3), 0.25);
   vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
   float ndl = max(0.0, dot(n, uSunDir));
   float hemi = 0.5 + 0.5 * n.y;
-  vec3 lit = c * (uAmbient * hemi + uSunColor * ndl);
+  vec3 lit = c * (0.2 + uAmbient * hemi * 1.1 + uSunColor * ndl * 0.85);
   gl_FragColor = vec4(lit, 1.0);
   #include <colorspace_fragment>
   #include <fog_fragment>

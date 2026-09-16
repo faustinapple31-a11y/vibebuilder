@@ -92,8 +92,12 @@ export function generateBiomes(ctx: GenContext): void {
       const seaShore = Number.isFinite(sea) && hAbs < sea + 5 && wd < 16;
       if (!Number.isNaN(ctx.water.data[i]!)) mat = "Water";
       else if (seaShore) mat = s > 0.7 ? "Rock" : beachMat; // beach ring around the ocean
-      else if (s > 0.85) mat = detail > 0.2 ? "Basalt" : "Rock";
-      else if (s > 0.62) mat = detail > 0 ? "Rock" : "Slate";
+      else if (s > 0.62) {
+        // cliff faces read as bedded rock: material bands by height (wobbled by noise), darker on the steepest faces
+        const band = Math.floor((hAbs + detail * 6) / 9) % 3;
+        mat = s > 0.85 && detail > 0.25 ? "Basalt" : band === 0 ? "Rock" : band === 1 ? "Slate" : arctic ? "Rock" : "Limestone";
+        if (mat === "Limestone" && (ctx.style.id === "alien_planet" || ctx.style.kits.biomes.includes("volcanic"))) mat = "Basalt";
+      }
       else if (s > 0.45 && detail > 0.3) mat = "Ground"; // scree / bare slope
       else if (wd < 3) mat = sandy ? "Sand" : detail > 0.1 ? "Sand" : "Mud"; // sandy banks with mud
       else if (wd < 9 && detail > -0.2) mat = sandy ? "Sand" : "Ground";
