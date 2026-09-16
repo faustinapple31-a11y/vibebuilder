@@ -3,6 +3,7 @@ import { base64ToBuffer, hexToColor3, readF32 } from "shared/world/decode";
 import { PrefabCache } from "shared/world/prefabFactory";
 import type { LightingData, WorldBakeData } from "shared/world/types";
 import { buildTerrain, makeHeightSampler } from "./TerrainBuilder";
+import { applyMaterials } from "./Materials";
 
 /**
  * Builds the whole world from ReplicatedStorage.WorldAssets.WorldBake at runtime.
@@ -155,7 +156,10 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 	};
 
 	const heightAt = makeHeightSampler(bake.terrain);
-	if (options.lighting !== false) applyLighting(bake.lighting);
+	if (options.lighting !== false) {
+		applyLighting(bake.lighting);
+		pcall(() => applyMaterials()); // custom PBR textures (MaterialVariants) when the maps were uploaded
+	}
 
 	if (options.terrain !== false) {
 		Workspace.Terrain.Clear();

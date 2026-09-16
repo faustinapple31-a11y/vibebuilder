@@ -1,5 +1,43 @@
 import { eulerFromYAxis, jitterHex, lightenHex, mixHex, type PrefabVariant, type Vec3 } from "@worldforge/core";
 import { PartListBuilder, jitter, v3, type PrefabContext } from "./builder";
+import type { MeshLibraryId } from "./meshes/library";
+
+/** The voxel style keeps the boxy rock masses; every other style gets displaced-icosphere meshes. */
+const meshRocks = (ctx: PrefabContext) => ctx.style.id !== "voxel";
+
+/**
+ * One mesh rock from the shared library (a client can only hold a few EditableMeshes, so every rock is one
+ * of six meshes with its own non-uniform scale, rotation and colour), resting at `center`, with moss dressing.
+ * Returns the placed height.
+ */
+function meshRock(b: PartListBuilder, ctx: PrefabContext, _key: string, center: Vec3, size: number, kind: "boulder" | "cliff" | "pebble" | "slab", lod: 0 | 1 | 2 = 2, collide = true): number {
+  const { rng, style } = ctx;
+  const id: MeshLibraryId = kind === "boulder" ? (rng.chance(0.5) ? "rock_a" : "rock_b") : kind === "pebble" ? "pebble_a" : kind === "slab" ? "slab_a" : rng.chance(0.5) ? "cliff_a" : "cliff_b";
+  const data = ctx.meshes[id];
+  if (!data) return 0;
+  const bw = data.bounds.max[0] - data.bounds.min[0];
+  const bh = data.bounds.max[1] - data.bounds.min[1];
+  const bd = data.bounds.max[2] - data.bounds.min[2];
+  // fit the library mesh to `size` studs across, with independent jitter per axis for variety
+  const sx = (size / bw) * rng.float(0.8, 1.25);
+  const sy = (size * (kind === "pebble" ? 0.45 : kind === "slab" ? 0.5 : 0.85)) / bh * rng.float(0.8, 1.2);
+  const sz = (size / bd) * rng.float(0.8, 1.25);
+  const h = bh * sy;
+  const color = stoneColor(ctx);
+  // the mesh is centred on its bounds: lift it so its flat base sits at center.y (a little below for the sink)
+  b.mesh(id, data, [center[0], center[1] + h / 2 - size * 0.06, center[2]], color, { material: style.materials.rock, rotation: [0, rng.float(0, 360), 0], collide, lod, fallback: kind === "cliff" || kind === "slab" ? "box" : "sphere", scale: [sx, sy, sz] });
+  if (rng.chance(style.rock.mossChance * 0.6) && kind !== "pebble") {
+    // a thin moss patch on the crown (a mesh rock's silhouette should stay the rock, not the moss)
+    b.box([center[0] + jitter(rng, size * 0.12), center[1] + h * 0.9, center[2] + jitter(rng, size * 0.12)], [size * 0.32, size * 0.05, size * 0.26], style.palette.foliageAlt, {
+      material: "Grass",
+      rotation: [jitter(rng, 8), rng.float(0, 360), jitter(rng, 8)],
+      collide: false,
+      castShadow: false,
+      lod: 0,
+    });
+  }
+  return h;
+}
 
 function stoneColor(ctx: PrefabContext): string {
   const { rng, style } = ctx;
@@ -55,7 +93,8 @@ function rockMass(b: PartListBuilder, ctx: PrefabContext, center: Vec3, size: nu
 export function boulder(ctx: PrefabContext, variant: number): PrefabVariant {
   const b = new PartListBuilder();
   const size = ctx.rng.float(5, 11);
-  rockMass(b, ctx, [0, 0, 0], size);
+  if (meshRocks(ctx)) meshRock(b, ctx, "rock", [0, 0, 0], size, "boulder");
+  else rockMass(b, ctx, [0, 0, 0], size);
   return b.build({ id: `boulder/${variant}`, prefab: "boulder", category: "rock", sinkDepth: size * 0.12, footprintRadius: size * 0.6, tags: ["rock"] });
 }
 
@@ -68,7 +107,8 @@ export function rockCluster(ctx: PrefabContext, variant: number): PrefabVariant 
     const size = i === 0 ? rng.float(5, 8) : rng.float(2, 4.5);
     const a = rng.float(0, Math.PI * 2);
     const r = i === 0 ? 0 : rng.float(3, 6);
-    rockMass(b, ctx, [Math.cos(a) * r, 0, Math.sin(a) * r], size, i === 0 ? 2 : 1);
+    if (meshRocks(ctx)) meshRock(b, ctx, `rock${i}`, [Math.cos(a) * r, 0, Math.sin(a) * r], size, i === 0 ? "boulder" : "pebble", i === 0 ? 2 : 1, i === 0);
+    else rockMass(b, ctx, [Math.cos(a) * r, 0, Math.sin(a) * r], size, i === 0 ? 2 : 1);
     maxR = Math.max(maxR, r + size * 0.5);
   }
   return b.build({ id: `rock_cluster/${variant}`, prefab: "rock_cluster", category: "rock", sinkDepth: 0.7, footprintRadius: maxR, tags: ["rock", "cluster"] });
@@ -91,6 +131,14 @@ export function cliffBlock(ctx: PrefabContext, variant: number): PrefabVariant {
   const b = new PartListBuilder();
   const w = rng.float(14, 26);
   const h = rng.float(10, 22);
+  if (meshRocks(ctx)) {
+    // a big craggy block plus a smaller slab leaning on it
+    const mh = meshRock(b, ctx, "cliff", [0, -h * 0.25, 0], w, "cliff", 2);
+    meshRock(b, ctx, "slab", [jitter(rng, w * 0.25), -h * 0.2, jitter(rng, w * 0.25)], w * rng.float(0.5, 0.7), "slab", 1, false);
+    // moss on the crown: the mesh spans [-h*0.25 - w*0.06, -h*0.25 - w*0.06 + mh]
+    if (rng.chance(style.rock.mossChance)) b.box([0, -h * 0.25 - w * 0.06 + mh - 0.35, 0], [w * 0.5, 0.5, w * 0.35], style.palette.foliageAlt, { material: "Grass", rotation: [0, rng.float(0, 360), 0], collide: false, castShadow: false, lod: 0 });
+    return b.build({ id: `cliff_block/${variant}`, prefab: "cliff_block", category: "rock", sinkDepth: h * 0.3, footprintRadius: w * 0.55, tags: ["rock", "cliff"] });
+  }
   const color = stoneColor(ctx);
   b.box([0, h * 0.35, 0], [w, h, w * rng.float(0.5, 0.8)], color, { material: style.materials.rock, rotation: [jitter(rng, 6), rng.float(0, 360), jitter(rng, 6)], collide: true, lod: 2 });
   b.wedge([jitter(rng, w * 0.2), h * 0.8, jitter(rng, w * 0.2)], [w * 0.7, h * 0.5, w * 0.6], jitterHex(color, 0, 0, 0.05), { material: style.materials.rock, rotation: [0, rng.float(0, 360), 0], collide: true, lod: 1 });

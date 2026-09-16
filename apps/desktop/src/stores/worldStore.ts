@@ -26,6 +26,8 @@ import { listMeshAssets, meshAssetPrefabId, meshAssetToVariant, type MeshAssetRe
 import { fs, path } from "@/lib/tauri";
 import { generateInWorker } from "@/lib/worldGen";
 import { useProjects } from "./projectStore";
+import type { TextureManifest } from "@worldforge/textures";
+import { loadTextureManifest, textureManifestPreviews } from "@/lib/textures";
 
 export type ViewerCamera = "orbit" | "fly" | "top" | "first-person";
 export type ViewerLayer = "terrain" | "water" | "buildings" | "vegetation" | "props" | "landmarks" | "paths" | "lighting";
@@ -49,6 +51,9 @@ interface WorldState {
   /** AI-generated / imported hero meshes of the project, as prefab variants (merged into every bake). */
   meshAssets: MeshAssetRecord[];
   customPrefabs: Record<string, PrefabVariant[]>;
+  /** Procedural PBR texture set of the project (viewer terrain shader + Roblox MaterialVariants). */
+  textures: { manifest: TextureManifest; urls: Record<string, { color: string; normal: string }> } | null;
+  setTextures: (manifest: TextureManifest | null) => Promise<void>;
   // actions
   loadForProject: () => Promise<void>;
   refreshMeshAssets: () => Promise<MeshAssetRecord[]>;
@@ -101,6 +106,16 @@ export const useWorld = create<WorldState>((set, get) => ({
   selectedPlacementId: null,
   meshAssets: [],
   customPrefabs: {},
+  textures: null,
+
+  async setTextures(manifest) {
+    const cur = useProjects.getState().current;
+    if (!cur || !manifest) return set({ textures: null });
+    const previews = await textureManifestPreviews(cur.path, manifest);
+    const urls: Record<string, { color: string; normal: string }> = {};
+    for (const p of previews) urls[p.id] = { color: p.color, normal: p.normal };
+    set({ textures: { manifest, urls } });
+  },
 
   async loadForProject() {
     const cur = useProjects.getState().current;
@@ -117,6 +132,7 @@ export const useWorld = create<WorldState>((set, get) => ({
     const versions = await versionsRepo.list(cur.row.id, worldId);
     set({ spec, style, bake, report, versions, error: null, dirty: false, selectedPlacementId: null });
     await get().refreshMeshAssets();
+    await get().setTextures(await loadTextureManifest(cur.path));
   },
 
   async refreshMeshAssets() {

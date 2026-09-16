@@ -12,6 +12,7 @@ import * as tp from "./kits/props-themed";
 import * as kv from "./kits/vegetation-kits";
 import * as kl from "./kits/landmarks-kits";
 import * as kw from "./kits/dressing";
+import { buildMeshLibrary } from "./meshes/library";
 
 export type PrefabBuilder = (ctx: PrefabContext, variant: number) => PrefabVariant;
 
@@ -270,9 +271,10 @@ export function buildPrefabVariants(prefabId: string, style: StyleBible, seed: n
   const d = getPrefabDefinition(prefabId);
   const n = count ?? d.variants;
   const out: PrefabVariant[] = [];
+  const meshes = buildMeshLibrary(style, seed);
   for (let i = 0; i < n; i++) {
     const rng = new Rng(deriveSeed(seed, `${prefabId}#${i}`));
-    out.push(d.build({ rng, style }, i));
+    out.push(d.build({ rng, style, meshes }, i));
   }
   return out;
 }

@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { EFFECT_PRESETS, GLOWING_EFFECTS, TERRAIN_MATERIAL_COLORS, TERRAIN_MATERIALS, hashString, hexToRgb, type Part, type PrefabVariant, type TerrainData, type TerrainMaterial } from "@worldforge/core";
+import { EFFECT_PRESETS, GLOWING_EFFECTS, TERRAIN_MATERIAL_COLORS, TERRAIN_MATERIALS, base64ToF32, hashString, hexToRgb, type MeshData, type Part, type PrefabVariant, type TerrainData, type TerrainMaterial } from "@worldforge/core";
 
 /** Unit primitives matching the PartList conventions (see packages/core/src/partlist.ts). */
-const unit = {
+const unit: Partial<Record<Part["shape"], THREE.BufferGeometry>> & { box: THREE.BufferGeometry } = {
   box: new THREE.BoxGeometry(1, 1, 1),
   sphere: new THREE.SphereGeometry(0.5, 10, 8),
   cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 12),
@@ -67,13 +67,38 @@ export interface VariantGeometry {
 const cache = new Map<string, VariantGeometry>();
 const tmpColor = new THREE.Color();
 
-function partGeometry(p: Part): THREE.BufferGeometry {
-  const base = unit[p.shape] ?? unit.box;
+/** Unit-bounds geometry of a procedural mesh (flat-shaded triangle soup), cached per mesh data object. */
+const meshUnit = new WeakMap<MeshData, THREE.BufferGeometry>();
+function meshGeometry(data: MeshData): THREE.BufferGeometry {
+  const hit = meshUnit.get(data);
+  if (hit) return hit;
+  const tris = base64ToF32(data.trianglesB64);
+  const g = new THREE.BufferGeometry();
+  // normalize to the unit box so the part size scales it like the primitives
+  const sx = Math.max(1e-6, data.bounds.max[0] - data.bounds.min[0]);
+  const sy = Math.max(1e-6, data.bounds.max[1] - data.bounds.min[1]);
+  const sz = Math.max(1e-6, data.bounds.max[2] - data.bounds.min[2]);
+  const pos = new Float32Array(tris.length);
+  for (let i = 0; i < tris.length; i += 3) {
+    pos[i] = tris[i]! / sx;
+    pos[i + 1] = tris[i + 1]! / sy;
+    pos[i + 2] = tris[i + 2]! / sz;
+  }
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  meshUnit.set(data, g);
+  return g;
+}
+
+function partGeometry(p: Part, variant?: PrefabVariant): THREE.BufferGeometry {
+  const meshData = p.shape === "mesh" && p.mesh !== undefined ? variant?.meshes?.[p.mesh] : undefined;
+  const base = meshData ? meshGeometry(meshData) : (unit[p.shape] ?? unit.box);
   const g = base.clone();
   const m = new THREE.Matrix4();
   const e = new THREE.Euler(THREE.MathUtils.degToRad(p.rotation[0]), THREE.MathUtils.degToRad(p.rotation[1]), THREE.MathUtils.degToRad(p.rotation[2]), "XYZ");
   m.compose(new THREE.Vector3(...p.position), new THREE.Quaternion().setFromEuler(e), new THREE.Vector3(Math.max(0.01, p.size[0]), Math.max(0.01, p.size[1]), Math.max(0.01, p.size[2])));
   g.applyMatrix4(m);
+  if (meshData) g.computeVertexNormals();
   // per-vertex color
   const [r, gg, b] = hexToRgb(p.color);
   tmpColor.setRGB(r, gg, b, THREE.SRGBColorSpace);
@@ -136,7 +161,7 @@ export function variantGeometry(variant: PrefabVariant, minLod = 0): VariantGeom
       emissiveParts.push(...effectMotes(p, hashString(`${variant.id}#${i}`)));
     }
     if ((p.transparency ?? 0) > 0.85) return;
-    (p.material === "Neon" ? emissiveParts : opaqueParts).push(partGeometry(p));
+    (p.material === "Neon" ? emissiveParts : opaqueParts).push(partGeometry(p, variant));
   });
   const merge = (list: THREE.BufferGeometry[]) => {
     if (list.length === 0) return null;
@@ -157,12 +182,40 @@ export function clearGeometryCache(): void {
   cache.clear();
 }
 
+/** Texture channel per terrain material (see viewer/terrainMaterial.ts): 0 grass, 1 ground, 2 rock, 3 sand / snow. */
+export const TEXTURE_CHANNEL: Partial<Record<TerrainMaterial, 0 | 1 | 2 | 3>> = {
+  Grass: 0,
+  LeafyGrass: 0,
+  Ground: 1,
+  Mud: 1,
+  Cobblestone: 1,
+  Pavement: 1,
+  Asphalt: 1,
+  Brick: 1,
+  WoodPlanks: 1,
+  Concrete: 1,
+  Rock: 2,
+  Slate: 2,
+  Basalt: 2,
+  Limestone: 2,
+  Sandstone: 2,
+  CrackedLava: 2,
+  Glacier: 3,
+  Sand: 3,
+  Snow: 3,
+  Ice: 3,
+  Salt: 3,
+};
+
 /** Terrain mesh geometry with vertex colors (by material or by biome). */
 export function terrainGeometry(t: TerrainData, biomeColors: boolean, materialColors?: Partial<Record<TerrainMaterial, string>>): THREE.BufferGeometry {
   const { width, depth, cellSize, origin } = t;
   const g = new THREE.BufferGeometry();
   const pos = new Float32Array(width * depth * 3);
   const col = new Float32Array(width * depth * 3);
+  // splat weights for the textured terrain shader: grass / ground / rock / sand-or-snow channel per material
+  const weights = new Float32Array(width * depth * 4);
+  const channelOf = TERRAIN_MATERIALS.map((m) => TEXTURE_CHANNEL[m] ?? 1);
   const palette = TERRAIN_MATERIALS.map((m) => {
     // style-driven colors from the bake (what Roblox shows after Terrain:SetMaterialColor), viewer defaults otherwise
     const [r, gg, b] = hexToRgb(materialColors?.[m] ?? TERRAIN_MATERIAL_COLORS[m]);
@@ -181,6 +234,7 @@ export function terrainGeometry(t: TerrainData, biomeColors: boolean, materialCo
       col[i * 3] = c.r * shade;
       col[i * 3 + 1] = c.g * shade;
       col[i * 3 + 2] = c.b * shade;
+      weights[i * 4 + (channelOf[t.materials[i]!] ?? 1)] = 1;
     }
   }
   const idx: number[] = [];
@@ -195,6 +249,7 @@ export function terrainGeometry(t: TerrainData, biomeColors: boolean, materialCo
   }
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.setAttribute("weights", new THREE.BufferAttribute(weights, 4));
   g.setIndex(idx);
   g.computeVertexNormals();
   g.computeBoundingSphere();

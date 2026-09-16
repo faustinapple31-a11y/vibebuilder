@@ -146,7 +146,7 @@ export function ancientRuins(ctx: PrefabContext, variant: number): PrefabVariant
 }
 
 export function ruinedTower(ctx: PrefabContext, variant: number): PrefabVariant {
-  const v = watchtower({ rng: ctx.rng, style: { ...ctx.style, architecture: { ...ctx.style.architecture, weathering: 1 } } }, variant);
+  const v = watchtower({ ...ctx, style: { ...ctx.style, architecture: { ...ctx.style.architecture, weathering: 1 } } }, variant);
   const b = new PartListBuilder();
   b.parts.push(...v.parts);
   const k = ctx.style.scaleRules.landmarkMultiplier * 0.45;

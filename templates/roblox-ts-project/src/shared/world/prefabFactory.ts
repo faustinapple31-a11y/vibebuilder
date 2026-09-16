@@ -1,5 +1,6 @@
 import { hexToColor3 } from "./decode";
 import { NEON_COLOR_SCALE, makeEffect } from "./effects";
+import { meshTemplate } from "./meshFactory";
 import type { PartData, PrefabVariantData } from "./types";
 
 /**
@@ -13,7 +14,7 @@ function materialOf(name: string): Enum.Material {
 	return MATERIALS.get(name) ?? Enum.Material.SmoothPlastic;
 }
 
-function makePart(p: PartData): BasePart {
+function makePart(p: PartData, variant?: PrefabVariantData): BasePart {
 	let part: BasePart;
 	const [sx, sy, sz] = p.size;
 	const rx = math.rad(p.rotation[0]);
@@ -21,7 +22,18 @@ function makePart(p: PartData): BasePart {
 	const rz = math.rad(p.rotation[2]);
 	let cf = new CFrame(p.position[0], p.position[1], p.position[2]).mul(CFrame.fromEulerAnglesXYZ(rx, ry, rz));
 	let size = new Vector3(sx, sy, sz);
-	if (p.shape === "wedge") {
+	const meshData = p.shape === "mesh" && p.mesh !== undefined && variant ? variant.meshes?.[p.mesh] : undefined;
+	const template = meshData && p.mesh !== undefined ? meshTemplate(p.mesh, meshData) : undefined;
+	if (template) {
+		part = template.Clone();
+		part.SetAttribute("WfMesh", p.mesh!); // the client rebuilds this mesh locally (see MeshRender)
+	} else if (p.shape === "mesh") {
+		// mesh unavailable on this client: the primitive stand-in keeps the silhouette
+		const basic = new Instance("Part");
+		basic.Shape = p.meshFallback === "box" ? Enum.PartType.Block : Enum.PartType.Ball;
+		if (p.meshFallback !== "box") size = new Vector3(math.max(sx, sz), math.max(sx, sz), math.max(sx, sz)).mul(0.9);
+		part = basic;
+	} else if (p.shape === "wedge") {
 		part = new Instance("WedgePart");
 	} else if (p.shape === "cornerWedge") {
 		part = new Instance("CornerWedgePart");
@@ -122,7 +134,7 @@ export function buildPrefabModel(variant: PrefabVariantData, minLod = 0): Model 
 	model.Name = variant.id;
 	for (const p of variant.parts) {
 		if ((p.lod ?? 0) < minLod) continue;
-		makePart(p).Parent = model;
+		makePart(p, variant).Parent = model;
 	}
 	model.WorldPivot = new CFrame();
 	model.SetAttribute("Prefab", variant.prefab);

@@ -1,4 +1,5 @@
 import {
+  type MeshData,
   computeBaseRadius,
   computeBounds,
   eulerFromXAxis,
@@ -22,6 +23,8 @@ import {
 export interface PrefabContext {
   rng: Rng;
   style: StyleBible;
+  /** Shared procedural meshes of the bake (rocks, cliffs…) — see meshes/library.ts. */
+  meshes: Record<string, MeshData>;
 }
 
 export interface PartOptions {
@@ -60,6 +63,19 @@ export const v3 = {
  */
 export class PartListBuilder {
   readonly parts: Part[] = [];
+  readonly meshes: Record<string, MeshData> = {};
+
+  /**
+   * Procedural mesh part: `data` is centred on its bounds centre (see MeshBuilder), `position` is the
+   * centre in prefab space. `scale` multiplies the mesh bounds (Roblox MeshPart.Size semantics).
+   */
+  mesh(key: string, data: MeshData, position: Vec3, color: string, opts: PartOptions & { scale?: Vec3; fallback?: "sphere" | "box" } = {}): this {
+    const { scale, fallback, ...rest } = opts;
+    const sc = scale ?? [1, 1, 1];
+    const size: Vec3 = [(data.bounds.max[0] - data.bounds.min[0]) * sc[0], (data.bounds.max[1] - data.bounds.min[1]) * sc[1], (data.bounds.max[2] - data.bounds.min[2]) * sc[2]];
+    this.meshes[key] = data;
+    return this.add({ shape: "mesh", mesh: key, meshFallback: fallback ?? "sphere", position, size, color, rotation: rest.rotation ?? [0, 0, 0], material: rest.material ?? "Slate", ...strip(rest) });
+  }
 
   add(part: Part): this {
     this.parts.push(part);
@@ -212,6 +228,7 @@ export class PartListBuilder {
 
   merge(other: PartListBuilder): this {
     this.parts.push(...other.parts);
+    Object.assign(this.meshes, other.meshes);
     return this;
   }
 
@@ -239,6 +256,7 @@ export class PartListBuilder {
     const footprint = input.footprintRadius ?? Math.max(Math.abs(bounds.min[0]), Math.abs(bounds.max[0]), Math.abs(bounds.min[2]), Math.abs(bounds.max[2]));
     const sink = input.sinkDepth ?? 0.5;
     const baseRadius = input.baseRadius ?? Math.max(0.5, computeBaseRadius(this.parts, sink + 0.6));
+    const meshKeys = Object.keys(this.meshes);
     return {
       id: input.id,
       prefab: input.prefab,
@@ -249,6 +267,7 @@ export class PartListBuilder {
       footprintRadius: footprint,
       baseRadius: Math.min(baseRadius, footprint * 1.05),
       tags: input.tags ?? [],
+      ...(meshKeys.length ? { meshes: this.meshes } : {}),
     };
   }
 }

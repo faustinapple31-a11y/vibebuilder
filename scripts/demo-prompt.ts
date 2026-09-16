@@ -68,7 +68,13 @@ if (flag("--build")) {
     execSync(cmd, { cwd, stdio: "inherit", shell: process.platform === "win32" ? "cmd.exe" : undefined });
   };
   if (!existsSync(join(outDir, "node_modules"))) run("npm install --no-audit --no-fund");
-  run("npx rbxtsc");
+  // rbxtsc reports type errors but still exits 0 (and leaves stale .luau behind): fail loudly instead
+  console.log("\n$ npx rbxtsc");
+  const tsc = execSync("npx rbxtsc", { cwd: outDir, encoding: "utf8", shell: process.platform === "win32" ? "cmd.exe" : undefined, stdio: ["ignore", "pipe", "pipe"] });
+  if (/error TS\d+/.test(tsc)) {
+    console.error(tsc);
+    throw new Error("rbxtsc reported errors — the template does not compile");
+  }
   mkdirSync(join(outDir, "build"), { recursive: true });
   run(`"${findRojo()}" build -o build/${slug}.rbxl`);
   console.log(`✓ built build/${slug}.rbxl`);

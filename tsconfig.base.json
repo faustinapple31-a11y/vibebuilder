@@ -48,6 +48,9 @@
       ],
       "@worldforge/ai-providers": [
         "./packages/ai-providers/src/index.ts"
+      ],
+      "@worldforge/textures": [
+        "./packages/textures/src/index.ts"
       ]
     }
   }

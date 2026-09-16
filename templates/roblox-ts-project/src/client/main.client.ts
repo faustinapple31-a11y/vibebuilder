@@ -5,12 +5,14 @@ import { Hud } from "ui/Hud";
 import { AudioConfig } from "shared/audio";
 import { ShopUi } from "ui/ShopUi";
 import { startWeather } from "client/Weather";
+import { startMeshRender } from "client/MeshRender";
 
 /** Client bootstrap: HUD, shop window, NPC dialogue, SFX, world loading overlay. */
 const hud = new Hud();
 const shop = new ShopUi();
 hud.onShop = () => shop.toggle();
 startWeather();
+startMeshRender();
 UserInputService.InputBegan.Connect((input, processed) => {
 	if (!processed && input.KeyCode === Enum.KeyCode.B) shop.toggle();
 });

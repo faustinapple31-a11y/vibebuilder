@@ -1,4 +1,4 @@
-import {
+import { base64ToF32, type MeshData,
   serializeBake,
   slugify,
   type ProjectMeta,
@@ -60,6 +60,7 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/systems/Modes.ts",
   "src/systems/Doors.ts",
   "src/client/Weather.ts",
+  "src/client/MeshRender.ts",
   "src/systems/PlayerData.ts",
   "src/systems/Survival.ts",
   "src/systems/Collectibles.ts",
@@ -143,7 +144,26 @@ export function exportWorldFiles(opts: ExportWorldOptions): ProjectFile[] {
   files.push({ path: `worlds/${spec.id}/world.spec.json`, content: JSON.stringify(spec, null, 2) + "\n" });
   files.push({ path: `worlds/${spec.id}/style.bible.json`, content: JSON.stringify(style, null, 2) + "\n" });
   files.push({ path: "default.project.json", content: JSON.stringify(buildRojoProject(opts.projectSlug, bake), null, 2) + "\n" });
+  // procedural meshes as .obj (Studio import / Open Cloud upload → MeshPart asset ids)
+  for (const variants of Object.values(bake.prefabs)) {
+    for (const v of variants) {
+      if (!v.meshes) continue;
+      for (const [key, data] of Object.entries(v.meshes)) {
+        files.push({ path: `assets/meshes/${v.id.replace(/[^a-z0-9_]+/gi, "_")}_${key}.obj`, content: meshToObj(data, `${v.id}/${key}`) });
+      }
+    }
+  }
   return files;
+}
+
+/** Wavefront OBJ (flat-shaded triangle soup, Y up, studs). */
+export function meshToObj(data: MeshData, name: string): string {
+  const tris = base64ToF32(data.trianglesB64);
+  const lines: string[] = [`# WorldForge procedural mesh ${name}`, `o ${name.replace(/[^a-z0-9_]+/gi, "_")}`];
+  for (let i = 0; i < tris.length; i += 3) lines.push(`v ${tris[i]!.toFixed(4)} ${tris[i + 1]!.toFixed(4)} ${tris[i + 2]!.toFixed(4)}`);
+  const n = tris.length / 9;
+  for (let t = 0; t < n; t++) lines.push(`f ${t * 3 + 1} ${t * 3 + 2} ${t * 3 + 3}`);
+  return lines.join("\n") + "\n";
 }
 
 export function buildRojoProject(slug: string, bake: WorldBake): Record<string, unknown> {

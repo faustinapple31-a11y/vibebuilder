@@ -2,7 +2,7 @@
  * Types mirroring @worldforge/core's WorldBakeJSON (the ModuleScript produced by Rojo
  * from assets/world/WorldBake.json). Keep in sync with packages/core/src/bake.ts.
  */
-export type PartShape = "box" | "sphere" | "cylinder" | "wedge" | "cornerWedge";
+export type PartShape = "box" | "sphere" | "cylinder" | "wedge" | "cornerWedge" | "mesh";
 
 export interface PartLight {
 	type: "point";
@@ -32,7 +32,18 @@ export interface PartData {
 	light?: PartLight;
 	effect?: PartEffect;
 	name?: string;
+	/** Mesh key in `PrefabVariantData.meshes` (shape "mesh"); `size` is the scaled mesh bounds. */
+	mesh?: string;
+	meshFallback?: "sphere" | "box";
 	lod?: number;
+}
+
+/** Procedural triangle soup (9 floats per triangle, centred on its bounds). */
+export interface MeshDataJSON {
+	trianglesB64: string;
+	triangleCount: number;
+	bounds: { min: [number, number, number]; max: [number, number, number] };
+	assetId?: number;
 }
 
 export interface PrefabMeshSource {
@@ -57,6 +68,8 @@ export interface PrefabVariantData {
 	tags: string[];
 	/** External Roblox Model asset (AI-generated hero mesh); parts are only a fallback placeholder. */
 	source?: PrefabMeshSource;
+	/** Procedural meshes referenced by parts of shape "mesh". */
+	meshes?: { [key: string]: MeshDataJSON };
 }
 
 export interface PlacementMeta {

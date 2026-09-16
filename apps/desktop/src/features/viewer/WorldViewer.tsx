@@ -8,6 +8,7 @@ import { useProjects } from "@/stores/projectStore";
 import { loadGlbScene } from "@/lib/meshAssets";
 import { path } from "@/lib/tauri";
 import { terrainGeometry, variantGeometry, waterGeometry } from "./geometry";
+import { createTerrainMaterial, disposeTerrainMaterial } from "./terrainMaterial";
 
 const CATEGORY_LAYER: Record<PrefabCategory, ViewerLayer> = { vegetation: "vegetation", rock: "props", building: "buildings", prop: "props", landmark: "landmarks", path: "props", water: "water", npc: "props" };
 
@@ -71,7 +72,7 @@ function Scene({ bake }: { bake: WorldBake }) {
       <hemisphereLight args={[new THREE.Color(...hexToRgb(L.ambient)).lerp(new THREE.Color("#ffffff"), 0.5), ambient.clone().multiplyScalar(0.7), night ? 1.1 : 1.0]} />
       <ambientLight intensity={night ? 0.35 : 0.15} color={ambient} />
       <directionalLight position={sun} color={sunColor} intensity={night ? 1.0 : Math.min(2.2, L.brightness * 0.9 + 0.6)} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-600} shadow-camera-right={600} shadow-camera-top={600} shadow-camera-bottom={-600} shadow-camera-far={2500} shadow-bias={-0.0004} />
-      {layers.terrain && <Terrain bake={bake} wireframe={wireframe} biomeColors={biomeColors} />}
+      {layers.terrain && <Terrain bake={bake} wireframe={wireframe} biomeColors={biomeColors} sun={sun} sunColor={sunColor} ambient={ambient} />}
       {layers.water && <Water bake={bake} />}
       <Placements bake={bake} />
       {layers.paths && <Paths bake={bake} />}
@@ -82,13 +83,40 @@ function Scene({ bake }: { bake: WorldBake }) {
   );
 }
 
-function Terrain({ bake, wireframe, biomeColors }: { bake: WorldBake; wireframe: boolean; biomeColors: boolean }) {
+function Terrain({ bake, wireframe, biomeColors, sun, sunColor, ambient }: { bake: WorldBake; wireframe: boolean; biomeColors: boolean; sun: THREE.Vector3; sunColor: THREE.Color; ambient: THREE.Color }) {
   const geo = useMemo(() => terrainGeometry(bake.terrain, biomeColors, bake.lighting.terrainColors), [bake.terrain, biomeColors, bake.lighting.terrainColors]);
   useEffect(() => () => geo.dispose(), [geo]);
   const select = useWorld((s) => s.select);
+  const textures = useWorld((s) => s.textures);
+  // textured terrain (generated PBR set): grass / ground / rock / sand-or-snow splat, world-space tiling
+  const textured = useMemo(() => {
+    if (!textures || biomeColors || wireframe) return null;
+    const u = textures.urls;
+    const e = (id: string) => textures.manifest.entries.find((x) => x.id === id);
+    const snowy = (() => {
+      // channel 3 shows snow when the map has more snow / ice than sand
+      let snow = 0;
+      let sand = 0;
+      const m = bake.terrain.materials;
+      for (let i = 0; i < m.length; i += 7) {
+        const v = m[i]!;
+        if (v === 8 || v === 14) snow++;
+        else if (v === 7) sand++;
+      }
+      return snow > sand;
+    })();
+    const g = u["grass"];
+    const gr = u["ground"];
+    const r = u["rock"];
+    const sn = u[snowy ? "snow" : "sand"];
+    if (!g || !gr || !r || !sn) return null;
+    const mat = createTerrainMaterial({ grass: g.color, ground: gr.color, rock: r.color, sandOrSnow: sn.color, tiles: [e("grass")?.studsPerTile ?? 8, e("ground")?.studsPerTile ?? 8, e("rock")?.studsPerTile ?? 10, e(snowy ? "snow" : "sand")?.studsPerTile ?? 8] }, sun, sunColor, ambient);
+    return mat;
+  }, [textures, biomeColors, wireframe, bake.terrain, sun, sunColor, ambient]);
+  useEffect(() => () => { if (textured) disposeTerrainMaterial(textured); }, [textured]);
   return (
-    <mesh geometry={geo} receiveShadow castShadow onClick={(e) => { e.stopPropagation(); select(null); }}>
-      <meshStandardMaterial vertexColors roughness={0.95} metalness={0} wireframe={wireframe} flatShading />
+    <mesh geometry={geo} receiveShadow castShadow onClick={(e) => { e.stopPropagation(); select(null); }} material={textured ?? undefined}>
+      {!textured && <meshStandardMaterial vertexColors roughness={0.95} metalness={0} wireframe={wireframe} flatShading />}
     </mesh>
   );
 }

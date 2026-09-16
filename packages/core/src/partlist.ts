@@ -14,7 +14,20 @@ import type { Vec3 } from "./math";
  *  - `wedge` = Roblox WedgePart: vertical face at +Z, slope descends toward -Z.
  *  - `sphere` size must be uniform (Roblox Ball).
  */
-export type PartShape = "box" | "sphere" | "cylinder" | "wedge" | "cornerWedge";
+export type PartShape = "box" | "sphere" | "cylinder" | "wedge" | "cornerWedge" | "mesh";
+
+/**
+ * Procedural triangle mesh (flat-shaded soup: 9 floats per triangle, centred on its bounds centre).
+ * The runtime builds a MeshPart from it (EditableMesh → CreateMeshPartAsync, or an uploaded asset id),
+ * the viewer a BufferGeometry, the exporter an .obj. Parts of shape "mesh" reference one by key.
+ */
+export interface MeshData {
+  trianglesB64: string;
+  triangleCount: number;
+  bounds: { min: Vec3; max: Vec3 };
+  /** Roblox mesh asset id once uploaded (Open Cloud) — preferred over EditableMesh at runtime. */
+  assetId?: number;
+}
 
 export const ROBLOX_MATERIALS = [
   "Plastic",
@@ -134,6 +147,10 @@ export interface Part {
   light?: PartLight;
   effect?: PartEffect;
   name?: string;
+  /** Mesh key in `PrefabVariant.meshes` for shape "mesh"; `size` is the mesh bounds size (scaled). */
+  mesh?: string;
+  /** Primitive used when the runtime cannot build the mesh (old clients, EditableMesh unavailable). */
+  meshFallback?: "sphere" | "box";
   /**
    * LOD tier at which this part still exists.
    * 0 = full detail only, 1 = full + simple, 2 = all tiers (silhouette).
@@ -183,6 +200,8 @@ export interface PrefabVariant {
   baseRadius?: number;
   tags: string[];
   source?: PrefabMeshSource;
+  /** Procedural meshes referenced by parts of shape "mesh". */
+  meshes?: Record<string, MeshData>;
 }
 
 /** Row-major 3×3 rotation matrix. */
@@ -272,6 +291,11 @@ export function partBounds(p: Part): { min: Vec3; max: Vec3 } {
   if (p.shape === "sphere") {
     const r = p.size[0] / 2;
     return { min: [p.position[0] - r, p.position[1] - r, p.position[2] - r], max: [p.position[0] + r, p.position[1] + r, p.position[2] + r] };
+  }
+  if (p.shape === "mesh") {
+    // rotated meshes are rare (rocks are shaped in place): the axis-aligned box of the scaled bounds
+    const [sx, sy, sz] = p.size;
+    return { min: [p.position[0] - sx / 2, p.position[1] - sy / 2, p.position[2] - sz / 2], max: [p.position[0] + sx / 2, p.position[1] + sy / 2, p.position[2] + sz / 2] };
   }
   const min: Vec3 = [Infinity, Infinity, Infinity];
   const max: Vec3 = [-Infinity, -Infinity, -Infinity];

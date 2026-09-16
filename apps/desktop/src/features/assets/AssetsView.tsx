@@ -15,6 +15,7 @@ import { useWorld } from "@/stores/worldStore";
 import { variantGeometry } from "@/features/viewer/geometry";
 import { GeneratePanel } from "./GeneratePanel";
 import { HeroMeshPanel } from "./HeroMeshPanel";
+import { TexturesPanel } from "./TexturesPanel";
 import { loadGlbScene, type MeshAssetRecord } from "@/lib/meshAssets";
 
 const CATEGORIES: ("all" | PrefabCategory)[] = ["all", "vegetation", "rock", "building", "prop", "landmark", "path"];
@@ -169,6 +170,9 @@ export function AssetsView() {
         )}
         <div className="border-t border-line pt-3">
           <HeroMeshPanel selected={hero} onSelect={setHero} />
+        </div>
+        <div className="border-t border-line pt-3">
+          <TexturesPanel />
         </div>
         <div className="border-t border-line pt-3">
           <GeneratePanel />
