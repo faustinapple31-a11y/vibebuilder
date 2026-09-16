@@ -19,6 +19,7 @@ import {
 } from "@worldforge/core";
 import type { GenLayer } from "@worldforge/world-gen";
 import { exportWorldFiles } from "@worldforge/roblox-export";
+import { materialOverrides } from "@worldforge/textures";
 import { applyFixes } from "@worldforge/quality";
 import { versionsRepo, type WorldVersionRow } from "@/lib/db";
 import { readJsonFile } from "@/lib/files";
@@ -211,7 +212,7 @@ export const useWorld = create<WorldState>((set, get) => ({
       );
       // persist to the project
       const slug = slugify(cur.meta.name);
-      const files = exportWorldFiles({ bake, spec: specToUse, style, projectSlug: slug });
+      const files = exportWorldFiles({ bake, spec: specToUse, style, projectSlug: slug, materialOverrides: materialOverrides(get().textures?.manifest ?? null) });
       await fs.writeFiles(cur.path, files.map((f) => [f.path, f.content]));
       await fs.writeText(path.join(cur.path, "qa", "report.json"), JSON.stringify(report, null, 2));
       // version

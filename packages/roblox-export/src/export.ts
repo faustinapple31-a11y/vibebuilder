@@ -39,8 +39,10 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       doors (ProximityPrompt), settlement dressing zones (walls, docks, graveyard), project skills.
  *   5 — terrain v5: procedural meshes (client MeshRender + shared meshFactory), custom textures
  *       (shared/textures.ts + world/Materials.ts), terrain voxel ops, building snap on the voxel surface.
+ *   6 — uploaded texture sets become MaterialVariants at build time (assets/materials + MaterialService
+ *       overrides in the Rojo project; world/Materials.ts only re-asserts the overrides), mesh tree crowns.
  */
-export const TEMPLATE_VERSION = 5;
+export const TEMPLATE_VERSION = 6;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
@@ -120,6 +122,7 @@ export function scaffoldProjectFiles(opts: ScaffoldOptions): ProjectFile[] {
   };
   files.push({ path: "worldforge.json", content: JSON.stringify(meta, null, 2) + "\n" });
   files.push({ path: "assets/world/.gitkeep", content: "" });
+  files.push({ path: "assets/materials/.gitkeep", content: "" });
   files.push({ path: "assets/models/.gitkeep", content: "" });
   files.push({ path: "design/.gitkeep", content: "" });
   return files;
@@ -130,6 +133,8 @@ export interface ExportWorldOptions {
   spec: WorldSpec;
   style: StyleBible;
   projectSlug: string;
+  /** MaterialService `<Material>Name` overrides of the uploaded texture sets (see @worldforge/textures materialOverrides). */
+  materialOverrides?: Record<string, string>;
 }
 
 /**
@@ -145,7 +150,7 @@ export function exportWorldFiles(opts: ExportWorldOptions): ProjectFile[] {
   files.push({ path: "assets/world/WorldBake.json", content: JSON.stringify(json) });
   files.push({ path: `worlds/${spec.id}/world.spec.json`, content: JSON.stringify(spec, null, 2) + "\n" });
   files.push({ path: `worlds/${spec.id}/style.bible.json`, content: JSON.stringify(style, null, 2) + "\n" });
-  files.push({ path: "default.project.json", content: JSON.stringify(buildRojoProject(opts.projectSlug, bake), null, 2) + "\n" });
+  files.push({ path: "default.project.json", content: JSON.stringify(buildRojoProject(opts.projectSlug, bake, opts.materialOverrides), null, 2) + "\n" });
   // procedural meshes as .obj (Studio import / Open Cloud upload → MeshPart asset ids)
   for (const variants of Object.values(bake.prefabs)) {
     for (const v of variants) {
@@ -168,8 +173,10 @@ export function meshToObj(data: MeshData, name: string): string {
   return lines.join("\n") + "\n";
 }
 
-export function buildRojoProject(slug: string, bake: WorldBake): Record<string, unknown> {
+export function buildRojoProject(slug: string, bake: WorldBake, materialOverrides: Record<string, string> = {}): Record<string, unknown> {
   const base = JSON.parse(TEMPLATE_FILES["default.project.json"]!.replaceAll("__PROJECT_SLUG__", slug)) as { name: string; tree: Record<string, unknown> };
+  // custom textures: MaterialVariants live in assets/materials (Rojo model files), overrides are service properties
+  base.tree["MaterialService"] = { $className: "MaterialService", $path: "assets/materials", $properties: materialOverrides };
   const L = bake.lighting;
   const rgb = (hex: string) => {
     const n = parseInt(hex.replace("#", ""), 16);

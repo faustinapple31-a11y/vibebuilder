@@ -215,8 +215,9 @@ la fait pivoter autour de sa charnière (fermeture automatique après 10 s). Tem
 `AssetService:CreateMeshPartAsync`, repli sur une primitive quand l'API manque) et publie leurs données
 dans `ReplicatedStorage.WorldAssets.Meshes` ; `client/MeshRender.ts` reconstruit chaque mesh sur le
 client et l'applique aux `MeshPart` marqués `WfMesh` (`ApplyMesh`) — au plus ~6 meshes distincts par
-monde (budget mémoire client). `world/Materials.ts` crée les `MaterialVariant` des textures uploadées
-(`shared/textures.ts`) et les applique au terrain et aux parts (`MaterialService:SetBaseMaterialOverride`).
+monde (budget mémoire client). Les `MaterialVariant` des textures uploadées sont construits par Rojo
+(`assets/materials/*.model.json`, overrides `<Material>Name` de `MaterialService` dans le projet Rojo) ;
+`world/Materials.ts` ne fait que ré-affirmer les overrides (`SetBaseMaterialOverride`) au démarrage.
 
 ## 8. Bridge MCP Studio (implémenté)
 

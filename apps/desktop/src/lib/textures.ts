@@ -1,6 +1,7 @@
 import type { StyleBible } from "@worldforge/core";
 import { buildTexturesTs, bytesToBase64, generateTextureSet, webDeflate, withAssetIds, type TextureManifest } from "@worldforge/textures";
 import { readJsonFile, writeJsonFile } from "./files";
+import { buildMaterialModelFiles, materialOverrides, withImageIds } from "@worldforge/textures";
 import { fs, path } from "./tauri";
 
 /**
@@ -14,8 +15,17 @@ export async function loadTextureManifest(projectPath: string): Promise<TextureM
   return readJsonFile<TextureManifest>(path.join(projectPath, TEXTURE_MANIFEST_PATH));
 }
 
+/** shared/textures.ts + the Rojo material models + the MaterialService overrides of default.project.json. */
 async function writeTexturesTs(projectPath: string, manifest: TextureManifest | null): Promise<void> {
   await fs.writeText(path.join(projectPath, "src", "shared", "textures.ts"), buildTexturesTs(manifest));
+  const models = buildMaterialModelFiles(manifest);
+  await fs.mkdirp(path.join(projectPath, "assets", "materials"));
+  if (models.length > 0) await fs.writeFiles(projectPath, models.map((f) => [f.path, f.content]));
+  const project = await readJsonFile<{ tree?: Record<string, unknown> }>(path.join(projectPath, "default.project.json"));
+  if (project?.tree) {
+    project.tree["MaterialService"] = { $className: "MaterialService", $path: "assets/materials", $properties: materialOverrides(manifest) };
+    await writeJsonFile(path.join(projectPath, "default.project.json"), project);
+  }
 }
 
 export interface GeneratedTexturePreview {
@@ -79,6 +89,52 @@ export async function uploadProjectTextures(projectPath: string, manifest: Textu
       await writeTexturesTs(projectPath, current);
     }
   }
+  // always (re)write the runtime side: an already-uploaded set still needs its material models in the project
+  await writeTexturesTs(projectPath, current);
   onProgress?.("textures uploaded");
   return current;
+}
+
+/**
+ * Decal → Image ids through Studio (`game:GetObjects` on the creator's decals gives the Decal instance
+ * whose Texture is the image asset MaterialVariants need). `runLuau` is the Studio bridge; returns the
+ * manifest with `imageIds` filled in (and the runtime files rewritten) — a no-op when nothing is pending.
+ */
+export async function resolveTextureImageIds(projectPath: string, manifest: TextureManifest, runLuau: (code: string, datamodel: "Edit" | "Server") => Promise<string>, onProgress?: (text: string) => void): Promise<TextureManifest> {
+  const pending: number[] = [];
+  for (const e of manifest.entries) for (const map of ["color", "normal", "roughness"] as const) if (e.assetIds[map] && !(e.imageIds?.[map] ?? 0)) pending.push(e.assetIds[map]);
+  if (pending.length === 0) return manifest;
+  onProgress?.(`resolving ${pending.length} image ids in Studio…`);
+  const code = `local out = {}
+for _, id in ipairs({${pending.join(", ")}}) do
+  local ok, objs = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
+  local d = ok and objs[1]
+  local img = d and d:IsA("Decal") and tostring(d.Texture):match("%d+")
+  if img then table.insert(out, id .. "=" .. img) end
+end
+return table.concat(out, ",")`;
+  // Edit datamodel normally; Server while a play session is running (Edit is unavailable then)
+  let res = "";
+  for (const dm of ["Edit", "Server"] as const) {
+    res = await runLuau(code, dm).catch(() => "");
+    if (res.includes("=")) break;
+  }
+  const map = new Map<number, number>();
+  for (const pair of res.split(",")) {
+    const [a, b] = pair.split("=");
+    if (a && b && Number(b) > 0) map.set(Number(a), Number(b));
+  }
+  const ids: Record<string, Partial<{ color: number; normal: number; roughness: number }>> = {};
+  for (const e of manifest.entries) {
+    for (const m of ["color", "normal", "roughness"] as const) {
+      const img = map.get(e.assetIds[m]);
+      if (img) (ids[e.id] ??= {})[m] = img;
+    }
+  }
+  if (Object.keys(ids).length === 0) throw new Error("Studio could not resolve the image ids (is it logged in as the creator of the key?)");
+  const next = withImageIds(manifest, ids);
+  await writeJsonFile(path.join(projectPath, TEXTURE_MANIFEST_PATH), next);
+  await writeTexturesTs(projectPath, next);
+  onProgress?.(`${map.size} image ids resolved`);
+  return next;
 }

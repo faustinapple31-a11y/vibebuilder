@@ -2,16 +2,16 @@ import { Image as ImageIcon, RefreshCw, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { TextureManifest } from "@worldforge/textures";
 import { Button } from "@/components/ui";
-import { generateProjectTextures, loadTextureManifest, textureManifestPreviews, uploadProjectTextures, type GeneratedTexturePreview } from "@/lib/textures";
+import { generateProjectTextures, loadTextureManifest, resolveTextureImageIds, textureManifestPreviews, uploadProjectTextures, type GeneratedTexturePreview } from "@/lib/textures";
 import { opencloud } from "@/lib/tauri";
 import { useProjects } from "@/stores/projectStore";
-import { cloudClient } from "@/stores/robloxStore";
+import { cloudClient, useRoblox } from "@/stores/robloxStore";
 import { useWorld } from "@/stores/worldStore";
 
 /**
  * Custom PBR textures for the project's style: generated locally (seamless colour / normal / roughness
- * maps per material), previewed here, uploaded to Roblox as images when an Open Cloud key exists.
- * The runtime turns uploaded sets into MaterialVariants (terrain + parts); the viewer uses the PNGs.
+ * maps per material), previewed here, uploaded to Roblox as images when an Open Cloud key exists. Uploaded
+ * sets become MaterialVariants built into the place by Rojo (terrain + parts); the viewer uses the PNGs.
  */
 export function TexturesPanel() {
   const project = useProjects((s) => s.current);
@@ -60,7 +60,7 @@ export function TexturesPanel() {
     }
     setBusy("uploading…");
     try {
-      const next = await uploadProjectTextures(
+      let next = await uploadProjectTextures(
         project.path,
         manifest,
         async (filePath, name) => {
@@ -70,6 +70,10 @@ export function TexturesPanel() {
         },
         setBusy,
       );
+      // MaterialVariants need the image ids behind the decals: Studio resolves them (connect it and upload again otherwise)
+      const roblox = useRoblox.getState();
+      if (roblox.mcp.studios.length > 0) next = await resolveTextureImageIds(project.path, next, (code, dm) => roblox.runLuau(code, dm), setBusy);
+      else if (next.entries.some((e) => e.assetIds.color && !(e.imageIds?.color ?? 0))) setBusy("uploaded — connect Studio (Roblox tab) and click Upload again to resolve the image ids");
       setManifest(next);
       await useWorld.getState().setTextures(next);
       setBusy(null);
@@ -79,6 +83,7 @@ export function TexturesPanel() {
   };
 
   const uploaded = manifest ? manifest.entries.filter((e) => e.assetIds.color > 0).length : 0;
+  const resolved = manifest ? manifest.entries.filter((e) => (e.imageIds?.color ?? 0) > 0).length : 0;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -87,11 +92,11 @@ export function TexturesPanel() {
         </div>
         {manifest && (
           <span className="text-[10px] text-faint">
-            {manifest.entries.length} sets · {manifest.size}px · {uploaded} uploaded
+            {manifest.entries.length} sets · {manifest.size}px · {uploaded} uploaded · {resolved} in place
           </span>
         )}
       </div>
-      <p className="text-[11px] text-muted">Seamless colour / normal / roughness maps generated from the style palette (grass, ground, rock, sand, snow, cobblestone, planks, brick, metal, ice…). Uploaded sets become MaterialVariants on terrain and parts in Roblox.</p>
+      <p className="text-[11px] text-muted">Seamless colour / normal / roughness maps generated from the style palette (grass, ground, rock, sand, snow, cobblestone, planks, brick, metal, ice…). Uploaded sets are built into the place as MaterialVariants (terrain + parts); until then Roblox's base materials, tinted by the palette, stay in place.</p>
       <div className="flex flex-wrap gap-1.5">
         <Button size="sm" variant="brand" icon={<RefreshCw size={12} />} loading={busy?.startsWith("generating") ?? false} disabled={!project || !style} onClick={() => void generate()}>
           {manifest ? "Regenerate" : "Generate"}

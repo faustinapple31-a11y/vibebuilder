@@ -14,6 +14,7 @@ import { generateWorld } from "@worldforge/world-gen";
 import { buildGameFiles, exportWorldFiles, prefabToRbxmx, scaffoldProjectFiles } from "@worldforge/roblox-export";
 import { buildConfigTs, interpretPrompt } from "@worldforge/agents";
 import { critiqueBake } from "@worldforge/quality";
+import { buildTexturesTs, generateTextureSet, materialOverrides } from "@worldforge/textures";
 
 const args = process.argv.slice(2);
 const prompt = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1]?.startsWith("--") !== true) ?? "un village mystérieux dans la forêt";
@@ -42,18 +43,28 @@ console.log(`✓ world generated in ${Date.now() - t0} ms — placements ${JSON.
 const report = critiqueBake(bake, spec, style);
 console.log(`  quality ${report.score}/100 ${report.problems.map((p) => `[${p.severity}] ${p.message}`).join(" | ")}`);
 
+void (async () => {
+const textures = flag("--no-textures") ? null : await generateTextureSet(style, bake.meta.seed, { size: 256 });
+if (textures) console.log(`✓ ${textures.manifest.entries.length} textures generated (${textures.manifest.size}px; upload them from the app to get MaterialVariants)`);
+
 const projectName = spec.name;
 const files = [
   ...scaffoldProjectFiles({ projectName, projectId: newId("prj"), stylePreset: spec.stylePreset }),
-  ...exportWorldFiles({ bake, spec, style, projectSlug: slug }),
+  ...exportWorldFiles({ bake, spec, style, projectSlug: slug, materialOverrides: materialOverrides(textures?.manifest ?? null) }),
   ...buildGameFiles(game),
   { path: "src/shared/config.ts", content: buildConfigTs(game) },
   { path: "design/game.spec.json", content: JSON.stringify(game, null, 2) },
+  ...(textures ? [{ path: "design/textures.manifest.json", content: JSON.stringify(textures.manifest, null, 2) }, { path: "src/shared/textures.ts", content: buildTexturesTs(textures.manifest) }] : []),
 ];
 for (const f of files) {
   const full = join(outDir, f.path);
   mkdirSync(dirname(full), { recursive: true });
   writeFileSync(full, f.content, "utf8");
+}
+for (const f of textures?.files ?? []) {
+  const full = join(outDir, f.path);
+  mkdirSync(dirname(full), { recursive: true });
+  writeFileSync(full, f.bytes);
 }
 const modelsDir = join(outDir, "assets", "models");
 mkdirSync(modelsDir, { recursive: true });
@@ -83,6 +94,10 @@ if (flag("--build")) {
     if (studio) spawn(studio, [join(outDir, "build", `${slug}.rbxl`)], { detached: true, stdio: "ignore" }).unref();
   }
 }
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 
 function findRojo(): string {
   const candidates = [join(process.env.LOCALAPPDATA ?? "", "WorldForge", "tools", "rojo", "rojo.exe"), join(process.env.HOME ?? process.env.USERPROFILE ?? "", ".rokit", "bin", "rojo.exe"), join(process.env.HOME ?? process.env.USERPROFILE ?? "", ".aftman", "bin", "rojo.exe")];

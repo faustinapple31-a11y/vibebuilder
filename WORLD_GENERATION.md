@@ -303,8 +303,11 @@ appliquent (`ApplyMesh`) car un EditableMesh créé côté serveur ne se rend pa
 herbe feuillue, terre, boue, roche, ardoise, sable, neige, pavés, planches, briques, métal, glace, lave)
 → cartes couleur / normale / rugosité dérivées de la palette du style, encodées en PNG. Onglet Assets →
 « Custom textures » : génération locale, aperçu, upload Open Cloud (images) ; `design/textures.manifest.json`
-+ `src/shared/textures.ts` ; le runtime crée des `MaterialVariant` (+ `TerrainDetail`) qui remplacent les
-matériaux de base sur le terrain et les parts, le viewer applique un shader de splat 4 canaux.
++ `src/shared/textures.ts` ; une fois uploadés, les jeux deviennent des `MaterialVariant` (+ `TerrainDetail`)
+construits dans la place par Rojo (`assets/materials/WorldForge_<id>.model.json` + propriétés
+`<Material>Name` de `MaterialService` dans `default.project.json` — ces propriétés ne sont pas scriptables
+au runtime) et remplacent les matériaux de base sur le terrain et les parts. Le viewer applique un shader
+de splat 4 canaux avec normal maps, double échantillonnage anti-répétition et variation macro.
 
 ## 7. Analyse d'image → StyleBible
 
