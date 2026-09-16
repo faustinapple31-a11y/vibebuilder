@@ -107,8 +107,12 @@ function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["
   return best;
 }
 
-/** Blend heights toward the local mean within radius. Returns the base height. Also marks ground material. */
-export function flattenArea(ctx: GenContext, center: Vec2, radius: number, strength = 0.8, targetHeight?: number): number {
+/**
+ * Blend heights toward the local mean within radius. Fully flat inside `plateau × radius`, blending out to
+ * `radius` (building footprints need the whole slab flat: with a 0.55 plateau their corners sat on the
+ * blend and the voxel surface rose into the interiors). Returns the base height. Also marks ground material.
+ */
+export function flattenArea(ctx: GenContext, center: Vec2, radius: number, strength = 0.8, targetHeight?: number, plateau = 0.55): number {
   const h = ctx.heights;
   const [ccx, ccz] = h.toCell(center[0], center[1]);
   const rc = Math.ceil(radius / ctx.cellSize) + 1;
@@ -139,7 +143,7 @@ export function flattenArea(ctx: GenContext, center: Vec2, radius: number, stren
       if (d > radius) continue;
       const i = z * ctx.width + x;
       if (!Number.isNaN(ctx.water.data[i]!)) continue;
-      const w = (1 - smootherstep(radius * 0.55, radius, d)) * strength;
+      const w = (1 - smootherstep(radius * plateau, radius, d)) * strength;
       h.data[i] = lerp(h.data[i]!, base, w);
       if (w > 0.5 && ctx.materials[i] !== TERRAIN_MATERIAL_INDEX.Water) {
         // village ground: mostly grass with worn ground near the center

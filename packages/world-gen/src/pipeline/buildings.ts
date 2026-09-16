@@ -112,7 +112,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     // slope check (before flattening) — reject extreme sites
     if (slopeAtWorld(ctx, x, z) > 0.6) return false;
     // flatten footprint, then verify slope
-    const base = flattenArea(ctx, [x, z], foot * 1.15, 1.0);
+    const base = flattenArea(ctx, [x, z], foot * 1.5, 1.0, undefined, 0.78);
     if (slopeAtWorld(ctx, x, z) > MAX_BUILDING_SLOPE) return false;
     // face the center (front is -Z in prefab space): rotationY such that -Z points to center
     // prefab front is -Z; rotating by θ around Y maps -Z to (-sin θ, 0, -cos θ) → θ = atan2(-dx, -dz)
@@ -273,7 +273,7 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
     let blockedByLandmark = false;
     for (const o of ctx.occupants) if (o.kind === "landmark" && Math.hypot(x - o.position[0], z - o.position[2]) < o.radius + v.footprintRadius * 0.6) blockedByLandmark = true;
     if (blockedByLandmark) continue;
-    const base = flattenArea(ctx, [x, z], v.footprintRadius * 1.15, 1.0);
+    const base = flattenArea(ctx, [x, z], v.footprintRadius * 1.5, 1.0, undefined, 0.78);
     if (slopeAtWorld(ctx, x, z) > MAX_BUILDING_SLOPE) continue;
     const scale = 1 + (rng.next() * 2 - 1) * ctx.style.architecture.scaleVariance * 0.3;
     const position: Vec3 = [x, base, z];

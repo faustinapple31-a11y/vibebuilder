@@ -185,7 +185,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       const v = ctx.prefabs[p.prefab]?.[p.variant];
       if (!v) continue;
       ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
-      flattenArea(ctx, [p.position[0], p.position[2]], v.footprintRadius * 1.15, 1.0, p.position[1]);
+      flattenArea(ctx, [p.position[0], p.position[2]], v.footprintRadius * 1.5, 1.0, p.position[1], 0.78);
       ctx.occupants.push({ position: p.position, radius: v.footprintRadius * p.scale, kind: "building" });
     }
     for (const z of compatiblePrevious.zones) if (z.kind === "gameplay" && (z.id.endsWith("_walls") || z.id.endsWith("_docks") || z.id === "graveyard")) ctx.zones.push({ ...z });
@@ -332,7 +332,8 @@ export function groundHeightFor(ctx: GenContext, v: PrefabVariant, x: number, z:
   }
   const height = Math.max(1, v.bounds.max[1]) * scale;
   // buildings/landmarks sit on flattened ground (small drop is enough); trees only ever sink their root flare
-  const cap = v.category === "vegetation" ? 1.5 : v.category === "landmark" ? 1.5 : 1.2;
+  const walkIn = v.category === "building" || v.tags.includes("interior");
+  const cap = walkIn ? 0.3 : v.category === "vegetation" ? 1.5 : v.category === "landmark" ? 1.5 : 1.2;
   const maxExtra = Math.min(cap, Math.max(0.5, Math.min(height * 0.3, r * 0.9)));
   const drop = Math.min(center - min, maxExtra) * (1 - conform);
   return center - drop - sink;

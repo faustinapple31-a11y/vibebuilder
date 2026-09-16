@@ -576,7 +576,7 @@ export function church(ctx: PrefabContext, variant: number): PrefabVariant {
   b.box([0, H * 2 + 35, -L / 2 + 6], [0.6, 4, 0.6], "#d8c060", { material: METAL, collide: false, lod: 0 });
   b.box([0, H * 2 + 35.8, -L / 2 + 6], [2.4, 0.6, 0.6], "#d8c060", { material: METAL, collide: false, lod: 0 });
   b.cylinder([0, H * 2 + 2, -L / 2 + 6], 2.4, 2.6, "#b08a30", { material: METAL, collide: false, lod: 0 });
-  return done(b, "church", variant, ["village", "building", "temple", "interior"], 1.2, 26);
+  return done(b, "church", variant, ["village", "building", "temple", "interior"], 0.6, 26);
 }
 
 export function barn(ctx: PrefabContext, variant: number): PrefabVariant {
@@ -606,7 +606,7 @@ export function barn(ctx: PrefabContext, variant: number): PrefabVariant {
   for (let i = 0; i < 4; i++) b.cylinder([jitter(rng, 6) - 4, 1.8, jitter(rng, 8)], 3.6, 3, "#d8b860", { material: "Grass", collide: true, lod: 0, rotation: [0, 0, 90] });
   for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) b.box([sx * 8, 3, -6 + i * 8], [0.5, 4, 6], style.palette.wood, { material: "Wood", collide: true, lod: 0 });
   b.sphere([0, H - 1, 0], 1.4, "#ffd080", { material: "Neon", collide: false, lod: 0, light: { type: "point", color: "#ffd080", brightness: 1.2, range: 32 } });
-  return done(b, "barn", variant, ["farm", "building", "interior"], 1.2, 22);
+  return done(b, "barn", variant, ["farm", "building", "interior"], 0.6, 22);
 }
 
 /**

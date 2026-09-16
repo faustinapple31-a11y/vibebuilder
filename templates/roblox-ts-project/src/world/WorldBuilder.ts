@@ -204,7 +204,17 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 			if (prefabName !== "bridge" && !floating) {
 				const hit = Workspace.Raycast(new Vector3(x, y + 150, z), new Vector3(0, -400, 0), snapParams);
 				if (hit) {
-					const delta = hit.Position.Y - heightAt(x, z);
+					let delta = hit.Position.Y - heightAt(x, z);
+					if ((meta?.category ?? variant.category) === "building" || (variant.tags !== undefined && variant.tags.includes("interior"))) {
+						// the smooth voxel surface can rise above the flattened heightmap around a slab: follow its highest
+						// point under the footprint so the interior floor never ends up under the terrain
+						const r = math.max(2, variant.footprintRadius * scale * 0.7);
+						const offsets: [number, number][] = [[r, 0], [-r, 0], [0, r], [0, -r], [r * 0.7, r * 0.7], [-r * 0.7, -r * 0.7], [r * 0.7, -r * 0.7], [-r * 0.7, r * 0.7]];
+						for (const [ox, oz] of offsets) {
+							const h2 = Workspace.Raycast(new Vector3(x + ox, y + 150, z + oz), new Vector3(0, -400, 0), snapParams);
+							if (h2) delta = math.max(delta, math.min(h2.Position.Y - heightAt(x, z), delta + 3));
+						}
+					}
 					if (math.abs(delta) < 24) yy = y + delta;
 				}
 			}

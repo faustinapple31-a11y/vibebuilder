@@ -589,7 +589,7 @@ export function house(ctx: PrefabContext, variant: number, opts: { kit?: Archite
     else b.box([W / 2 + 0.6, base + H * 0.5, D * 0.1], [0.4, H * 0.9, D * 0.5], style.palette.foliageAlt, vineOpts);
   }
   const tags = ["building", kit, p.interiors ? "interior" : "shell", `floors:${p.floors}`];
-  return b.build({ id: `${opts.prefabId ?? "house"}/${variant}`, prefab: opts.prefabId ?? "house", category: "building", sinkDepth: p.stilts > 0 ? 1.2 : 1.0, tags });
+  return b.build({ id: `${opts.prefabId ?? "house"}/${variant}`, prefab: opts.prefabId ?? "house", category: "building", sinkDepth: p.stilts > 0 ? 1.2 : 0.5, tags });
 }
 
 export const houseLarge = (ctx: PrefabContext, variant: number): PrefabVariant => house(ctx, variant, { large: true, prefabId: "house_large" });

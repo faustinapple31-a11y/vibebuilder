@@ -26,6 +26,11 @@ Fix root causes; never wrap errors in `pcall` to hide them, never delete a featu
 - Studio-only hooks: `ServerStorage.WorldForgeDev:Invoke("grantCoins", player, 500)`,
   `("grantItem", player, "wood", 10)`, `("profile", player)`; `ReplicatedStorage.Remotes.ShopBuy:InvokeServer(id)`
   from the client. `Workspace:GetAttribute("WorldReady")` tells whether the world finished building.
+- Buildings vs terrain: for every model with attribute `Category = "building"`, raycast the terrain at the pivot and
+  at ±40 % of its bounding box; `terrain.Y − pivot.Y` must stay within about −1 … +1.2 studs (the interior floor is
+  1.5 studs above the pivot, the foundation 1.1 below). Larger values = houses sinking into / floating over the voxel
+  surface → regenerate (the generator flattens a plateau under every slab and the WorldBuilder snaps buildings to the
+  highest rendered point of their footprint).
 - Meshes: `[WorldForge] … world ready` then no `EditableMesh budget exhausted` / `ApplyMesh failed` warnings on
   the client; MeshParts tagged `WfMesh` must not render as boxes / checkerboards (client rebuild failed).
   Caves: `Zones/cave_chamber` marker sits inside Air voxels (`Terrain:ReadVoxels`).

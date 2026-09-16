@@ -37,8 +37,10 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       racing/vehicles, tower defense, farming/mining/pets/housing, modes) + zone markers with meta.
  *   4 — environment: weather particle layer (client), clouds / terrain colors from the bake, opening
  *       doors (ProximityPrompt), settlement dressing zones (walls, docks, graveyard), project skills.
+ *   5 — terrain v5: procedural meshes (client MeshRender + shared meshFactory), custom textures
+ *       (shared/textures.ts + world/Materials.ts), terrain voxel ops, building snap on the voxel surface.
  */
-export const TEMPLATE_VERSION = 4;
+export const TEMPLATE_VERSION = 5;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [

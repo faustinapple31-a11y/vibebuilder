@@ -75,7 +75,7 @@ export function placeLandmarks(ctx: GenContext): void {
     if (!pos) continue;
     // flatten footprint and get base height (water landmarks sit at the water surface, terrain untouched)
     const footprint = info.footprint * scaleMult;
-    const base = afloat ? ctx.water.sample(pos[0], pos[1]) : lm.type === "well" && ctx.sites[0] ? ctx.heights.sample(pos[0], pos[1]) : flattenArea(ctx, pos, footprint * 1.25, 0.9);
+    const base = afloat ? ctx.water.sample(pos[0], pos[1]) : lm.type === "well" && ctx.sites[0] ? ctx.heights.sample(pos[0], pos[1]) : flattenArea(ctx, pos, footprint * 1.4, 1.0, undefined, 0.78);
     const position: Vec3 = [pos[0], base, pos[1]];
     const corridors = viewpoints.map((v) => ({
       from: v.id,

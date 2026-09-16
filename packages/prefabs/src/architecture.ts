@@ -211,7 +211,7 @@ export function cottage(ctx: PrefabContext, variant: number): PrefabVariant {
   }
 
   const footprint = Math.max(W, D) * 0.62 + overhang;
-  return b.build({ id: `cottage/${variant}`, prefab: "cottage", category: "building", sinkDepth: 1.0, footprintRadius: footprint, baseRadius: Math.max(W, D) / 2 + 0.8, tags: ["building", "house", arch.style] });
+  return b.build({ id: `cottage/${variant}`, prefab: "cottage", category: "building", sinkDepth: 0.5, footprintRadius: footprint, baseRadius: Math.max(W, D) / 2 + 0.8, tags: ["building", "house", arch.style] });
 }
 
 export function ruinWall(ctx: PrefabContext, variant: number): PrefabVariant {
