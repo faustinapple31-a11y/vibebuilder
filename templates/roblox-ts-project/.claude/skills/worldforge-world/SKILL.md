@@ -65,7 +65,8 @@ or the app does it when the spec file changes). **Never edit WorldBake.json.**
 - **landmark types**: giant_tree, ruins, tower, castle, statue, windmill, temple, portal, well, mountain_peak,
   volcano, campfire, bridge, crashed_plane, radio_tower, skyscraper, skyscraper_ruin, water_tower, pyramid,
   colosseum, torii_gate, lighthouse, pirate_ship, rocket, ufo, dome_base, crystal_spire, ferris_wheel,
-  stadium, fountain, obelisk, waterfall_cliff, gas_station, church, barn. `role`: focal (one, seen from spawn),
+  stadium, fountain, obelisk, waterfall_cliff, gas_station, church, barn, cave (a tunnel + chamber is carved
+  into the hillside behind it: crystals, mushrooms, a chest — `cave_chamber` zone). `role`: focal (one, seen from spawn),
   secondary, hidden. `preferredZone`: hill, ridge, forest_edge, riverbank, plateau, clearing, village, valley, coast, flat, outskirts, any.
 - **settlement types**: village, abandoned_village, hamlet, camp, outpost, ruined_town, town (grid streets),
   city_district (blocks + skyscrapers), base, harbor (placed on a shore, gets a pier), farmstead (fields).
@@ -122,6 +123,10 @@ bible fields; hand-edit for targeted tweaks (a warmer palette, more weathering, 
   `<settlement>_walls`, `<settlement>_docks`, `graveyard`. Systems anchor on them (`src/shared/zones.ts`).
 - Lighting: Atmosphere, ColorCorrection, Bloom, SunRays, Sky (no celestial bodies in space styles),
   Clouds, palette-tinted terrain colors, water color, and a weather attribute set the client renders.
+- Terrain detail: hydraulic erosion (gullies, fans — scaled by `terrain.erosion`), 3D voxel ops the runtime
+  applies after the heightmap (`terrain.ops`): caves behind `cave` landmarks, rock overhangs on steep
+  rocky slopes, natural arches on cliffs / shores, lava lakes in volcano craters (`crater` feature +
+  `volcano` landmark or volcanic biome). Rocks and cliffs are procedural 3D meshes (see `worldforge-assets`).
 
 ## Diagnosing a bad map
 

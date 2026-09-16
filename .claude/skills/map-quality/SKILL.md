@@ -11,7 +11,7 @@ description: "Improve or debug WorldForge map generation (packages/world-gen): p
 
 | # | stage (file) | contract |
 |---|---|---|
-| 1 | `terrain.ts` | base fbm → features in order (mountains, hills, valley, plateau, cliffs, crater) → border rise (not over the ocean) → **island / coast** (`computeOceanMask` → `applyOcean`, sea level = `seaLevelOf(spec)`) → detail → strata → erosion (sea floor clamped) |
+| 1 | `terrain.ts` | base fbm → features in order (mountains, hills, valley, plateau, cliffs, crater) → border rise (not over the ocean) → **island / coast** (`computeOceanMask` → `applyOcean`, sea level = `seaLevelOf(spec)`) → detail → strata → thermal erosion → **hydraulic erosion** (`hydraulicErosion`: droplets, per-cell budget, smoothed delta) (sea floor clamped) |
 | 2 | `water.ts` | rivers (A* downhill, carved bed + banks), lakes, **ocean fill** under sea level, `waterDistance` (polylines + chamfer distance from water cells) |
 | 3 | `biomes.ts` | biome per cell (weight × elevation × moisture × noise) → material (slope rock, shore sand/mud, **beach ring**, **style snow line**) |
 | 4 | `sites.ts` | flat site per settlement (harbor = on the shore), flattened, plaza kept clear |
@@ -21,6 +21,7 @@ description: "Improve or debug WorldForge map generation (packages/world-gen): p
 | 8 | `buildings.ts` | organic ring or street grid per settlement type; `prefabMix`; footprints flattened; plaza paved |
 | 9 | `dressing.ts` | `dress_*` placements: ring walls + gates (style `environment.walls`), crop fields, pier + boats, graveyard, landmark grounds (paved disc + lights + seats), stripes / crossings / kerbs on asphalt & concrete |
 | 10 | `layout.ts` | gameplay archetype structures + zones (`layout_*`, tag `layout`) |
+| 10b | `relief.ts` | `ctx.terrainOps` voxel ops (carve / fill balls, blocks, cylinders): cave tunnel + chamber behind `cave` landmarks (+ `fixed` interior placements, `cave_chamber` zone), overhang ledges, natural arches, lava lakes |
 | 11 | `vegetation.ts` | poisson scatter by biome density, kit species blend, clearings around sites / roads / water / occupants |
 | 12 | `props.ts`, `kitProps.ts` | rocks, kit props by tag (roadside lights, walls tangent to houses, shore, plaza…), waterside, ambience |
 | 13 | `lighting.ts` | Roblox Lighting + Atmosphere + effects + **terrain colors** (palette tint) + **clouds** + **weather** |
@@ -55,6 +56,16 @@ ids, `zones`, `lighting`, `stats`) is the quickest way to count things.
 | nothing on the beach | shore band = `waterDistance < 16 && h < sea + 5`; species / props with tag `water` / `tropical` |
 | night unreadable | `lighting.ts` night clamps (ambient mix, exposure +1.45) |
 | Studio hangs | > ~45 k parts or `Future` lighting with hundreds of lights — check `stats.partsEstimate`, `maxLights` |
+
+## Meshes & textures
+
+- Rock prefabs use the 6-mesh library (`packages/prefabs/src/meshes/library.ts`); `PrefabContext.meshes`
+  carries it. Runtime + viewer + `.obj` export read `PrefabVariant.meshes`. Server EditableMeshes do not
+  render on clients: `client/MeshRender.ts` rebuilds them from `ReplicatedStorage.WorldAssets.Meshes`.
+  Roblox client budget ≈ 6–8 EditableMeshes → never add per-variant geometry.
+- Textures: `packages/textures` (tileable noise, 14 programs, PNG encoder); the app generates / uploads
+  sets, the template's `Materials.ts` applies MaterialVariants, the viewer's `terrainMaterial.ts` splats
+  grass / ground / rock / sand-or-snow by the `weights` attribute of `terrainGeometry`.
 
 ## Adding a dressing element
 

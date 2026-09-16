@@ -26,6 +26,9 @@ Fix root causes; never wrap errors in `pcall` to hide them, never delete a featu
 - Studio-only hooks: `ServerStorage.WorldForgeDev:Invoke("grantCoins", player, 500)`,
   `("grantItem", player, "wood", 10)`, `("profile", player)`; `ReplicatedStorage.Remotes.ShopBuy:InvokeServer(id)`
   from the client. `Workspace:GetAttribute("WorldReady")` tells whether the world finished building.
+- Meshes: `[WorldForge] … world ready` then no `EditableMesh budget exhausted` / `ApplyMesh failed` warnings on
+  the client; MeshParts tagged `WfMesh` must not render as boxes / checkerboards (client rebuild failed).
+  Caves: `Zones/cave_chamber` marker sits inside Air voxels (`Terrain:ReadVoxels`).
 - Performance: target < 45 k parts, ShadowMap lighting, few PointLights (hundreds of lights with `Future`
   lighting have hung GPUs), `StreamingEnabled` on. The bake stats (`assets/world/WorldBake.json` → `stats`)
   give parts / instances per category.

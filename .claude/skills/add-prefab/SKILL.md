@@ -31,6 +31,15 @@ high at +Z / low at −Z, `CornerWedgePart` apex above the (+X, −Z) corner).
 6. **Named parts** the runtime reacts to: `Door` (swings open), `KillBrick` (obby), `Seat` semantics come
    from tags, not names.
 
+## Mesh parts
+
+`b.mesh(key, data, position, color, { scale, fallback, material, rotation, lod, collide })` adds a part of
+shape `mesh` referencing a triangle soup (`MeshData`, built with `MeshBuilder` in `meshes/mesh-builder.ts`:
+icosphere → `displace` → `scale` → `flattenBelow` → `centred()`). Use the shared library
+(`ctx.meshes`, ids in `meshes/library.ts`) rather than new geometry per variant: a Roblox client holds only
+~6 EditableMeshes, so unique meshes are a per-bake budget. `size` = scaled bounds; `meshFallback` picks the
+primitive used when meshes are unavailable. Bounds / connectivity treat a mesh part as its box.
+
 ## Tags the generator reads
 
 | tag | effect |

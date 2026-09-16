@@ -208,6 +208,16 @@ moteur `rbxasset://` uniquement) et réagit aux changements d'attributs (un syst
 modifier à chaud). `src/systems/Doors.ts` pose un ProximityPrompt sur chaque part `Door` du monde et
 la fait pivoter autour de sa charnière (fermeture automatique après 10 s). Template **v4**.
 
+### Terrain v5 : voxels 3D, meshes, textures
+
+`TerrainBuilder.applyTerrainOps` applique les opérations 3D du bake (grottes, surplombs, arches, lave) ;
+`shared/world/meshFactory.ts` construit les meshes procéduraux (EditableMesh `FixedSize` →
+`AssetService:CreateMeshPartAsync`, repli sur une primitive quand l'API manque) et publie leurs données
+dans `ReplicatedStorage.WorldAssets.Meshes` ; `client/MeshRender.ts` reconstruit chaque mesh sur le
+client et l'applique aux `MeshPart` marqués `WfMesh` (`ApplyMesh`) — au plus ~6 meshes distincts par
+monde (budget mémoire client). `world/Materials.ts` crée les `MaterialVariant` des textures uploadées
+(`shared/textures.ts`) et les applique au terrain et aux parts (`MaterialService:SetBaseMaterialOverride`).
+
 ## 8. Bridge MCP Studio (implémenté)
 
 Roblox Studio embarque un serveur MCP (`StudioMCP.exe`, transport stdio). L'app le détecte à côté de l'exécutable

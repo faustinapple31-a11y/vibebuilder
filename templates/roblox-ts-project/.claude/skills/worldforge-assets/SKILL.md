@@ -56,6 +56,24 @@ Audio assets must be uploaded by the publishing account (Roblox audio privacy) �
 - Hero meshes replace a prefab's placeholder PartList at runtime when the asset loads; keep the placeholder
   so the map still works offline.
 
+## Custom textures (`design/textures.manifest.json` → `src/shared/textures.ts`)
+
+WorldForge generates a seamless PBR texture set from the style palette (Assets → Custom textures):
+colour / normal / roughness PNGs under `assets/textures/<style>/` for grass, leafy grass, ground, mud,
+rock, slate, sand, snow, cobblestone, wood planks, brick, metal, ice (+ lava). Uploading them (Open Cloud,
+image assets) fills `assetIds`; `src/world/Materials.ts` then creates a `MaterialVariant` per entry
+(+ `TerrainDetail` faces) and overrides the base material for terrain and parts. Ids at 0 → the base
+material with the palette tint stays. Regenerating keeps the ids of a same-style set. To restyle a
+material by hand, edit the manifest entry (`studsPerTile`) or replace the PNG and re-upload.
+
+## Procedural meshes
+
+Rocks / cliffs are triangle meshes shipped in the bake (`PrefabVariant.meshes`, parts of shape `mesh`)
+and exported as `assets/meshes/*.obj`. At runtime the server builds them with EditableMesh
+(`shared/world/meshFactory.ts`) and every client rebuilds + `ApplyMesh`es them (`client/MeshRender.ts`).
+Keep the number of distinct meshes per world small (≤ 6 — client memory budget); variety comes from
+scale / rotation / colour. Uploaded mesh asset ids (`MeshData.assetId`) are used instead when present.
+
 ## Checklist
 
 1. JSON validates against the GameSpec / manifest schemas (WorldForge shows errors in the Design panel).

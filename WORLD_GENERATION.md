@@ -146,7 +146,8 @@ grandes formes de terrain
 bruit secondaire
  ↓ 4. détail (petites bosses, roughness), jamais seul : masqué par la pente
 passe d'érosion
- ↓ 5. érosion thermique (talus) + lissage hydraulique simplifié : adoucit les pentes, creuse les vallées
+ ↓ 5. érosion thermique (talus) puis **érosion hydraulique** (gouttes : transport de sédiments, ravines et
+      cônes de déjection, budget d'érosion par cellule, delta lissé pour des chenaux lisibles à 4 studs)
 masques de biomes
  ↓ 6. hauteur + humidité (bruit) + distance à l'eau + weights de la spec → biome par cellule + matériaux
 rivières & lacs
@@ -169,6 +170,12 @@ habillage (dressing)
        (rayon vers l'eau la plus proche), **cimetière** derrière l'église (ou en lisière), **parvis** des landmarks
        (disque pavé + lumières + bancs du kit), **marquages** des rues asphalte/béton (bandes, passages piétons,
        bordures). Ids `dress_*` : jamais élagués par le budget, restaurés avec la couche bâtiments.
+relief 3D (voxels)
+ ↓ 11c. `pipeline/relief.ts` — opérations voxel (`terrain.ops`, appliquées par le runtime après les colonnes :
+       FillBall / FillBlock / FillCylinder, Air pour creuser) : **grottes** derrière chaque landmark `cave`
+       (tunnel qui monte dans la pente + salle, cristaux / champignons / coffre / torche en placements
+       `fixed`, zone `cave`), **surplombs** rocheux sur les pentes raides, **arches** naturelles sur les
+       falaises et côtes, **lac de lave** dans les cratères de volcan.
 végétation
  ↓ 12. Poisson-disk par biome, clusters/clairières (bruit), évitement routes/bâtiments/eau/pentes, variation espèce/échelle/rotation
 props
@@ -277,6 +284,27 @@ l'empreinte, terre à moins de 50 studs, visible depuis les peuplements) et flot
 flottaison (`sinkDepth`) ; sans eau ils s'échouent sur la terre comme avant. Les zones `coast`, `flat`
 et `outskirts` des landmarks sont maintenant scorées. Chaque bâtiment à intérieur a une porte fermée
 nommée `Door` (charnière −X) que le système `Doors` du template ouvre au ProximityPrompt.
+
+### 6d. Meshes 3D procéduraux
+
+Les rochers (`boulder`, `rock_cluster`, `cliff_block`) sont de vrais meshes : icosphères déplacées par
+un bruit 3D, ombrage plat, forme selon le style (`rock.variation`, `geometry`), base aplatie. Une
+**bibliothèque de 6 meshes** par bake (`meshes/library.ts` : rock_a/b, pebble_a, cliff_a/b, slab_a) est
+réutilisée par tous les rochers avec échelle non uniforme, rotation et couleur propres — un client Roblox
+ne peut tenir qu'une poignée d'`EditableMesh` en mémoire. Les parts de forme `mesh` portent la clé,
+`PrefabVariant.meshes` les triangles (base64) ; le viewer les affiche, l'export écrit `assets/meshes/*.obj`.
+Runtime : le serveur construit des `MeshPart` (EditableMesh `FixedSize` → `CreateMeshPartAsync`, collision
+Hull, UV planaires) et publie les triangles ; les clients reconstruisent les mêmes meshes localement et les
+appliquent (`ApplyMesh`) car un EditableMesh créé côté serveur ne se rend pas sur les clients.
+
+### 6e. Textures PBR procédurales
+
+`packages/textures` : bruit tuilable (réseau périodique, cellules de Worley), 14 programmes (herbe,
+herbe feuillue, terre, boue, roche, ardoise, sable, neige, pavés, planches, briques, métal, glace, lave)
+→ cartes couleur / normale / rugosité dérivées de la palette du style, encodées en PNG. Onglet Assets →
+« Custom textures » : génération locale, aperçu, upload Open Cloud (images) ; `design/textures.manifest.json`
++ `src/shared/textures.ts` ; le runtime crée des `MaterialVariant` (+ `TerrainDetail`) qui remplacent les
+matériaux de base sur le terrain et les parts, le viewer applique un shader de splat 4 canaux.
 
 ## 7. Analyse d'image → StyleBible
 

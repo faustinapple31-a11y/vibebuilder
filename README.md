@@ -84,6 +84,14 @@ circuit, parcelles tycoon, lobby à portails, chemin de vagues, stade, plaza, do
 listes complètes dans [TAXONOMY.md](TAXONOMY.md) ; `npx tsx scripts/demo-prompt.ts "<idée>" --build`
 produit un projet Roblox complet à partir de n'importe quel prompt.
 
+### Terrain v5 : érosion, grottes, meshes, textures
+
+Érosion hydraulique (ravines réelles), grottes creusées derrière les landmarks `cave` (tunnel + salle aux
+cristaux et au coffre), surplombs rocheux, arches naturelles, lacs de lave, rochers et falaises en vrais
+meshes 3D low-poly (EditableMesh côté Roblox, .obj exportés), textures PBR procédurales et tuilables
+générées depuis la palette du style (aperçu dans l'app, shader texturé dans le viewer, upload Open Cloud
+→ MaterialVariants sur le terrain et les bâtiments).
+
 ### Génération de map (v4)
 
 Îles et côtes réelles (océan, plages, ponton, galion à l'ancre), enceintes avec tours de porte
