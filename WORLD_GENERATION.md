@@ -289,7 +289,7 @@ nommée `Door` (charnière −X) que le système `Doors` du template ouvre au Pr
 
 Les rochers (`boulder`, `rock_cluster`, `cliff_block`) sont de vrais meshes : icosphères déplacées par
 un bruit 3D, ombrage plat, forme selon le style (`rock.variation`, `geometry`), base aplatie. Une
-**bibliothèque de 6 meshes** par bake (`meshes/library.ts` : rock_a/b, pebble_a, cliff_a/b, slab_a) est
+**bibliothèque de 6 meshes** par bake (`meshes/library.ts` : rock_a, pebble_a, cliff_a/b, canopy_a/b — les couronnes des arbres ronds, bouleaux et buissons sont des grappes de blobs) est
 réutilisée par tous les rochers avec échelle non uniforme, rotation et couleur propres — un client Roblox
 ne peut tenir qu'une poignée d'`EditableMesh` en mémoire. Les parts de forme `mesh` portent la clé,
 `PrefabVariant.meshes` les triangles (base64) ; le viewer les affiche, l'export écrit `assets/meshes/*.obj`.

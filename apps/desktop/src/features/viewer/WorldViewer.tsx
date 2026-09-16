@@ -110,7 +110,7 @@ function Terrain({ bake, wireframe, biomeColors, sun, sunColor, ambient }: { bak
     const r = u["rock"];
     const sn = u[snowy ? "snow" : "sand"];
     if (!g || !gr || !r || !sn) return null;
-    const mat = createTerrainMaterial({ grass: g.color, ground: gr.color, rock: r.color, sandOrSnow: sn.color, tiles: [e("grass")?.studsPerTile ?? 8, e("ground")?.studsPerTile ?? 8, e("rock")?.studsPerTile ?? 10, e(snowy ? "snow" : "sand")?.studsPerTile ?? 8] }, sun, sunColor, ambient);
+    const mat = createTerrainMaterial({ grass: g.color, ground: gr.color, rock: r.color, sandOrSnow: sn.color, normals: { grass: g.normal, ground: gr.normal, rock: r.normal, sandOrSnow: sn.normal }, tiles: [e("grass")?.studsPerTile ?? 8, e("ground")?.studsPerTile ?? 8, e("rock")?.studsPerTile ?? 10, e(snowy ? "snow" : "sand")?.studsPerTile ?? 8] }, sun, sunColor, ambient);
     return mat;
   }, [textures, biomeColors, wireframe, bake.terrain, sun, sunColor, ambient]);
   useEffect(() => () => { if (textured) disposeTerrainMaterial(textured); }, [textured]);

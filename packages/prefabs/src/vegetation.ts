@@ -20,6 +20,33 @@ function trunkColor(ctx: PrefabContext): string {
   return jitterHex(ctx.style.palette.wood, jitter(ctx.rng, 6), jitter(ctx.rng, 0.05), jitter(ctx.rng, 0.06));
 }
 
+/** Styles whose crowns are one procedural mesh (clustered blobs — faceted for the blocky / chunky styles) instead of a pile of boxes / spheres. */
+function meshCrowns(ctx: PrefabContext): boolean {
+  return ctx.style.id !== "voxel" && ctx.meshes.canopy_a !== undefined && ctx.meshes.canopy_b !== undefined;
+}
+
+/**
+ * One library canopy mesh (see meshes/library.ts) fitted to `width` studs across and `height` tall, centred on
+ * `center` with a random yaw and a slight tilt. Non-uniform per-axis jitter keeps the two shared meshes varied.
+ */
+function meshCanopy(b: PartListBuilder, ctx: PrefabContext, id: "canopy_a" | "canopy_b", center: Vec3, width: number, height: number, color: string, lod: 0 | 1 | 2, castShadow = true): void {
+  const { rng, style } = ctx;
+  const data = ctx.meshes[id];
+  if (!data) return;
+  const bw = data.bounds.max[0] - data.bounds.min[0];
+  const bh = data.bounds.max[1] - data.bounds.min[1];
+  const bd = data.bounds.max[2] - data.bounds.min[2];
+  b.mesh(id, data, center, color, {
+    material: style.materials.canopy,
+    rotation: [jitter(rng, 8), rng.float(0, 360), jitter(rng, 8)],
+    collide: false,
+    castShadow,
+    lod,
+    fallback: "sphere",
+    scale: [(width / bw) * rng.float(0.9, 1.1), height / bh, (width / bd) * rng.float(0.9, 1.1)],
+  });
+}
+
 export interface Trunk {
   /** Joints from the ground (index 0 = origin) to the top. */
   points: Vec3[];
@@ -137,21 +164,33 @@ export function roundTree(ctx: PrefabContext, variant: number): PrefabVariant {
     if (smooth) b.sphere(p, s, col, { material: style.materials.canopy, collide: false, lod });
     else b.box(p, [s, sy, s], col, { material: style.materials.canopy, rotation: [jitter(rng, 22), rng.float(0, 360), jitter(rng, 22)], collide: false, lod });
   };
-  lump(crown, canopyR * 1.3, canopyR * 1.1, color, 2);
+  const meshed = meshCrowns(ctx);
+  if (!meshed) lump(crown, canopyR * 1.3, canopyR * 1.1, color, 2);
   // branches from the upper trunk, each carrying a canopy cluster at its tip → a rounded, lumpy crown
   const branches = rng.int(4, 5);
   const joint = t.points[t.points.length - 2]!;
   const start = v3.lerp(joint, t.top, 0.55);
+  let sideTip: Vec3 | undefined;
   for (let i = 0; i < branches; i++) {
     const yaw = (i / branches) * Math.PI * 2 + jitter(rng, 0.4);
     const len = canopyR * rng.float(0.7, 1.0);
     const tip = branch(b, ctx, start, yaw, rng.float(0.2, 0.75), len, trunkD * 0.32, t.color, i < 2 ? 1 : 0);
     const s = canopyR * rng.float(0.8, 1.0);
     const col = jitterHex(color, jitter(rng, 10), jitter(rng, 0.05), jitter(rng, 0.08));
-    lump([tip[0], tip[1] + s * 0.1, tip[2]], s, s * rng.float(0.75, 0.95), col, i < 2 ? 2 : i < 4 ? 1 : 0);
+    if (meshed) {
+      if (i === 0) sideTip = tip;
+    } else lump([tip[0], tip[1] + s * 0.1, tip[2]], s, s * rng.float(0.75, 0.95), col, i < 2 ? 2 : i < 4 ? 1 : 0);
   }
-  // a lighter cap on top gives the crown a lit side
-  lump([crown[0] + jitter(rng, 2), crown[1] + canopyR * 0.65, crown[2] + jitter(rng, 2)], canopyR * 0.9, canopyR * 0.6, lightenHex(color, 0.08), 1);
+  if (meshed) {
+    // one clustered mesh crown over the trunk top (covers every branch tip), a smaller cluster hanging off the
+    // first branch so the silhouette is not a ball, and a lighter cap for the lit side
+    meshCanopy(b, ctx, "canopy_a", [crown[0], crown[1] + canopyR * 0.15, crown[2]], canopyR * 2.7, canopyR * 2.1, color, 2);
+    if (sideTip) meshCanopy(b, ctx, "canopy_b", [sideTip[0], sideTip[1] + canopyR * 0.25, sideTip[2]], canopyR * 1.7, canopyR * 1.3, jitterHex(color, jitter(rng, 8), jitter(rng, 0.05), -0.05), 1);
+    meshCanopy(b, ctx, "canopy_b", [crown[0] + jitter(rng, 1.5), crown[1] + canopyR * 0.85, crown[2] + jitter(rng, 1.5)], canopyR * 1.5, canopyR * 0.9, lightenHex(color, 0.08), 1, false);
+  } else {
+    // a lighter cap on top gives the crown a lit side
+    lump([crown[0] + jitter(rng, 2), crown[1] + canopyR * 0.65, crown[2] + jitter(rng, 2)], canopyR * 0.9, canopyR * 0.6, lightenHex(color, 0.08), 1);
+  }
   return b.build({ id: `round_tree/${variant}`, prefab: "round_tree", category: "vegetation", sinkDepth: 1.0, footprintRadius: canopyR, tags: ["tree", "deciduous"] });
 }
 
@@ -230,12 +269,15 @@ export function birchTree(ctx: PrefabContext, variant: number): PrefabVariant {
     const yaw = rng.float(0, Math.PI * 2);
     const tip = i === 0 ? t.top : branch(b, ctx, v3.lerp(t.points[1]!, t.top, 0.7), yaw, rng.float(0.5, 0.9), rng.float(3, 5), d * 0.45, bark, 1);
     const s = rng.float(6, 9);
-    b.box([tip[0], tip[1] + s * 0.35, tip[2]], [s, s * 0.9, s], jitterHex(color, jitter(rng, 8), 0, jitter(rng, 0.06)), {
-      material: style.materials.canopy,
-      rotation: [jitter(rng, 15), rng.float(0, 360), jitter(rng, 15)],
-      collide: false,
-      lod: i === 0 ? 2 : 1,
-    });
+    const col = jitterHex(color, jitter(rng, 8), 0, jitter(rng, 0.06));
+    if (meshCrowns(ctx)) meshCanopy(b, ctx, i === 0 ? "canopy_a" : "canopy_b", [tip[0], tip[1] + s * 0.35, tip[2]], s * 1.25, s * 1.05, col, i === 0 ? 2 : 1);
+    else
+      b.box([tip[0], tip[1] + s * 0.35, tip[2]], [s, s * 0.9, s], col, {
+        material: style.materials.canopy,
+        rotation: [jitter(rng, 15), rng.float(0, 360), jitter(rng, 15)],
+        collide: false,
+        lod: i === 0 ? 2 : 1,
+      });
   }
   return b.build({ id: `birch/${variant}`, prefab: "birch", category: "vegetation", sinkDepth: 0.8, footprintRadius: 4.5, tags: ["tree"] });
 }
@@ -322,8 +364,13 @@ export function bush(ctx: PrefabContext, variant: number): PrefabVariant {
   const color = foliageColor(ctx);
   const chunks = rng.int(2, 4);
   const r = rng.float(2.2, 4.2);
+  const meshed = meshCrowns(ctx);
   for (let i = 0; i < chunks; i++) {
     const s = r * rng.float(0.8, 1.3);
+    if (meshed) {
+      meshCanopy(b, ctx, i === 0 ? "canopy_b" : "canopy_a", [i === 0 ? 0 : jitter(rng, r * 0.5), s * 0.38, i === 0 ? 0 : jitter(rng, r * 0.5)], s * 1.3, s * 0.95, jitterHex(color, jitter(rng, 6), 0, jitter(rng, 0.06)), i === 0 ? 2 : 0, i === 0);
+      continue;
+    }
     b.box([i === 0 ? 0 : jitter(rng, r * 0.6), s * 0.4, i === 0 ? 0 : jitter(rng, r * 0.6)], [s, s * 0.85, s], jitterHex(color, jitter(rng, 6), 0, jitter(rng, 0.06)), {
       material: style.materials.canopy,
       rotation: [jitter(rng, 15), rng.float(0, 360), jitter(rng, 15)],

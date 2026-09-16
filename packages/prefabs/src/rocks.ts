@@ -12,7 +12,7 @@ const meshRocks = (ctx: PrefabContext) => ctx.style.id !== "voxel";
  */
 function meshRock(b: PartListBuilder, ctx: PrefabContext, _key: string, center: Vec3, size: number, kind: "boulder" | "cliff" | "pebble" | "slab", lod: 0 | 1 | 2 = 2, collide = true): number {
   const { rng, style } = ctx;
-  const id: MeshLibraryId = kind === "boulder" ? (rng.chance(0.5) ? "rock_a" : "rock_b") : kind === "pebble" ? "pebble_a" : kind === "slab" ? "slab_a" : rng.chance(0.5) ? "cliff_a" : "cliff_b";
+  const id: MeshLibraryId = kind === "boulder" ? "rock_a" : kind === "pebble" ? "pebble_a" : kind === "slab" ? "cliff_b" : rng.chance(0.5) ? "cliff_a" : "cliff_b";
   const data = ctx.meshes[id];
   if (!data) return 0;
   const bw = data.bounds.max[0] - data.bounds.min[0];
@@ -20,7 +20,7 @@ function meshRock(b: PartListBuilder, ctx: PrefabContext, _key: string, center: 
   const bd = data.bounds.max[2] - data.bounds.min[2];
   // fit the library mesh to `size` studs across, with independent jitter per axis for variety
   const sx = (size / bw) * rng.float(0.8, 1.25);
-  const sy = (size * (kind === "pebble" ? 0.45 : kind === "slab" ? 0.5 : 0.85)) / bh * rng.float(0.8, 1.2);
+  const sy = (size * (kind === "pebble" ? 0.45 : kind === "slab" ? 0.35 : 0.85)) / bh * rng.float(0.8, 1.2);
   const sz = (size / bd) * rng.float(0.8, 1.25);
   const h = bh * sy;
   const color = stoneColor(ctx);
@@ -137,7 +137,7 @@ export function cliffBlock(ctx: PrefabContext, variant: number): PrefabVariant {
     meshRock(b, ctx, "slab", [jitter(rng, w * 0.25), -h * 0.2, jitter(rng, w * 0.25)], w * rng.float(0.5, 0.7), "slab", 1, false);
     // moss on the crown: the mesh spans [-h*0.25 - w*0.06, -h*0.25 - w*0.06 + mh]
     if (rng.chance(style.rock.mossChance)) b.box([0, -h * 0.25 - w * 0.06 + mh - 0.35, 0], [w * 0.5, 0.5, w * 0.35], style.palette.foliageAlt, { material: "Grass", rotation: [0, rng.float(0, 360), 0], collide: false, castShadow: false, lod: 0 });
-    return b.build({ id: `cliff_block/${variant}`, prefab: "cliff_block", category: "rock", sinkDepth: h * 0.3, footprintRadius: w * 0.55, tags: ["rock", "cliff"] });
+    return b.build({ id: `cliff_block/${variant}`, prefab: "cliff_block", category: "rock", sinkDepth: h * 0.12, footprintRadius: w * 0.55, tags: ["rock", "cliff"] });
   }
   const color = stoneColor(ctx);
   b.box([0, h * 0.35, 0], [w, h, w * rng.float(0.5, 0.8)], color, { material: style.materials.rock, rotation: [jitter(rng, 6), rng.float(0, 360), jitter(rng, 6)], collide: true, lod: 2 });

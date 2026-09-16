@@ -77,6 +77,28 @@ export function rockColor(style: StyleBible, rng: Rng): string {
   return jitterHex(style.palette.stone, (rng.next() * 2 - 1) * 8, (rng.next() * 2 - 1) * 0.05, (rng.next() * 2 - 1) * v);
 }
 
+/**
+ * Tree crown: `lumps` displaced blobs packed around a centre (one MeshPart per tree instead of 5–7 boxes),
+ * unit-ish size (~2 across), centred on its bounds.
+ */
+export function canopyClusterMesh(rng: Rng, lumps: number, rough: number, subdivisions = 1): MeshData {
+  const noise = new ValueNoise3D(rng, 16);
+  const all = new MeshBuilder();
+  for (let i = 0; i < lumps; i++) {
+    const off: Vec3 = [rng.float(0, 8), rng.float(0, 8), rng.float(0, 8)];
+    const m = MeshBuilder.icosphere(subdivisions);
+    m.displace((d) => noise.fbm(d[0] * 2.2 + off[0], d[1] * 2.2 + off[1], d[2] * 2.2 + off[2], 2) * rough);
+    const r = i === 0 ? 1 : rng.float(0.55, 0.8);
+    m.scale(r, r * rng.float(0.75, 0.95), r);
+    if (i > 0) {
+      const a = ((i - 1) / (lumps - 1)) * Math.PI * 2 + rng.float(-0.3, 0.3);
+      m.translate(Math.cos(a) * 0.75, rng.float(-0.35, 0.25), Math.sin(a) * 0.75);
+    }
+    all.merge(m);
+  }
+  return centred(all);
+}
+
 /** Low-poly canopy blob: a squashed, lightly displaced icosphere (deciduous crowns, bushes). */
 export function canopyMesh(rng: Rng, radius: number, squash = 0.8, rough = 0.12): MeshData {
   const noise = new ValueNoise3D(rng, 16);
