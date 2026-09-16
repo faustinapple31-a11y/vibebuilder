@@ -40,6 +40,7 @@ export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; hei
   gas_station: { prefab: "gas_station", height: 14, footprint: 26 },
   church: { prefab: "church", height: 70, footprint: 28 },
   barn: { prefab: "barn", height: 28, footprint: 24 },
+  cave: { prefab: "cave_entrance", height: 16, footprint: 14 },
 };
 
 /**

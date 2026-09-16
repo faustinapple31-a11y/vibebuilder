@@ -46,6 +46,7 @@ const LANDMARK_KEYWORDS: [LandmarkType, string[], ZoneHint][] = [
   ["colosseum", ["colisee", "colosseum", "amphitheatre", "arene antique"], "flat"],
   ["torii_gate", ["torii", "portique", "sanctuaire", "shrine"], "clearing"],
   ["lighthouse", ["phare", "lighthouse"], "coast"],
+  ["cave", ["grotte", "cave", "caverne", "cavern", "souterrain", "underground", "mine abandonnee", "abandoned mine"], "hill"],
   ["pirate_ship", ["navire", "galion", "galleon", "bateau pirate", "pirate ship", "epave", "shipwreck", "vaisseau pirate"], "coast"],
   ["rocket", ["fusee", "rocket", "lanceur", "launch pad"], "flat"],
   ["ufo", ["ovni", "ufo", "soucoupe", "saucer"], "clearing"],

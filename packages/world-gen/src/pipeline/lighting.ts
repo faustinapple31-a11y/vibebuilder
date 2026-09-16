@@ -18,6 +18,12 @@ const ROBLOX_TERRAIN_DEFAULTS: Record<Exclude<TerrainMaterial, "Air" | "Water">,
   Ice: "#81a3c0",
   Asphalt: "#737373",
   Pavement: "#94908d",
+  CrackedLava: "#c8401a",
+  Glacier: "#a9c9e0",
+  Salt: "#e6e2d8",
+  Concrete: "#9a9892",
+  Brick: "#8a5a48",
+  WoodPlanks: "#8a6a44",
 };
 
 /** Palette-driven terrain colors: each material blends toward the closest palette entry by `tint`. */

@@ -153,6 +153,7 @@ export const LANDMARK_TYPES = [
   "gas_station",
   "church",
   "barn",
+  "cave",
   "bridge",
 ] as const;
 export const LandmarkTypeSchema = z.enum(LANDMARK_TYPES);

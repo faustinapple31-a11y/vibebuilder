@@ -7,6 +7,7 @@ import type {
   Rng,
   RobloxLightingSettings,
   StyleBible,
+  TerrainOp,
   Vec2,
   Vec3,
   WorldBake,
@@ -80,6 +81,8 @@ export interface GenContext {
   ocean?: Grid;
   /** Signed shoreline distance (fraction of the feature size, negative inland) for the ocean features. */
   shore?: Grid;
+  /** 3D voxel ops (caves, overhangs, arches, craters) the runtime applies after the heightmap columns. */
+  terrainOps: TerrainOp[];
 
   // structures
   zones: Zone[];

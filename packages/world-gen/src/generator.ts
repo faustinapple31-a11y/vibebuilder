@@ -23,6 +23,7 @@ import { generateRoads } from "./pipeline/roads";
 import { placeBuildings } from "./pipeline/buildings";
 import { placeLayout } from "./pipeline/layout";
 import { placeDressing } from "./pipeline/dressing";
+import { placeRelief } from "./pipeline/relief";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
@@ -90,6 +91,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     placements: [],
     prefabs: {},
     occupants: [],
+    terrainOps: [],
     spawn: { position: [0, 0, 0], lookAt: [0, 0, -1] },
     lighting: null,
     regenerate,
@@ -198,18 +200,27 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     for (const [id, variants] of Object.entries(compatiblePrevious.prefabs)) if (!ctx.prefabs[id] && variants[0]?.tags.includes("layout")) ctx.prefabs[id] = variants;
   }
 
+  // ---- 3D relief: caves behind cave landmarks, overhangs, arches, lava (voxel ops + fixed interior props)
+  if (regenerate.has("landmarks") || regenerate.has("terrain") || !compatiblePrevious) {
+    placeRelief(ctx);
+  } else {
+    ctx.terrainOps = compatiblePrevious.terrain.ops.map((o) => ({ ...o, position: [...o.position] as [number, number, number] }));
+    for (const p of compatiblePrevious.placements) if (p.fixed) ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
+    for (const z of compatiblePrevious.zones) if (z.kind === "gameplay" && (z.meta?.kind === "cave" || z.meta?.kind === "lava")) ctx.zones.push({ ...z });
+  }
+
   // ---- vegetation
   if (regenerate.has("vegetation") || !compatiblePrevious) {
     placeVegetation(ctx);
   } else {
-    for (const p of compatiblePrevious.placements) if (p.category === "vegetation") ctx.placements.push({ ...p });
+    for (const p of compatiblePrevious.placements) if (p.category === "vegetation" && !p.fixed) ctx.placements.push({ ...p });
   }
 
   // ---- rocks & props
   if (regenerate.has("props") || !compatiblePrevious) {
     placeRocksAndProps(ctx);
   } else {
-    for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_")) ctx.placements.push({ ...p });
+    for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_") && !p.fixed) ctx.placements.push({ ...p });
   }
 
   // ---- locked placements survive the regeneration of their layer (manual inserts, hero meshes)
@@ -227,7 +238,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   // ---- keep the spawn clearing clear (reused layers may predate a moved spawn)
   const [spx, , spz] = ctx.spawn.position;
   ctx.placements = ctx.placements.filter((p) => {
-    if (p.locked || p.category === "landmark" || p.category === "path" || p.id.startsWith("layout_")) return true; // gameplay structures may host the spawn
+    if (p.locked || p.fixed || p.category === "landmark" || p.category === "path" || p.id.startsWith("layout_")) return true; // gameplay structures may host the spawn
     const d = Math.hypot(p.position[0] - spx, p.position[2] - spz);
     const v = ctx.prefabs[p.prefab]?.[p.variant];
     const big = (v?.bounds.max[1] ?? 0) * p.scale > 6 || p.category === "building";
@@ -238,7 +249,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   for (const p of ctx.placements) {
     const v = ctx.prefabs[p.prefab]?.[p.variant];
     if (!v) continue;
-    if (p.prefab === "bridge") continue;
+    if (p.prefab === "bridge" || p.fixed) continue; // fixed = cave interiors and other placements off the heightmap
     if (p.id.startsWith("layout_") || v.tags.includes("layout")) continue; // gameplay structures keep their designed height (floating obby platforms…)
     if (v.tags.includes("floating")) {
       // on water: the hull sits at its waterline (sinkDepth); vines / balloons keep their height
@@ -282,6 +293,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       water: ctx.water.data,
       biomes: ctx.biomes,
       biomeIds: ctx.biomeIds,
+      ops: ctx.terrainOps,
     },
     prefabs: ctx.prefabs,
     placements: ctx.placements,
@@ -397,6 +409,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   // settlement dressing: walls & gates (when the style has a wall kit), fields, piers, road markings
   if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
   for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post"]) ids.add(id);
+  if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
 }
 

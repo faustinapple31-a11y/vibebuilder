@@ -1,4 +1,4 @@
-import { clamp, deriveSeed, lerp, smoothstep, smootherstep, type TerrainFeature } from "@worldforge/core";
+import { Rng, clamp, deriveSeed, lerp, smoothstep, smootherstep, type TerrainFeature } from "@worldforge/core";
 import { Simplex2D } from "../noise";
 import { Grid } from "../grid";
 import { normToWorld, progress, seaLevelOf, type GenContext } from "../context";
@@ -83,6 +83,9 @@ export function generateTerrain(ctx: GenContext): void {
 
   progress(ctx, "terrain:erosion", 0.7);
   erode(ctx, t.erosion);
+  // hydraulic erosion: rain droplets carve gullies and deposit sediment in the valleys (real drainage patterns)
+  progress(ctx, "terrain:hydraulic", 0.8);
+  hydraulicErosion(ctx, t.erosion, new Rng(deriveSeed(seed, "droplets")));
   // erosion and detail must not lift the sea floor back above the surface
   if (ocean) {
     const sea = seaLevelOf(spec);
@@ -332,6 +335,142 @@ function erode(ctx: GenContext, strength: number): void {
   const blurred = h.blur(1, 1);
   const k = 0.25 + strength * 0.45;
   for (let i = 0; i < h.data.length; i++) h.data[i] = lerp(h.data[i]!, blurred.data[i]!, k);
+}
+
+/**
+ * Particle-based hydraulic erosion (droplets). Each droplet follows the gradient, picks up sediment
+ * proportionally to its speed and the slope, and deposits it when it slows down or climbs — the
+ * classic Lague / Beyer model. Erosion is spread over a small brush so channels stay smooth at 4-stud cells.
+ */
+function hydraulicErosion(ctx: GenContext, strength: number, rng: Rng): void {
+  if (strength <= 0.05) return;
+  const h = ctx.heights;
+  const { width, depth } = ctx;
+  const data = h.data;
+  const before = Float32Array.from(data);
+  const droplets = Math.round(width * depth * (0.2 + strength * 0.6));
+  const maxLife = 40;
+  const inertia = 0.08;
+  const capacityFactor = 3.2;
+  const maxCapacity = 3;
+  const minCapacity = 0.01;
+  const erodeSpeed = 0.4;
+  const depositSpeed = 0.3;
+  const maxDeposit = 0.12; // per step, spread over the wide deposit brush: no sediment mounds in the pits
+  const evaporate = 0.015;
+  const gravity = 4;
+  const radius = 2;
+  // brush offsets + weights (linear falloff)
+  const brush: [number, number, number][] = [];
+  let wsum = 0;
+  for (let dz = -radius; dz <= radius; dz++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d > radius) continue;
+      const w = 1 - d / (radius + 0.001);
+      brush.push([dx, dz, w]);
+      wsum += w;
+    }
+  }
+  for (const b of brush) b[2] /= wsum;
+  const depositBrush: [number, number, number][] = [];
+  let dsum = 0;
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d > 3) continue;
+      const w = 1 - d / 3.001;
+      depositBrush.push([dx, dz, w]);
+      dsum += w;
+    }
+  }
+  for (const b of depositBrush) b[2] /= dsum;
+  // per-cell erosion budget: a funnel cannot dig a bottomless pit
+  const maxErosionPerCell = 4 + strength * 6;
+  const eroded = new Float32Array(width * depth);
+  const depositAt = (x0: number, z0: number, amount: number) => {
+    for (const [bx, bz, w] of depositBrush) {
+      const cx = x0 + bx;
+      const cz = z0 + bz;
+      if (cx < 0 || cz < 0 || cx >= width || cz >= depth) continue;
+      data[cz * width + cx] += amount * w;
+    }
+  };
+  const heightAndGradient = (px: number, pz: number): [number, number, number] => {
+    const x0 = Math.floor(px);
+    const z0 = Math.floor(pz);
+    const fx = px - x0;
+    const fz = pz - z0;
+    const i = z0 * width + x0;
+    const nw = data[i]!;
+    const ne = data[i + 1]!;
+    const sw = data[i + width]!;
+    const se = data[i + width + 1]!;
+    const gx = (ne - nw) * (1 - fz) + (se - sw) * fz;
+    const gz = (sw - nw) * (1 - fx) + (se - ne) * fx;
+    const height = nw * (1 - fx) * (1 - fz) + ne * fx * (1 - fz) + sw * (1 - fx) * fz + se * fx * fz;
+    return [height, gx, gz];
+  };
+  for (let n = 0; n < droplets; n++) {
+    let px = rng.float(1, width - 2.001);
+    let pz = rng.float(1, depth - 2.001);
+    let dx = 0;
+    let dz = 0;
+    let speed = 1;
+    let water = 1;
+    let sediment = 0;
+    for (let life = 0; life < maxLife; life++) {
+      const x0 = Math.floor(px);
+      const z0 = Math.floor(pz);
+      const fx = px - x0;
+      const fz = pz - z0;
+      const [hOld, gx, gz] = heightAndGradient(px, pz);
+      dx = dx * inertia - gx * (1 - inertia);
+      dz = dz * inertia - gz * (1 - inertia);
+      const len = Math.hypot(dx, dz);
+      if (len < 1e-6) {
+        // stalled in a hollow: the water evaporates and leaves its sediment
+        depositAt(x0, z0, Math.min(sediment, maxDeposit * 2));
+        break;
+      }
+      dx /= len;
+      dz /= len;
+      px += dx;
+      pz += dz;
+      if (px < 1 || px >= width - 2 || pz < 1 || pz >= depth - 2) break;
+      const [hNew] = heightAndGradient(px, pz);
+      const deltaH = hNew - hOld;
+      const capacity = Math.min(maxCapacity, Math.max(-deltaH * speed * water * capacityFactor, minCapacity));
+      if (sediment > capacity || deltaH > 0) {
+        // deposit around the old cell (brush), capped so converging droplets never pile up mounds
+        const amount = Math.min(maxDeposit, deltaH > 0 ? Math.min(deltaH, sediment) : (sediment - capacity) * depositSpeed);
+        sediment -= amount;
+        depositAt(x0, z0, amount);
+        if (deltaH > 0 && sediment < 0.02) break; // the droplet stalled in a pit
+      } else {
+        const amount = Math.min((capacity - sediment) * erodeSpeed, -deltaH);
+        for (const [bx, bz, w] of brush) {
+          const cx = x0 + bx;
+          const cz = z0 + bz;
+          if (cx < 0 || cz < 0 || cx >= width || cz >= depth) continue;
+          const j = cz * width + cx;
+          const take = Math.min(data[j]! - (ctx.spec.terrain.baseHeight - 40), amount * w, maxErosionPerCell - eroded[j]!);
+          if (take <= 0) continue;
+          data[j] -= take;
+          eroded[j] += take;
+          sediment += take;
+        }
+      }
+      speed = Math.sqrt(Math.max(0, speed * speed + deltaH * gravity));
+      water *= 1 - evaporate;
+    }
+  }
+  // the raw droplet field is pocked at the cell scale: smooth the *delta* (channels and fans are wider
+  // than a droplet, dimples are not) and apply it with a little gain
+  const delta = new Grid(width, depth, ctx.cellSize, ctx.origin);
+  for (let i = 0; i < data.length; i++) delta.data[i] = data[i]! - before[i]!;
+  const smooth = delta.blur(1, 2);
+  for (let i = 0; i < data.length; i++) data[i] = before[i]! + smooth.data[i]! * 1.3;
 }
 
 export function computeMoisture(ctx: GenContext): void {

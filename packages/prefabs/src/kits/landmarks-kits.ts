@@ -608,3 +608,43 @@ export function barn(ctx: PrefabContext, variant: number): PrefabVariant {
   b.sphere([0, H - 1, 0], 1.4, "#ffd080", { material: "Neon", collide: false, lod: 0, light: { type: "point", color: "#ffd080", brightness: 1.2, range: 32 } });
   return done(b, "barn", variant, ["farm", "building", "interior"], 1.2, 22);
 }
+
+/**
+ * Cave entrance: a rocky mouth (two boulder piles, a lintel slab, a dark opening facing -Z) with torches
+ * and a signpost. The generator carves the tunnel + chamber behind it with terrain ops (`relief.ts`);
+ * the opening is 10 studs wide × 9 high so the carved tunnel (radius 6) lines up with it.
+ */
+export function caveEntrance(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const rock = jitterHex(style.palette.stone, jitter(rng, 4), 0, jitter(rng, 0.05));
+  const mat: RobloxMaterial = style.materials.rock;
+  const W = 10;
+  // boulder piles on both sides of the opening
+  for (const sx of [-1, 1]) {
+    b.sphere([sx * (W / 2 + 3.2), 3.2, 1], 7.4, rock, { material: mat, collide: true, lod: 2, rotation: [jitter(rng, 20), jitter(rng, 30), jitter(rng, 20)] });
+    b.sphere([sx * (W / 2 + 5.5), 6.6, 3.5], 5.6, jitterHex(rock, 0, 0, jitter(rng, 0.05)), { material: mat, collide: true, lod: 1, rotation: [jitter(rng, 20), jitter(rng, 30), jitter(rng, 20)] });
+    b.sphere([sx * (W / 2 + 1.5), 8.6, 2.5], 4.4, jitterHex(rock, 0, 0, jitter(rng, 0.05)), { material: mat, collide: true, lod: 1 });
+  }
+  // lintel slab + capping boulders
+  b.box([0, 10.4, 2], [W + 8, 3.2, 7], mixHex(rock, "#000000", 0.08), { material: mat, collide: true, lod: 2, rotation: [jitter(rng, 4), 0, jitter(rng, 3)] });
+  b.sphere([-3, 13, 3], 5, rock, { material: mat, collide: true, lod: 1, rotation: [0, jitter(rng, 40), 0] });
+  b.sphere([4, 12.6, 2], 4.2, jitterHex(rock, 0, 0, jitter(rng, 0.05)), { material: mat, collide: true, lod: 1 });
+  // dark throat: a matte black box set back into the hill (the carved tunnel continues behind it)
+  b.box([0, 4.5, 6], [W - 0.5, 9, 8], "#0a0a0c", { material: "SmoothPlastic", collide: false, castShadow: false, lod: 2 });
+  // mine-style timber frame on wooden / western / industrial kits
+  const timbered = ["medieval_cottage", "timber_frame", "western_facade", "industrial_shed", "shack", "nordic"].includes(style.architecture.style);
+  if (timbered) {
+    const wood = mixHex(style.palette.wood, "#000000", 0.15);
+    for (const sx of [-1, 1]) b.box([sx * (W / 2 - 0.4), 4.4, -1], [1.1, 8.8, 1.1], wood, { material: "Wood", collide: true, lod: 1 });
+    b.box([0, 9.1, -1], [W + 0.6, 1.1, 1.1], wood, { material: "Wood", collide: true, lod: 1 });
+  }
+  // torches
+  for (const sx of [-1, 1]) {
+    b.cylinder([sx * (W / 2 + 1.2), 5.5, -2.4], 0.45, 3.2, mixHex(style.palette.wood, "#000000", 0.25), { material: "Wood", collide: false, lod: 1, rotation: [-15, 0, 0] });
+    b.sphere([sx * (W / 2 + 1.2), 7.4, -2.9], 1.1, "#ffb050", { material: "Neon", collide: false, lod: 1, light: { type: "point", color: "#ffb050", brightness: 1.4, range: 18 }, effect: { kind: "embers", rate: 5, size: 0.7 } });
+  }
+  // a few loose stones on the apron
+  for (let i = 0; i < 4; i++) b.sphere([jitter(rng, W), 0.5, -4 - rng.float(0, 4)], rng.float(1.2, 2.2), rock, { material: mat, collide: true, lod: 0 });
+  return done(b, "cave_entrance", variant, ["cave", "rock", "interior"], 1.2, 14);
+}

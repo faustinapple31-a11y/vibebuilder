@@ -67,6 +67,21 @@ export interface PlacementMeta {
 	importance: number;
 	biome?: string;
 	zone?: string;
+	/** Keep the baked height (cave interiors): no terrain snap. */
+	fixed?: boolean;
+}
+
+export interface TerrainOpData {
+	op: "carve" | "fill";
+	shape: "ball" | "cylinder" | "block";
+	position: [number, number, number];
+	radius?: number;
+	size?: [number, number, number];
+	height?: number;
+	rotationY?: number;
+	tilt?: number;
+	material?: string;
+	zone?: string;
 }
 
 export interface LightingData {
@@ -111,6 +126,8 @@ export interface WorldBakeData {
 		biomeIds: string[];
 		minHeight: number;
 		maxHeight: number;
+		/** 3D voxel ops applied after the columns: caves (carve), overhangs / arches / lava (fill). */
+		ops?: TerrainOpData[];
 	};
 	prefabs: { [prefab: string]: PrefabVariantData[] };
 	placementsB64: string;
@@ -141,4 +158,10 @@ export const TERRAIN_MATERIALS: Enum.Material[] = [
 	Enum.Material.Ice,
 	Enum.Material.Asphalt,
 	Enum.Material.Pavement,
+	Enum.Material.CrackedLava,
+	Enum.Material.Glacier,
+	Enum.Material.Salt,
+	Enum.Material.Concrete,
+	Enum.Material.Brick,
+	Enum.Material.WoodPlanks,
 ];

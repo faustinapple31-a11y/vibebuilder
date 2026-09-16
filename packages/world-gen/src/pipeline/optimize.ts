@@ -33,7 +33,7 @@ export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): Ba
   progress(ctx, "optimize", 0);
   const byCat = new Map<PrefabCategory, Placement[]>();
   // gameplay layout structures (obby stages, plots, gates…) and settlement dressing (walls, piers, fields) are never trimmed
-  const essential = (p: Placement) => p.id.startsWith("layout_") || p.id.startsWith("dress_");
+  const essential = (p: Placement) => p.id.startsWith("layout_") || p.id.startsWith("dress_") || p.fixed === true;
   for (const p of ctx.placements) {
     if (essential(p)) continue;
     let arr = byCat.get(p.category);

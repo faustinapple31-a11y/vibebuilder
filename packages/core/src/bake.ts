@@ -22,6 +22,12 @@ export const TERRAIN_MATERIALS = [
   "Ice",
   "Asphalt",
   "Pavement",
+  "CrackedLava",
+  "Glacier",
+  "Salt",
+  "Concrete",
+  "Brick",
+  "WoodPlanks",
 ] as const;
 export type TerrainMaterial = (typeof TERRAIN_MATERIALS)[number];
 export const TERRAIN_MATERIAL_INDEX: Record<TerrainMaterial, number> = Object.fromEntries(
@@ -47,6 +53,12 @@ export const TERRAIN_MATERIAL_COLORS: Record<TerrainMaterial, string> = {
   Ice: "#bcd8ec",
   Asphalt: "#3b3b3b",
   Pavement: "#8f8c86",
+  CrackedLava: "#c8401a",
+  Glacier: "#a9c9e0",
+  Salt: "#e6e2d8",
+  Concrete: "#9a9892",
+  Brick: "#8a5a48",
+  WoodPlanks: "#8a6a44",
 };
 
 export type PlacementLayer = "foreground" | "midground" | "background";
@@ -73,6 +85,8 @@ export interface Placement {
   locked?: boolean;
   /** Importance used when trimming to budgets (higher = keep). */
   importance: number;
+  /** Keep the given height: cave interiors and other placements below / above the heightmap (no terrain snap). */
+  fixed?: boolean;
 }
 
 export interface Zone {
@@ -159,6 +173,31 @@ export interface BakeStats {
   generationMs: number;
 }
 
+/**
+ * 3D voxel operation applied by the runtime after the heightmap columns are written: caves and tunnels
+ * (carve = Air), rock overhangs, arches and crater lava (fill). Heightmaps cannot express overhangs;
+ * these ops give the terrain real depth.
+ */
+export interface TerrainOp {
+  op: "carve" | "fill";
+  shape: "ball" | "cylinder" | "block";
+  position: Vec3;
+  /** Ball / cylinder radius (studs). */
+  radius?: number;
+  /** Block size (studs). */
+  size?: Vec3;
+  /** Cylinder length (studs). */
+  height?: number;
+  /** Y rotation (radians) for blocks / cylinders. */
+  rotationY?: number;
+  /** Tilt around the local X axis (radians) for blocks / cylinders. */
+  tilt?: number;
+  /** Fill material (ignored for carve). */
+  material?: TerrainMaterial;
+  /** Zone / landmark id that owns the op (for the critic / editor). */
+  zone?: string;
+}
+
 export interface TerrainData {
   cellSize: number;
   width: number;
@@ -171,6 +210,8 @@ export interface TerrainData {
   /** Biome id index per cell. */
   biomes: Uint8Array;
   biomeIds: BiomeId[];
+  /** Voxel ops (caves, overhangs, arches, craters) applied after the columns. */
+  ops: TerrainOp[];
 }
 
 export interface WorldBake {
@@ -302,13 +343,14 @@ export interface WorldBakeJSON {
     biomeIds: BiomeId[];
     minHeight: number;
     maxHeight: number;
+    ops?: TerrainOp[];
   };
   prefabs: Record<string, PrefabVariant[]>;
   /** Flat float32 buffer: [prefabIndex, variant, x, y, z, rotY, scale, upX, upZ] per placement (PLACEMENT_STRIDE floats). */
   placementsB64: string;
   placementCount: number;
   prefabIndex: string[];
-  placementMeta: { id: string; category: PrefabCategory; layer: PlacementLayer; locked: boolean; importance: number; biome?: BiomeId; zone?: string }[];
+  placementMeta: { id: string; category: PrefabCategory; layer: PlacementLayer; locked: boolean; importance: number; biome?: BiomeId; zone?: string; fixed?: boolean }[];
   zones: Zone[];
   paths: PathPolyline[];
   landmarks: LandmarkPlacement[];
@@ -357,6 +399,7 @@ export function serializeBake(bake: WorldBake): WorldBakeJSON {
       biomeIds: bake.terrain.biomeIds,
       minHeight: minH,
       maxHeight: maxH,
+      ops: bake.terrain.ops ?? [],
     },
     prefabs: bake.prefabs,
     placementsB64: f32ToBase64(buf),
@@ -370,6 +413,7 @@ export function serializeBake(bake: WorldBake): WorldBakeJSON {
       importance: p.importance,
       biome: p.biome,
       zone: p.zone,
+      fixed: p.fixed || undefined,
     })),
     zones: bake.zones,
     paths: bake.paths,
@@ -405,6 +449,7 @@ export function deserializeBake(json: WorldBakeJSON): WorldBake {
       importance: meta.importance,
       biome: meta.biome,
       zone: meta.zone,
+      fixed: meta.fixed || undefined,
     });
   }
   return {
@@ -419,6 +464,7 @@ export function deserializeBake(json: WorldBakeJSON): WorldBake {
       water: base64ToF32(json.terrain.waterB64),
       biomes: base64ToBytes(json.terrain.biomesB64),
       biomeIds: json.terrain.biomeIds,
+      ops: json.terrain.ops ?? [],
     },
     prefabs: json.prefabs,
     placements,

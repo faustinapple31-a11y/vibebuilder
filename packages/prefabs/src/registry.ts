@@ -246,6 +246,7 @@ export const PREFAB_DEFINITIONS: PrefabDefinition[] = [
   def("gas_station", "landmark", kl.gasStation, 3, 34, ["landmark", "urban", "apocalypse"]),
   def("church", "landmark", kl.church, 3, 50, ["landmark", "village", "interior"]),
   def("barn", "landmark", kl.barn, 3, 40, ["landmark", "farm", "interior"]),
+  def("cave_entrance", "landmark", kl.caveEntrance, 3, 24, ["landmark", "cave", "rock"]),
   // ---- settlement dressing (walls & gates per wall kit, piers, fields)
   def("town_wall", "prop", kw.townWall, 4, 14, ["wall", "settlement_wall"]),
   def("gate_tower", "prop", kw.gateTower, 2, 20, ["wall", "gate", "tower"]),

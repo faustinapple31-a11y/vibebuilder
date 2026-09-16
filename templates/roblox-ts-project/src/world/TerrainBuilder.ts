@@ -1,6 +1,6 @@
 import { Workspace } from "@rbxts/services";
 import { base64ToBuffer, readF32, readU8 } from "shared/world/decode";
-import { TERRAIN_MATERIALS, type WorldBakeData } from "shared/world/types";
+import { TERRAIN_MATERIALS, type TerrainOpData, type WorldBakeData } from "shared/world/types";
 
 /**
  * Builds Roblox Terrain voxels from the baked heightmap.
@@ -153,5 +153,30 @@ export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done:
 			if (done % 8 === 0) task.wait();
 		}
 	}
+	applyTerrainOps(data.ops ?? []);
 	return { chunks: total, seconds: os.clock() - t0 };
+}
+
+const MATERIAL_BY_NAME = new Map<string, Enum.Material>(Enum.Material.GetEnumItems().map((m) => [m.Name, m]));
+
+/** Caves, overhangs, arches and lava: 3D voxel ops the heightmap cannot express. */
+export function applyTerrainOps(ops: TerrainOpData[]): number {
+	const terrain = Workspace.Terrain;
+	let n = 0;
+	for (const op of ops) {
+		const material = op.op === "carve" ? Enum.Material.Air : (MATERIAL_BY_NAME.get(op.material ?? "Rock") ?? Enum.Material.Rock);
+		const [x, y, z] = op.position;
+		const cf = new CFrame(x, y, z).mul(CFrame.Angles(0, op.rotationY ?? 0, 0)).mul(CFrame.Angles(op.tilt ?? 0, 0, 0));
+		const ok = pcall(() => {
+			if (op.shape === "ball") terrain.FillBall(new Vector3(x, y, z), op.radius ?? 4, material);
+			else if (op.shape === "cylinder") terrain.FillCylinder(cf, op.height ?? 4, op.radius ?? 4, material);
+			else {
+				const [sx, sy, sz] = op.size ?? [4, 4, 4];
+				terrain.FillBlock(cf, new Vector3(sx, sy, sz), material);
+			}
+		});
+		if (ok[0]) n++;
+		if (n % 25 === 0) task.wait();
+	}
+	return n;
 }
