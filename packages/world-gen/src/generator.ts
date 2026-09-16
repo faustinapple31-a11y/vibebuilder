@@ -333,7 +333,7 @@ export function groundHeightFor(ctx: GenContext, v: PrefabVariant, x: number, z:
   const height = Math.max(1, v.bounds.max[1]) * scale;
   // buildings/landmarks sit on flattened ground (small drop is enough); trees only ever sink their root flare
   const walkIn = v.category === "building" || v.tags.includes("interior");
-  const cap = walkIn ? 0.3 : v.category === "vegetation" ? 1.5 : v.category === "landmark" ? 1.5 : 1.2;
+  const cap = walkIn ? 0.3 : v.category === "vegetation" ? 1.0 : v.category === "landmark" ? 1.5 : 1.2;
   const maxExtra = Math.min(cap, Math.max(0.5, Math.min(height * 0.3, r * 0.9)));
   const drop = Math.min(center - min, maxExtra) * (1 - conform);
   return center - drop - sink;

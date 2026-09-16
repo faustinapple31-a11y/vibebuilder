@@ -217,6 +217,11 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 					}
 					if (math.abs(delta) < 24) yy = y + delta;
 				}
+			} else if (meta?.fixed === true) {
+				// cave interiors: the carved voxel floor differs from the baked height by up to a voxel — settle on the
+				// nearest surface just below the baked point (a short ray so the surface above the cave is never used)
+				const hit = Workspace.Raycast(new Vector3(x, y + 6, z), new Vector3(0, -18, 0), snapParams);
+				if (hit) yy = hit.Position.Y - variant.sinkDepth * scale * 0.5;
 			}
 			let cf = new CFrame(x, yy, z);
 			if (stride >= 9) {
