@@ -553,8 +553,8 @@ export function buildGround(ctx: GenContext): void {
           const t2 = rng.float(0.25, 0.75);
           const fx = p[0] + ex * t2 + nx * rng.float(2.5, 5);
           const fz = p[1] + ez * t2 + nz * rng.float(2.5, 5);
-          const fy = outsideLevel * step;
-          if (Number.isNaN(ctx.water.sample(fx, fz))) {
+          const fy = h.sample(fx, fz);
+          if (Number.isNaN(ctx.water.sample(fx, fz)) && Math.abs(fy - outsideLevel * step) < 0.5) {
             const big = rng.chance(0.35);
             const prefab = big ? "boulder" : "stone";
             const nv = ctx.prefabs[prefab]!.length;
