@@ -1,6 +1,7 @@
 import { Players } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { body, card, coinIcon, panel, text, theme, Window } from "./kit";
+import { fmt, L } from "./strings.generated";
 
 /**
  * Leaderboard screen: the players of the server ranked by a leaderstat (the genre's main stat when the
@@ -20,7 +21,7 @@ export class Leaderboard {
 
 	constructor() {
 		this.statName = GameConfig.leaderstats[0] ?? GameConfig.currency.name;
-		this.win = new Window("Leaderboard", "Leaderboard", { width: 560, height: 560, displayOrder: 6, coinPill: false });
+		this.win = new Window("Leaderboard", L.leaderboard, { width: 560, height: 560, displayOrder: 6, coinPill: false });
 		this.win.onOpen = () => {
 			this.render();
 			this.startTicking();
@@ -60,7 +61,7 @@ export class Leaderboard {
 		const rows = Players.GetPlayers().map((p) => ({ player: p, value: this.valueOf(p) }));
 		rows.sort((a, b) => a.value > b.value);
 		const header = card(40, 0, this.win.body, [theme.paperDark, theme.paperDark]);
-		body(`Ranked by ${this.statName}`, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), header, { size: 14, align: Enum.TextXAlignment.Center, zIndex: 6 });
+		body(fmt(L.rankedBy, { stat: this.statName }), new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), header, { size: 14, align: Enum.TextXAlignment.Center, zIndex: 6 });
 		rows.forEach((entry, index) => {
 			const medal = MEDALS[index];
 			const row = card(58, index + 1, this.win.body, medal ?? [theme.tile, theme.tile]);

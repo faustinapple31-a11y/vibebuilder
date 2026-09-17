@@ -134,6 +134,12 @@ l'app, ou champ `ui.kit` du GameSpec).
    **tout style × tout genre** tombe toujours sur une librairie complète (test
    `packages/core/test/uiKits.test.ts`).
 
+**Langue** — `packages/core/src/taxonomy/ui-strings.ts` porte tous les libellés de l'UI en **5 langues**
+(en, fr, es, pt, de) ; `detectLocale(prompt)` devine la langue du prompt (« je veux un jeu… » → `fr`),
+`gameSpec.ui.locale` la fixe et `src/ui/strings.generated.ts` est livré dans le projet. Les écrans
+lisent `L.<clé>` : traduire ne demande jamais de toucher un écran, et un test vérifie que chaque langue
+couvre toutes les clés avec leurs placeholders.
+
 Ajouter une librairie : skill `add-ui-kit`.
 
 ## 4. Archétypes de layout (`worldSpec.layout.archetype`)

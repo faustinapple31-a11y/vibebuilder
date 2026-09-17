@@ -2,6 +2,7 @@ import { HttpService, Players, ReplicatedStorage, RunService, Workspace } from "
 import { base64ToBuffer, readF32, readU8 } from "shared/world/decode";
 import { TERRAIN_MATERIALS, type WorldBakeData } from "shared/world/types";
 import { corner, darken, panel, scaleContainer, stroke, text, theme } from "./kit";
+import { L } from "./strings.generated";
 
 /**
  * Minimap: a top-down map drawn from the WorldBake the client already has in
@@ -51,7 +52,7 @@ export class Minimap {
 		this.gui.Parent = pg;
 
 		this.frame = panel(new UDim2(0, SIZE, 0, SIZE + 22), new UDim2(1, -SIZE - 18, 1, -SIZE - 40), this.gui, { color: theme.pill, strokeThickness: theme.strokeThickness, radius: math.min(14, theme.radius), zIndex: 3 });
-		this.label = text("MAP", new UDim2(1, -12, 0, 18), new UDim2(0, 6, 0, 2), this.frame, { size: 13, align: Enum.TextXAlignment.Center, zIndex: 6, outline: 1.5 });
+		this.label = text(L.map, new UDim2(1, -12, 0, 18), new UDim2(0, 6, 0, 2), this.frame, { size: 13, align: Enum.TextXAlignment.Center, zIndex: 6, outline: 1.5 });
 		this.grid = new Instance("Frame");
 		this.grid.Size = new UDim2(0, SIZE - 12, 0, SIZE - 12);
 		this.grid.Position = new UDim2(0, 6, 0, 20);
@@ -100,7 +101,7 @@ export class Minimap {
 		this.built = true;
 		const bake = this.loadBake();
 		if (!bake) {
-			this.label.Text = "MAP — loading";
+			this.label.Text = L.mapLoading;
 			task.delay(4, () => {
 				this.built = false;
 				if (this.gui.Enabled) this.build();
@@ -108,7 +109,7 @@ export class Minimap {
 			return;
 		}
 		this.terrain = bake.terrain;
-		this.label.Text = "MAP";
+		this.label.Text = L.map;
 		const t = bake.terrain;
 		const heights = base64ToBuffer(t.heightsB64);
 		const materials = base64ToBuffer(t.materialsB64);

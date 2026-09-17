@@ -1,5 +1,6 @@
 import { GameConfig } from "shared/config";
 import { body, button, card, prettyName, text, textOnGradient, theme, Window } from "./kit";
+import { L } from "./strings.generated";
 
 /**
  * Main menu / pause menu: the game title, a Resume button that closes it and one entry per other
@@ -45,7 +46,7 @@ export class Menu {
 		body(`${prettyName(GameConfig.genre)} · ${prettyName(GameConfig.layout)}`, new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 60), hero, { size: 14, align: Enum.TextXAlignment.Center, color: textOnGradient(theme.primary), zIndex: 6 });
 
 		const playRow = card(66, order++, this.win.body, [theme.paperDark, theme.paperDark]);
-		const play = button("Resume", new UDim2(1, -32, 0, 50), new UDim2(0, 16, 0.5, -25), playRow, { size: 26, radius: 14, zIndex: 6 });
+		const play = button(L.resume, new UDim2(1, -32, 0, 50), new UDim2(0, 16, 0.5, -25), playRow, { size: 26, radius: 14, zIndex: 6 });
 		play.MouseButton1Click.Connect(() => this.win.setOpen(false));
 
 		for (const entry of this.entries) {

@@ -217,6 +217,11 @@ Primitives : `panel`, `button`, `text`, `body`, `badge`, `strike`, `pill`, `prog
 quelconque). Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient) : **aucun asset à uploader**,
 et l'accent de la famille de style (`GameConfig.ui.accentColor`) colore les stickers promo.
 
+**Langue** : `src/ui/strings.generated.ts` (généré depuis `packages/core/src/taxonomy/ui-strings.ts`)
+contient tous les libellés en en / fr / es / pt / de ; `GameConfig.ui.locale` choisit la colonne et les
+écrans lisent `L.<clé>` (`fmt()` pour les placeholders). La langue est détectée depuis le prompt et
+réglable dans l'onglet *Game → UI library & screens*.
+
 **Manette / console** : chaque `button()` est `Selectable` avec un liseré de sélection à l'accent de la
 librairie, et une fenêtre donne le focus à son premier contrôle à l'ouverture (`selectFirst`) — les
 écrans sont jouables sans souris.

@@ -14,6 +14,7 @@ import { Settings, uiScaleFactor, type SettingsValues } from "ui/Settings";
 import { setUiScale, setUiSoundVolume } from "ui/kit";
 import { Minimap } from "ui/Minimap";
 import { Menu } from "ui/Menu";
+import { L } from "ui/strings.generated";
 import { startWeather } from "client/Weather";
 import { startMeshRender } from "client/MeshRender";
 
@@ -41,31 +42,31 @@ const menu = enabled("menu") ? new Menu() : undefined;
 
 // HUD buttons + menu entries for every enabled screen
 if (inventory) {
-	hud.addButton("Backpack", () => inventory.toggle());
-	menu?.addEntry("Backpack", () => inventory.toggle());
+	hud.addButton(L.backpack, () => inventory.toggle());
+	menu?.addEntry(L.backpack, () => inventory.toggle());
 }
 if (quests) {
-	hud.addButton("Quests", () => quests.toggle());
-	menu?.addEntry("Quests", () => quests.toggle());
+	hud.addButton(L.quests, () => quests.toggle());
+	menu?.addEntry(L.quests, () => quests.toggle());
 }
 if (crafting) {
-	hud.addButton("Craft", () => crafting.toggle());
-	menu?.addEntry("Craft", () => crafting.toggle());
+	hud.addButton(L.craft, () => crafting.toggle());
+	menu?.addEntry(L.craft, () => crafting.toggle());
 }
 if (leaderboard) {
-	hud.addButton("Ranking", () => leaderboard.toggle());
-	menu?.addEntry("Ranking", () => leaderboard.toggle());
+	hud.addButton(L.ranking, () => leaderboard.toggle());
+	menu?.addEntry(L.ranking, () => leaderboard.toggle());
 }
 if (teams) {
-	hud.addButton("Teams", () => teams.toggle());
-	menu?.addEntry("Teams", () => teams.toggle());
+	hud.addButton(L.teams, () => teams.toggle());
+	menu?.addEntry(L.teams, () => teams.toggle());
 }
 if (settings) {
-	hud.addButton("Settings", () => settings.toggle());
-	menu?.addEntry("Settings", () => settings.toggle());
+	hud.addButton(L.settings, () => settings.toggle());
+	menu?.addEntry(L.settings, () => settings.toggle());
 }
-menu?.addEntry("Shop", () => shop.toggle());
-if (menu) hud.addButton("Menu", () => menu.toggle());
+menu?.addEntry(L.shop, () => shop.toggle());
+if (menu) hud.addButton(L.menu, () => menu.toggle());
 
 // settings are applied locally and persisted server-side (PlayerData `setting_*`)
 let shakeEnabled = true;

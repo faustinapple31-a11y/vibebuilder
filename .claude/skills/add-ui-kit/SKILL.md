@@ -76,6 +76,8 @@ game follows.
 matches the genre and the style's theme. So:
 
 - a request like "je veux une UI vaporwave" must hit one of the `keywords` — add the French words too;
+- keywords describe a **look**, never a mechanic: "quest" or "shop" would grab every RPG prompt, so
+  use the look phrasing ("quest log", "journal de quêtes");
 - a style family that should default to the new kit: either list its `ui` theme in `themes`, or point
   `UI_THEME_DEFAULT_KIT[theme]` at the kit (one theme has exactly one default);
 - a kit with `themes: []` is keyword-only, which is right for niche looks (steampunk, luxury, kawaii).

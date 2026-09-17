@@ -2,6 +2,7 @@ import { GameConfig } from "shared/config";
 import type { ProfileStateMsg } from "shared/net";
 import { QuestConfig } from "shared/quests";
 import { body, card, coinIcon, panel, progressBar, resourceIcon, sectionHeader, text, textOnGradient, theme, Window } from "./kit";
+import { L } from "./strings.generated";
 
 /**
  * Quests screen: one card per quest of shared/quests.ts with its objective, a progress bar fed by the
@@ -13,7 +14,7 @@ export class Quests {
 	private profile: ProfileStateMsg = { coins: 0, inventory: {}, owned: [], stats: {}, quests: {} };
 
 	constructor() {
-		this.win = new Window("Quests", "Quests", { width: 600, height: 560, displayOrder: 6 });
+		this.win = new Window("Quests", L.quests, { width: 600, height: 560, displayOrder: 6 });
 		this.win.onOpen = () => this.render();
 	}
 
@@ -70,11 +71,11 @@ export class Quests {
 
 		if (QuestConfig.quests.size() === 0) {
 			const empty = card(60, order++, this.win.body);
-			body("No quest in this game yet — add them to design/game.spec.json.", new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
+			body(L.noQuest, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
 			return;
 		}
 
-		if (active.size() > 0) sectionHeader("In progress", this.win.body, order++);
+		if (active.size() > 0) sectionHeader(L.inProgress, this.win.body, order++);
 		for (const quest of active) {
 			const progress = this.profile.quests[quest.id]?.progress ?? 0;
 			const row = card(112, order++, this.win.body);
@@ -93,7 +94,7 @@ export class Quests {
 		}
 
 		if (done.size() > 0) {
-			sectionHeader("Completed", this.win.body, order++);
+			sectionHeader(L.completed, this.win.body, order++);
 			for (const quest of done) {
 				const row = card(56, order++, this.win.body, theme.primary);
 				text(quest.title, new UDim2(1, -120, 1, 0), new UDim2(0, 16, 0, 0), row, { size: 22, color: textOnGradient(theme.primary), zIndex: 6 });

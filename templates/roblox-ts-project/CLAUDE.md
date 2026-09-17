@@ -41,7 +41,8 @@ src/shared/                 config, net (remotes), zones, catalog, quests, recip
 src/systems/                PlayerData, Survival, Collectibles, Shop, Npcs, Audio, Combat, Enemies,
                             Checkpoints, Progression, Tycoon, Simulator, Rounds, Racing, TowerDefense,
                             Economy (farming/mining/crafting/pets/housing/trading), Modes, Doors
-src/ui/                     kit (Window + widgets), Hud, ShopUi, Inventory, Quests, Crafting,
+src/ui/                     kit (Window + widgets), kits.generated (26 libraries),
+                            strings.generated (labels in 5 languages), Hud, ShopUi, Inventory, Quests, Crafting,
                             Leaderboard, Teams, RoundStatus, Settings, Minimap, Menu (Instances, no framework)
 src/world/                  WorldBuilder (terrain voxels, prefabs, lighting, zones, spawn)
 worlds/main/                world.spec.json, style.bible.json

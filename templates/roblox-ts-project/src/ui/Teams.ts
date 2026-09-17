@@ -2,6 +2,7 @@ import { Players } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { RoundStateMsg } from "shared/net";
 import { body, card, panel, progressBar, text, textOnGradient, theme, Window } from "./kit";
+import { fmt, L } from "./strings.generated";
 
 /**
  * Teams screen: one column per team of GameConfig.rounds.teams with its score (from the RoundState
@@ -21,7 +22,7 @@ export class Teams {
 	private ticking = false;
 
 	constructor() {
-		this.win = new Window("Teams", "Teams", { width: 620, height: 520, displayOrder: 6, coinPill: false });
+		this.win = new Window("Teams", L.teams, { width: 620, height: 520, displayOrder: 6, coinPill: false });
 		this.win.onOpen = () => {
 			this.render();
 			this.startTicking();
@@ -60,11 +61,11 @@ export class Teams {
 		const scores = this.state.scores ?? {};
 		let order = 0;
 		const phase = card(44, order++, this.win.body, [theme.paperDark, theme.paperDark]);
-		body(this.state.message !== "" ? this.state.message : `Phase: ${this.state.phase}`, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), phase, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 6 });
+		body(this.state.message !== "" ? this.state.message : fmt(L.phase, { phase: this.state.phase }), new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), phase, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 6 });
 
 		if (teams.size() === 0) {
 			const solo = card(60, order++, this.win.body);
-			body("This mode is solo — see the leaderboard for the ranking.", new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), solo, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
+			body(L.soloMode, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), solo, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
 			return;
 		}
 
@@ -94,7 +95,7 @@ export class Teams {
 				const isLocal = p === Players.LocalPlayer;
 				body(`${isLocal ? "▸ " : ""}${p.DisplayName}`, new UDim2(1, -32, 0, 22), new UDim2(0, 20, 0, 70 + i * 26), row, { size: 15, color: textOnGradient(colors), zIndex: 6 });
 			});
-			if (roster.size() === 0) body("Waiting for players…", new UDim2(1, -32, 0, 22), new UDim2(0, 20, 0, 70), row, { size: 14, zIndex: 6 });
+			if (roster.size() === 0) body(L.waitingPlayers, new UDim2(1, -32, 0, 22), new UDim2(0, 20, 0, 70), row, { size: 14, zIndex: 6 });
 		});
 	}
 }

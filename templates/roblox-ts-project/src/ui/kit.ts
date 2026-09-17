@@ -1,6 +1,7 @@
 import { Players, TweenService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { DEFAULT_UI_KIT, UI_KITS, type UiEnter, type UiKit, type UiOrnament, type UiPress, type UiSound } from "./kits.generated";
+import { L } from "./strings.generated";
 
 /**
  * UI kit — one of the design systems of `src/ui/kits.generated.ts` (paper cartoon, candy pop, neon
@@ -1388,7 +1389,7 @@ export function prettyName(id: string): string {
  * Rarity ramp of the library (common → legendary), derived from its own tokens so an item frame, an
  * egg or a pet card never needs a hard-coded purple. Use `rarityFrame` to outline a tile.
  */
-export const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"] as const;
+export const RARITY_NAMES: string[] = [L.common, L.uncommon, L.rare, L.epic, L.legendary];
 export const RARITY_COLORS: Color3[] = [theme.inkSoft, theme.primary[0], theme.info[0], theme.accent, theme.gold[0]];
 
 /** Outlines a tile with its rarity colour and drops a small corner ribbon. Tier is 0…4. */
@@ -1502,7 +1503,7 @@ export function confirmDialog(title: string, message: string, confirmLabel: stri
 	body(message, new UDim2(1, -32, 0, 56), new UDim2(0, 16, 0, 50), box, { size: 15, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, zIndex: 5 });
 	const close = () => gui.Destroy();
 	dim.MouseButton1Click.Connect(close);
-	const cancel = button("Cancel", new UDim2(0, 150, 0, 46), new UDim2(0, 20, 1, -60), box, { colors: [theme.inkSoft, darken(theme.inkSoft, 0.3)], size: 20, zIndex: 5 });
+	const cancel = button(L.cancel, new UDim2(0, 150, 0, 46), new UDim2(0, 20, 1, -60), box, { colors: [theme.inkSoft, darken(theme.inkSoft, 0.3)], size: 20, zIndex: 5 });
 	cancel.MouseButton1Click.Connect(close);
 	const ok = button(confirmLabel, new UDim2(0, 170, 0, 46), new UDim2(1, -190, 1, -60), box, { size: 20, zIndex: 5 });
 	ok.MouseButton1Click.Connect(() => {

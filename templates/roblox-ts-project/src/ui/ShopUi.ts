@@ -3,6 +3,7 @@ import { GameConfig } from "shared/config";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
 import { badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
+import { fmt, L } from "./strings.generated";
 
 /**
  * Shop window (mobile-game look): paper panel with a thick outline, title with an outline, red X, then a
@@ -47,7 +48,7 @@ export class ShopUi {
 			for (const item of items.filter((i) => i.consumable)) this.wideCard(item, order++);
 		}
 		if (ShopCatalog.robux.size() > 0) {
-			this.sectionHeader("Robux", order++);
+			this.sectionHeader(L.robux, order++);
 			for (const item of ShopCatalog.robux) this.robuxCard(item, order++);
 		}
 	}
@@ -213,7 +214,7 @@ export class ShopUi {
 		ic.Position = new UDim2(0, 16, 0.5, -24);
 		ic.ZIndex = 6;
 		text(item.name, new UDim2(1, -300, 0, 28), new UDim2(0, 78, 0, 10), f, { size: 21, zIndex: 6 });
-		body(item.kind === "gamepass" ? "GAME PASS · " + item.description : item.description, new UDim2(1, -300, 0, 22), new UDim2(0, 79, 0, 42), f, { size: 11, color: theme.text, zIndex: 6 });
+		body(item.kind === "gamepass" ? L.gamePass + " · " + item.description : item.description, new UDim2(1, -300, 0, 22), new UDim2(0, 79, 0, 42), f, { size: 11, color: theme.text, zIndex: 6 });
 		const price = this.priceButton(item.priceRobux, f, new UDim2(0, 130, 0, 42), new UDim2(1, -146, 0.5, -21), "robux");
 		price.MouseButton1Click.Connect(() => {
 			const res = this.promptRobux.InvokeServer(item.id) as { ok: boolean; message: string };
@@ -275,8 +276,8 @@ export class ShopUi {
 	private purchase(itemId: string): void {
 		const card = this.cards.get(itemId);
 		if (card && card.price >= CONFIRM_ABOVE && !this.state.owned.includes(itemId)) {
-			const name = ShopCatalog.items.find((i) => i.id === itemId)?.name ?? ShopCatalog.bundles.find((b) => `bundle:${b.id}` === itemId)?.name ?? "this item";
-			confirmDialog("Confirm purchase", `Buy ${name} for ${card.price} ${CURRENCY}?`, `Buy · ${card.price}`, () => this.send(itemId));
+			const name = ShopCatalog.items.find((i) => i.id === itemId)?.name ?? ShopCatalog.bundles.find((b) => `bundle:${b.id}` === itemId)?.name ?? L.items;
+			confirmDialog(L.confirmPurchase, fmt(L.confirmBuy, { item: name, price: card.price, currency: CURRENCY }), `${L.buy} · ${card.price}`, () => this.send(itemId));
 			return;
 		}
 		this.send(itemId);
@@ -296,24 +297,24 @@ export class ShopUi {
 			if (!card) continue;
 			if (!item.consumable) {
 				const owned = state.owned.includes(item.id);
-				this.setButtonText(card.button, owned ? "Owned" : `${item.price}`);
+				this.setButtonText(card.button, owned ? L.owned : `${item.price}`);
 				card.button.BackgroundColor3 = owned ? lighten(theme.pill, 0.18) : theme.pill;
 			} else if (card.have) {
-				card.have.Text = `You have: ${state.counts[item.id] ?? 0}`;
+				card.have.Text = fmt(L.youHave, { count: state.counts[item.id] ?? 0 });
 				const left = item.effect.stat !== undefined ? state.buffs[item.effect.stat] : undefined;
-				if (left !== undefined && left > 0) card.have.Text += `  ·  ${math.floor(left / 60)}m left`;
+				if (left !== undefined && left > 0) card.have.Text += `  ·  ${fmt(L.minutesLeft, { minutes: math.floor(left / 60) })}`;
 			}
 		}
 		for (const bundle of ShopCatalog.bundles) {
 			const card = this.cards.get(`bundle:${bundle.id}`);
 			if (!card) continue;
 			const owned = state.owned.includes(`bundle:${bundle.id}`);
-			this.setButtonText(card.button, owned ? "Claimed" : `${bundle.price}`);
+			this.setButtonText(card.button, owned ? L.claimed : `${bundle.price}`);
 			card.button.BackgroundColor3 = owned ? lighten(theme.pill, 0.18) : theme.pill;
 		}
 		for (const item of ShopCatalog.robux) {
 			const card = this.cards.get(item.id);
-			if (card && item.kind === "gamepass" && state.owned.includes(item.id)) this.setButtonText(card.button, "Owned");
+			if (card && item.kind === "gamepass" && state.owned.includes(item.id)) this.setButtonText(card.button, L.owned);
 		}
 	}
 

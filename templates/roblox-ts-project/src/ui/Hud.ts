@@ -2,6 +2,7 @@ import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { PlayerStats } from "shared/net";
 import { body, button, coinIcon, corner, darken, gradient, lastShadow, lighten, panel, pill, scaleContainer, shadow, stroke, text, theme } from "./kit";
+import { L } from "./strings.generated";
 
 /**
  * HUD in the kit's mobile-game look: currency pill (coin icon, outlined number) with the hunger bar under
@@ -73,7 +74,7 @@ export class Hud {
 		corner(this.hungerFill, math.min(9, theme.radius));
 		if (theme.gradients) gradient(this.hungerFill, lighten(theme.good, 0.25), darken(theme.good, 0.2));
 		this.hungerFill.Parent = barBg;
-		const hl = text("HUNGER", new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), barBg, { size: 12, align: Enum.TextXAlignment.Center, zIndex: 4, outline: 1.5 });
+		const hl = text(L.hunger, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), barBg, { size: 12, align: Enum.TextXAlignment.Center, zIndex: 4, outline: 1.5 });
 		if (!GameConfig.survival.enabled) barBg.Visible = false;
 		void hl;
 
@@ -96,7 +97,7 @@ export class Hud {
 		this.banner.Visible = false;
 
 		// shop button (bottom-left)
-		const shopBtn = button("Shop", new UDim2(0, 150, 0, 54), new UDim2(0, 18, 1, -76), this.root, { size: 24, radius: 14, icon: (p) => coinIcon(26, p) });
+		const shopBtn = button(L.shop, new UDim2(0, 150, 0, 54), new UDim2(0, 18, 1, -76), this.root, { size: 24, radius: 14, icon: (p) => coinIcon(26, p) });
 		shopBtn.MouseButton1Click.Connect(() => this.onShop?.());
 
 		// NPC dialogue bubble (bottom-centre): paper panel with a name tag
@@ -130,7 +131,7 @@ export class Hud {
 		this.loading.Parent = this.gui; // the loading overlay covers the screen: never scaled
 		const titleCard = panel(new UDim2(0, 560, 0, 150), new UDim2(0.5, -280, 0.5, -110), this.loading, { radius: 22, strokeThickness: 4, zIndex: 11 });
 		text(GameConfig.name, new UDim2(1, -24, 0, 70), new UDim2(0, 12, 0, 14), titleCard, { size: 44, align: Enum.TextXAlignment.Center, zIndex: 12, outline: 3.5, scaled: true });
-		this.loadingText = body("Shaping the world…", new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 86), titleCard, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 12 });
+		this.loadingText = body(L.shapingWorld, new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 86), titleCard, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 12 });
 		const barHolder = new Instance("Frame");
 		barHolder.Size = new UDim2(1, -48, 0, 18);
 		barHolder.Position = new UDim2(0, 24, 0, 116);

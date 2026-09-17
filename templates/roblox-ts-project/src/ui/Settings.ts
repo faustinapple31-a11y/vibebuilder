@@ -1,5 +1,6 @@
 import { Remotes, waitRemoteEvent, type ProfileStateMsg } from "shared/net";
 import { body, card, sectionHeader, setUiScale, slider, text, theme, toggle, Window } from "./kit";
+import { L } from "./strings.generated";
 
 /** Settings the client applies locally and the server persists in the profile (`setting_<key>`). */
 export interface SettingsValues {
@@ -34,7 +35,7 @@ export class Settings {
 	public onChange: ((values: SettingsValues) => void) | undefined;
 
 	constructor() {
-		this.win = new Window("Settings", "Settings", { width: 540, height: 460, displayOrder: 7, coinPill: false });
+		this.win = new Window("Settings", L.settings, { width: 540, height: 460, displayOrder: 7, coinPill: false });
 	}
 
 	isOpen(): boolean {
@@ -81,31 +82,31 @@ export class Settings {
 		this.built = true;
 		this.win.clearBody();
 		let order = 0;
-		sectionHeader("Audio", this.win.body, order++);
-		this.sliderRow("Music", this.values.music, order++, (v) => {
+		sectionHeader(L.audio, this.win.body, order++);
+		this.sliderRow(L.music, this.values.music, order++, (v) => {
 			this.values.music = v;
 			this.push("music", v);
 		});
-		this.sliderRow("Sound effects", this.values.sfx, order++, (v) => {
+		this.sliderRow(L.soundEffects, this.values.sfx, order++, (v) => {
 			this.values.sfx = v;
 			this.push("sfx", v);
 		});
-		sectionHeader("Display", this.win.body, order++);
-		this.sliderRow("UI scale", this.values.uiscale, order++, (v) => {
+		sectionHeader(L.display, this.win.body, order++);
+		this.sliderRow(L.uiScale, this.values.uiscale, order++, (v) => {
 			this.values.uiscale = v;
 			setUiScale(uiScaleFactor(v));
 			this.push("uiscale", v);
 		});
-		this.toggleRow("Minimap", this.values.minimap, order++, (v) => {
+		this.toggleRow(L.minimap, this.values.minimap, order++, (v) => {
 			this.values.minimap = v;
 			this.push("minimap", v ? 1 : 0);
 		});
-		this.toggleRow("Camera shake", this.values.shake, order++, (v) => {
+		this.toggleRow(L.cameraShake, this.values.shake, order++, (v) => {
 			this.values.shake = v;
 			this.push("shake", v ? 1 : 0);
 		});
 		const note = card(52, order++, this.win.body, [theme.paperDark, theme.paperDark]);
-		body("Settings are saved with your profile and restored when you rejoin.", new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), note, { size: 13, align: Enum.TextXAlignment.Center, zIndex: 6 });
+		body(L.settingsSaved, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), note, { size: 13, align: Enum.TextXAlignment.Center, zIndex: 6 });
 	}
 
 	private sliderRow(label: string, value: number, order: number, onChange: (v: number) => void): void {

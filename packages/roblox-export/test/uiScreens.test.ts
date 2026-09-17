@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { GENRES } from "@worldforge/core";
 import { GameSpecSchema } from "@worldforge/core";
 import { TEMPLATE_FILES } from "../src/template-files.generated";
-import { buildUiKitsTs } from "../src/uiKitFiles";
-import { UI_KITS } from "@worldforge/core";
+import { buildUiKitsTs, buildUiStringsTs } from "../src/uiKitFiles";
+import { UI_KITS, UI_LOCALES, UI_STRINGS_EN } from "@worldforge/core";
 
 /**
  * Every screen a genre declares (GameSpec `ui.screens`) must exist in the template and be mounted by
@@ -50,6 +50,35 @@ describe("UI screens of the template", () => {
 
   it("ships the UI kit library in sync with the taxonomy (run scripts/sync-template.ts)", () => {
     expect(TEMPLATE_FILES["src/ui/kits.generated.ts"]).toBe(buildUiKitsTs());
+  });
+
+  it("ships the UI strings in sync with the taxonomy, in every language", () => {
+    expect(TEMPLATE_FILES["src/ui/strings.generated.ts"]).toBe(buildUiStringsTs());
+    const strings = TEMPLATE_FILES["src/ui/strings.generated.ts"]!;
+    for (const locale of UI_LOCALES) expect(strings.includes(`\t${locale}: {`), locale).toBe(true);
+  });
+
+  it("only uses string keys that exist (no screen invents a label)", () => {
+    const known = new Set(Object.keys(UI_STRINGS_EN));
+    for (const [path, content] of Object.entries(TEMPLATE_FILES)) {
+      if (!path.startsWith("src/ui/") && path !== "src/client/main.client.ts") continue;
+      if (path.endsWith("strings.generated.ts")) continue;
+      for (const match of content.matchAll(/\bL\.([a-zA-Z]+)/g)) {
+        expect(known.has(match[1]!), `${path} uses L.${match[1]} which is not in the string table`).toBe(true);
+      }
+    }
+  });
+
+  it("leaves no hard-coded English label in the screens", () => {
+    // the screens read L.<key>; a literal window title or button label would not translate.
+    // `new Window("Inventory", L.inventory, …)` is fine: the first argument names the ScreenGui.
+    for (const [path, content] of Object.entries(TEMPLATE_FILES)) {
+      if (!path.startsWith("src/ui/") || path.endsWith(".generated.ts")) continue;
+      const scanned = content.replace(/new Window\("[A-Za-z]+"/g, "new Window(");
+      for (const literal of ['"Inventory"', '"Quests"', '"Crafting"', '"Leaderboard"', '"Settings"', '"Resources"', '"Consumables"', '"Search…"', '"Cancel"', '"Camera shake"', '"Active buffs"', '"In progress"', '"Completed"']) {
+        expect(scanned.includes(literal), `${path} hard-codes ${literal} instead of a string key`).toBe(false);
+      }
+    }
   });
 
   it("lets the client resolve the selected kit and falls back when it is unknown", () => {

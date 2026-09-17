@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UI_KIT_IDS } from "../taxonomy/ui-kits";
+import { UI_LOCALES } from "../taxonomy/ui-strings";
 
 /**
  * GameSpec — output of the Design Agent. Describes the game, not the world.
@@ -223,6 +224,8 @@ export const GameSpecSchema = z.object({
       accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#b48cff"),
       /** UI kit library that draws every screen (ids of packages/core/src/taxonomy/ui-kits.ts). */
       kit: z.enum(UI_KIT_IDS as [string, ...string[]]).default("paper_cartoon"),
+      /** Language of every label of the generated UI (src/ui/strings.generated.ts). */
+      locale: z.enum(UI_LOCALES).default("en"),
     })
     .prefault({}),
   monetization: z

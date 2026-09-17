@@ -1,7 +1,7 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { CloudUpload, Coins, Crown, ExternalLink, LayoutDashboard, Music, PersonStanding, Play, Plus, ShoppingBag, Trash2, Upload, Volume2, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { UI_KITS, UI_SCREENS, bestTextOn, panelEdge, textStroke, type AnimSpec, type GameSpec, type ShopEffect, type ShopItem, type UiScreen } from "@worldforge/core";
+import { UI_KITS, UI_LOCALES, UI_SCREENS, UI_STRINGS, bestTextOn, panelEdge, textStroke, type AnimSpec, type GameSpec, type ShopEffect, type ShopItem, type UiLocale, type UiScreen } from "@worldforge/core";
 import { creatorDashboardUrls } from "@worldforge/roblox-cloud";
 import { Button, Input, Label, Select, Slider, Switch, Textarea } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,8 @@ export function GameView() {
 }
 
 // ---------------------------------------------------------------- interface (UI kit + screens)
+const LOCALE_LABELS: Record<UiLocale, string> = { en: "English", fr: "Français", es: "Español", pt: "Português", de: "Deutsch" };
+
 const SCREEN_LABELS: Record<UiScreen, string> = {
   hud: "HUD (currency, banners, health)",
   loading: "Loading screen",
@@ -182,6 +184,19 @@ function InterfacePanel({ game }: { game: GameSpec }) {
             </button>
           );
         })}
+      </div>
+      <div className="flex items-center gap-3">
+        <Label className="w-28">Language</Label>
+        <Select className="w-40" value={game.ui.locale} onChange={(e) => void update({ ui: { ...game.ui, locale: e.target.value as UiLocale } })}>
+          {UI_LOCALES.map((locale) => (
+            <option key={locale} value={locale}>
+              {LOCALE_LABELS[locale]}
+            </option>
+          ))}
+        </Select>
+        <span className="text-[11px] text-faint">
+          Every label of every screen ({UI_STRINGS[game.ui.locale].shop} · {UI_STRINGS[game.ui.locale].inventory} · {UI_STRINGS[game.ui.locale].settings}). Detected from the prompt.
+        </span>
       </div>
       <div className="flex items-center gap-3">
         <Label className="w-28">Accent colour</Label>

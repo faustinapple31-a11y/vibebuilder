@@ -357,7 +357,8 @@ export const UI_KITS: UiKitDef[] = [
     id: "parchment_fantasy",
     name: "Parchment & Gold",
     description: "Quest-log fantasy UI: parchment panels, gold filigree edges, serif type.",
-    keywords: ["fantasy", "fantaisie", "parchment", "parchemin", "quest", "quête", "medieval", "médiéval", "elf", "magic", "magie", "rpg ui", "scroll"],
+    // look words only: "quest" alone would grab any RPG prompt, which is a mechanic, not a look
+    keywords: ["fantasy", "fantaisie", "parchment", "parchemin", "quest log", "journal de quêtes", "medieval", "médiéval", "elf", "magic", "magie", "rpg ui", "scroll", "grimoire"],
     themes: ["fantasy"],
     genres: ["rpg", "adventure", "dungeon_crawler", "story", "survival"],
     tokens: {

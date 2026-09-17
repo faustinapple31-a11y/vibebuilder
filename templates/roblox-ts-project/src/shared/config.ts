@@ -21,7 +21,7 @@ export const GameConfig = {
 	/** Genre + enabled gameplay systems (ids from the WorldForge taxonomy); systems start only when listed. */
 	genre: "adventure" as string,
 	/** UI: kit library (src/ui/kits.generated.ts), style accent and the screens the client mounts. */
-	ui: { kit: "paper_cartoon" as string, style: "stylized" as string, accentColor: "#b48cff" as string, screens: ["loading", "hud", "inventory", "quests", "shop", "gamepass_shop", "settings", "menu"] as string[] },
+	ui: { kit: "paper_cartoon" as string, locale: "en" as string, style: "stylized" as string, accentColor: "#b48cff" as string, screens: ["loading", "hud", "inventory", "quests", "shop", "gamepass_shop", "settings", "menu"] as string[] },
 	systems: ["player_data", "currency", "collectibles", "survival_stats", "npcs", "shop", "leaderboards"] as string[],
 	/** Extra leaderstats mirrored from Profile.stats. */
 	leaderstats: [] as string[],

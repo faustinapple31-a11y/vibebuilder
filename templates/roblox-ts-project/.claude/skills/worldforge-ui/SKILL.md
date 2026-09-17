@@ -57,6 +57,11 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
 - **rarity**: `RARITY_COLORS` / `RARITY_NAMES` (common → legendary, derived from the library) and
   `rarityFrame(tile, tier)` which outlines a tile and adds a ribbon for epic / legendary. The
   inventory derives the tier from the item's price; a pet / egg / crate screen should do the same.
+- **strings**: `src/ui/strings.generated.ts` holds every label in en / fr / es / pt / de and `L` is
+  the table of `GameConfig.ui.locale`. **Never write a user-visible literal in a screen** — add a key
+  to `packages/core/src/taxonomy/ui-strings.ts` (all five languages; a test enforces it) and use
+  `L.<key>`, with `fmt(L.key, { … })` for placeholders. A tooltip or toast built from game data
+  (item names from the catalog) is data, not a label, and stays as is.
 - **gamepad & console**: `button()` already marks its control `Selectable` with the library's
   selection highlight, and a window focuses its first control on open (`selectFirst`). Keep custom
   clickables on `button()` so they stay reachable without a mouse.

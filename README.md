@@ -66,7 +66,8 @@ modern, soft glass, parchment fantasy, stone & rune, military stencil, steampunk
 & gold, kawaii pastel, western saloon, vapor wave, y2k bubble, frost & ice, sand temple, deep sea, noir
 detective, sport jersey, graffiti street, mission control). Le prompt la choisit (« je veux une UI retro » → pixel retro, « interface néon » →
 neon cyber), sinon le style du monde décide ; l'onglet *Game → UI library & screens* permet d'en changer en
-un clic. Icônes procédurales, aucun asset à uploader. Les écrans listés par le genre (`ui.screens`) sont livrés
+un clic. Icônes procédurales, aucun asset à uploader. **La langue suit le prompt** : un prompt en français
+produit une UI en français (en / fr / es / pt / de, `ui.locale`, sélecteur dans l'onglet *Game*). Les écrans listés par le genre (`ui.screens`) sont livrés
 implémentés : inventaire, quêtes, craft, classement, équipes, état de manche, réglages (volume, minimap,
 secousse — persistés dans le profil), minimap dessinée depuis le bake, et menu pause. *Create on Roblox* crée les passes (`game-passes/v1`) et les produits (`developer-products`)
 sur l'univers avec la clé Open Cloud et mémorise les ids ; les PNJ sont des rigs R15 animés (catalogue Roblox ou

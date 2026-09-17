@@ -7,19 +7,23 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildUiKitsTs } from "../packages/roblox-export/src/uiKitFiles";
+import { buildUiKitsTs, buildUiStringsTs } from "../packages/roblox-export/src/uiKitFiles";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const templateDir = join(root, "templates", "roblox-ts-project");
 const outFile = join(root, "packages", "roblox-export", "src", "template-files.generated.ts");
 
-// the UI kit library is data: regenerate it from the taxonomy before embedding the template
-const kitsFile = join(templateDir, "src", "ui", "kits.generated.ts");
-const kitsTs = buildUiKitsTs();
-if (!existsSync(kitsFile) || readFileSync(kitsFile, "utf8").replace(/\r\n/g, "\n") !== kitsTs) {
-  writeFileSync(kitsFile, kitsTs, "utf8");
-  console.log(`regenerated ${relative(root, kitsFile)}`);
+// the UI kit libraries and the UI strings are data: regenerate them before embedding the template
+for (const [name, content] of [
+  ["kits.generated.ts", buildUiKitsTs()],
+  ["strings.generated.ts", buildUiStringsTs()],
+] as const) {
+  const file = join(templateDir, "src", "ui", name);
+  if (!existsSync(file) || readFileSync(file, "utf8").replace(/\r\n/g, "\n") !== content) {
+    writeFileSync(file, content, "utf8");
+    console.log(`regenerated ${relative(root, file)}`);
+  }
 }
 
 function walk(dir: string, out: string[] = []): string[] {

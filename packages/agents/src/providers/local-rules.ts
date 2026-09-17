@@ -151,7 +151,7 @@ export const GameConfig = {
 \t/** Genre + enabled gameplay systems (ids from the WorldForge taxonomy); systems start only when listed. */
 \tgenre: ${JSON.stringify(game.genre)} as string,
 \t/** UI: kit library (src/ui/kits.generated.ts), style accent and the screens the client mounts. */
-\tui: { kit: ${JSON.stringify(game.ui.kit)} as string, style: ${JSON.stringify(game.ui.style)} as string, accentColor: ${JSON.stringify(game.ui.accentColor)} as string, screens: ${JSON.stringify(game.ui.screens)} as string[] },
+\tui: { kit: ${JSON.stringify(game.ui.kit)} as string, locale: ${JSON.stringify(game.ui.locale)} as string, style: ${JSON.stringify(game.ui.style)} as string, accentColor: ${JSON.stringify(game.ui.accentColor)} as string, screens: ${JSON.stringify(game.ui.screens)} as string[] },
 \tsystems: ${JSON.stringify(systemIds)} as string[],
 \t/** Extra leaderstats mirrored from Profile.stats. */
 \tleaderstats: ${JSON.stringify(leaderstats)} as string[],

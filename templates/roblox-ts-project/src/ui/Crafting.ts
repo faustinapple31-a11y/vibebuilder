@@ -1,6 +1,7 @@
 import { Remotes, waitRemoteEvent, type ProfileStateMsg } from "shared/net";
 import { RecipeConfig, type RecipeDef } from "shared/recipes";
 import { body, button, card, darken, lighten, panel, prettyName, resourceIcon, stroke, text, theme, Window } from "./kit";
+import { L } from "./strings.generated";
 
 /**
  * Crafting screen: one card per recipe of shared/recipes.ts — output tile with the produced count, the
@@ -14,7 +15,7 @@ export class Crafting {
 	private profile: ProfileStateMsg = { coins: 0, inventory: {}, owned: [], stats: {}, quests: {} };
 
 	constructor() {
-		this.win = new Window("Crafting", "Crafting", { width: 620, height: 580, displayOrder: 6 });
+		this.win = new Window("Crafting", L.crafting, { width: 620, height: 580, displayOrder: 6 });
 		this.win.onOpen = () => this.render();
 	}
 
@@ -47,7 +48,7 @@ export class Crafting {
 		let order = 0;
 		if (RecipeConfig.recipes.size() === 0) {
 			const empty = card(60, order++, this.win.body);
-			body("No recipe yet — add them to design/game.spec.json (crafting.recipes).", new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
+			body(L.noRecipe, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
 			return;
 		}
 		for (const recipe of RecipeConfig.recipes) {
@@ -87,7 +88,7 @@ export class Crafting {
 				x += 112;
 			}
 
-			const craft = button("Craft", new UDim2(0, 128, 0, 48), new UDim2(1, -144, 0.5, -24), row, { colors: ok ? theme.primary : [lighten(theme.inkSoft, 0.15), darken(theme.inkSoft, 0.25)], size: 22, radius: math.min(12, theme.radius), zIndex: 7 });
+			const craft = button(L.craft, new UDim2(0, 128, 0, 48), new UDim2(1, -144, 0.5, -24), row, { colors: ok ? theme.primary : [lighten(theme.inkSoft, 0.15), darken(theme.inkSoft, 0.25)], size: 22, radius: math.min(12, theme.radius), zIndex: 7 });
 			craft.MouseButton1Click.Connect(() => {
 				if (!this.canCraft(recipe)) return;
 				this.action.FireServer("craft", recipe.id);
