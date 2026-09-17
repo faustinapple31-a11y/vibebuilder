@@ -67,7 +67,7 @@ export class Leaderboard {
 			const rank = panel(new UDim2(0, 44, 0, 38), new UDim2(0, 12, 0.5, -19), row, { color: theme.pill, strokeColor: theme.pillStroke, radius: 10, shadow: false, zIndex: 6 });
 			text(`${index + 1}`, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), rank, { size: 20, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 			const isLocal = entry.player === Players.LocalPlayer;
-			text(entry.player.DisplayName, new UDim2(1, -230, 1, 0), new UDim2(0, 68, 0, 0), row, { size: 21, color: isLocal ? Color3.fromHex("#ffffff") : medal !== undefined ? theme.textDark : theme.text, zIndex: 6 });
+			text(entry.player.DisplayName, new UDim2(1, -230, 1, 0), new UDim2(0, 68, 0, 0), row, { size: 21, color: medal !== undefined ? theme.textDark : theme.text, zIndex: 6 });
 			const value = panel(new UDim2(0, 118, 0, 38), new UDim2(1, -132, 0.5, -19), row, { color: theme.pill, strokeColor: theme.pillStroke, radius: 10, shadow: false, zIndex: 6 });
 			if (this.statName === GameConfig.currency.name) {
 				const ic = coinIcon(22, value);

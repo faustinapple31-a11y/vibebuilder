@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GENRES, STYLE_FAMILIES, UI_KITS, UI_KIT_IDS, UI_KIT_INDEX, UI_THEMES, UI_THEME_DEFAULT_KIT, pickUiKit } from "../src";
+import { GENRES, STYLE_FAMILIES, UI_KITS, UI_KIT_IDS, UI_KIT_INDEX, UI_THEMES, UI_THEME_DEFAULT_KIT, bestTextOn, contrastRatio, panelEdge, pickUiKit } from "../src";
 
 /** Fonts that exist in Roblox's Enum.Font (a typo here would break rbxtsc in every generated project). */
 const ROBLOX_FONTS = [
@@ -67,5 +67,38 @@ describe("UI kit libraries", () => {
   it("falls back to the theme default when the prompt says nothing about the UI", () => {
     expect(pickUiKit("a big island with a village", "cartoon")).toBe(UI_THEME_DEFAULT_KIT.cartoon);
     expect(pickUiKit("a big island with a village", "military")).toBe(UI_THEME_DEFAULT_KIT.military);
+  });
+});
+
+describe("UI kit readability (WCAG)", () => {
+  /** Surfaces a kit puts text on, with the minimum ratio for the label the renderer picks. */
+  const surfaces = (kit: (typeof UI_KITS)[number]): [string, string, number][] => [
+    ["paper", kit.tokens.paper, 4.5],
+    ["paperDark", kit.tokens.paperDark, 4.5],
+    ["primary", kit.tokens.primary[1], 3.5],
+    ["gold", kit.tokens.gold[1], 3.5],
+    ["danger", kit.tokens.danger[1], 3.5],
+    ["info", kit.tokens.info[1], 3.5],
+    ["pill", kit.tokens.pill, 4.5],
+    ["tile", kit.tokens.tile, 4.5],
+  ];
+
+  it("keeps every label readable on every surface it uses", () => {
+    for (const kit of UI_KITS) {
+      for (const [name, background, min] of surfaces(kit)) {
+        // the renderer picks whichever of the two text colours reads better (kit.ts textOn)
+        const ratio = contrastRatio(bestTextOn(kit, background), background);
+        expect(ratio, `${kit.id}: text on ${name} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(min);
+      }
+    }
+  });
+
+  it("keeps the panel outline visible and the highlight readable", () => {
+    for (const kit of UI_KITS) {
+      const edge = contrastRatio(panelEdge(kit), kit.tokens.paper);
+      expect(edge, `${kit.id}: panel outline is ${edge.toFixed(2)}:1 against the panel`).toBeGreaterThanOrEqual(1.8);
+      const highlight = contrastRatio(kit.tokens.gold[0], kit.tokens.pill);
+      expect(highlight, `${kit.id}: highlight on the pill is ${highlight.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+    }
   });
 });

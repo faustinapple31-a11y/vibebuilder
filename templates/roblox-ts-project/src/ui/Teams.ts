@@ -1,7 +1,7 @@
 import { Players } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { RoundStateMsg } from "shared/net";
-import { body, card, panel, progressBar, text, theme, Window } from "./kit";
+import { body, card, panel, progressBar, text, textOn, theme, Window } from "./kit";
 
 /**
  * Teams screen: one column per team of GameConfig.rounds.teams with its score (from the RoundState
@@ -85,14 +85,14 @@ export class Teams {
 			const colors = COLORS[index % COLORS.size()]!;
 			const height = 74 + roster.size() * 26;
 			const row = card(height, order++, this.win.body, colors);
-			text(`Team ${team.upper()}`, new UDim2(0, 260, 0, 32), new UDim2(0, 16, 0, 10), row, { size: 26, zIndex: 6 });
+			text(`Team ${team.upper()}`, new UDim2(0, 260, 0, 32), new UDim2(0, 16, 0, 10), row, { size: 26, color: textOn(colors[1]), zIndex: 6 });
 			const scorePill = panel(new UDim2(0, 110, 0, 36), new UDim2(1, -126, 0, 10), row, { color: theme.pill, strokeColor: theme.pillStroke, radius: 10, shadow: false, zIndex: 6 });
 			text(`${score}`, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), scorePill, { size: 20, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 			const bar = progressBar(new UDim2(1, -32, 0, 14), new UDim2(0, 16, 0, 50), row, colors, 6);
 			bar.set(best > 0 ? score / best : 0);
 			roster.forEach((p, i) => {
 				const isLocal = p === Players.LocalPlayer;
-				body(`${isLocal ? "▸ " : ""}${p.DisplayName}`, new UDim2(1, -32, 0, 22), new UDim2(0, 20, 0, 70 + i * 26), row, { size: 15, color: isLocal ? theme.text : theme.textDark, zIndex: 6 });
+				body(`${isLocal ? "▸ " : ""}${p.DisplayName}`, new UDim2(1, -32, 0, 22), new UDim2(0, 20, 0, 70 + i * 26), row, { size: 15, color: textOn(colors[1]), zIndex: 6 });
 			});
 			if (roster.size() === 0) body("Waiting for players…", new UDim2(1, -32, 0, 22), new UDim2(0, 20, 0, 70), row, { size: 14, zIndex: 6 });
 		});

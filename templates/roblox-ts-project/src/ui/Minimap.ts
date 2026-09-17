@@ -1,7 +1,7 @@
 import { HttpService, Players, ReplicatedStorage, RunService, Workspace } from "@rbxts/services";
 import { base64ToBuffer, readF32, readU8 } from "shared/world/decode";
 import { TERRAIN_MATERIALS, type WorldBakeData } from "shared/world/types";
-import { corner, panel, stroke, text, theme } from "./kit";
+import { corner, darken, panel, stroke, text, theme } from "./kit";
 
 /**
  * Minimap: a top-down map drawn from the WorldBake the client already has in
@@ -50,12 +50,12 @@ export class Minimap {
 		this.gui.DisplayOrder = 2;
 		this.gui.Parent = pg;
 
-		this.frame = panel(new UDim2(0, SIZE, 0, SIZE + 22), new UDim2(1, -SIZE - 18, 1, -SIZE - 40), this.gui, { color: Color3.fromHex("#2a2320"), strokeThickness: 3.5, radius: 14, zIndex: 3 });
+		this.frame = panel(new UDim2(0, SIZE, 0, SIZE + 22), new UDim2(1, -SIZE - 18, 1, -SIZE - 40), this.gui, { color: theme.pill, strokeThickness: theme.strokeThickness, radius: math.min(14, theme.radius), zIndex: 3 });
 		this.label = text("MAP", new UDim2(1, -12, 0, 18), new UDim2(0, 6, 0, 2), this.frame, { size: 13, align: Enum.TextXAlignment.Center, zIndex: 6, outline: 1.5 });
 		this.grid = new Instance("Frame");
 		this.grid.Size = new UDim2(0, SIZE - 12, 0, SIZE - 12);
 		this.grid.Position = new UDim2(0, 6, 0, 20);
-		this.grid.BackgroundColor3 = Color3.fromHex("#1b2430");
+		this.grid.BackgroundColor3 = darken(theme.pill, 0.3);
 		this.grid.BorderSizePixel = 0;
 		this.grid.ClipsDescendants = true;
 		this.grid.ZIndex = 4;
@@ -65,7 +65,7 @@ export class Minimap {
 
 		this.arrow = new Instance("Frame");
 		this.arrow.Size = new UDim2(0, 10, 0, 10);
-		this.arrow.BackgroundColor3 = Color3.fromHex("#ffd24a");
+		this.arrow.BackgroundColor3 = theme.highlight;
 		this.arrow.BorderSizePixel = 0;
 		this.arrow.ZIndex = 9;
 		this.arrow.Rotation = 45;
@@ -147,10 +147,10 @@ export class Minimap {
 			}
 		}
 		// landmarks and gameplay zones
-		for (const landmark of bake.landmarks) this.dot(landmark.position[0], landmark.position[2], Color3.fromHex("#ffd24a"), 7, landmark.type);
-		for (const zone of bake.zones) this.dot(zone.center[0], zone.center[1], Color3.fromHex("#ff7ab8"), 5, zone.kind);
+		for (const landmark of bake.landmarks) this.dot(landmark.position[0], landmark.position[2], theme.highlight, 7, landmark.type);
+		for (const zone of bake.zones) this.dot(zone.center[0], zone.center[1], theme.accent, 5, zone.kind);
 		const spawn = bake.spawn.position;
-		this.dot(spawn[0], spawn[2], Color3.fromHex("#7fd0ff"), 6, "spawn");
+		this.dot(spawn[0], spawn[2], theme.info[0], 6, "spawn");
 		this.startTracking();
 	}
 

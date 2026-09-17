@@ -1,7 +1,7 @@
 import { TweenService } from "@rbxts/services";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { badge, body, button, coinIcon, cloverIcon, corner, gradient, itemIcon, panel, pill, pressAnimation, shadow, strike, stroke, text, theme, tooltip, Window } from "./kit";
+import { badge, body, button, coinIcon, cloverIcon, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, shadow, strike, stroke, text, theme, tooltip, Window } from "./kit";
 
 /**
  * Shop window (mobile-game look): paper panel with a thick outline, title with an outline, red X, then a
@@ -85,14 +85,14 @@ export class ShopUi {
 
 	/** "BOOST Your Luck!" — big green banner: mascot, headline, x1 → x2 figure, note, price pill. */
 	private featuredBanner(item: ShopItem, headline: string, note: string, order: number): void {
-		const f = this.card(150, order, [Color3.fromHex("#5fcf3a"), Color3.fromHex("#2f8d2c")]);
+		const f = this.card(150, order, theme.primary);
 		const icon = item.effect.stat === "luck" ? cloverIcon(104, f) : itemIcon(item, 96, f);
 		icon.Position = new UDim2(0, 18, 0.5, -icon.Size.Y.Offset / 2);
 		icon.ZIndex = 6;
 		text(headline, new UDim2(1, -320, 0, 40), new UDim2(0, 140, 0, 14), f, { size: 30, zIndex: 6 });
 		const boost = item.effect.type === "buff" || item.effect.type === "multiplier" ? `x1  ➜  x${item.effect.value}` : item.description;
-		text(boost, new UDim2(1, -320, 0, 44), new UDim2(0, 140, 0, 54), f, { size: 32, zIndex: 6, color: Color3.fromHex("#fff8c8") });
-		body(note !== "" ? note : item.description, new UDim2(1, -320, 0, 24), new UDim2(0, 142, 0, 108), f, { size: 13, color: Color3.fromHex("#e9ffe0"), zIndex: 6 });
+		text(boost, new UDim2(1, -320, 0, 44), new UDim2(0, 140, 0, 54), f, { size: 32, zIndex: 6, color: lighten(theme.text, 0.1) });
+		body(note !== "" ? note : item.description, new UDim2(1, -320, 0, 24), new UDim2(0, 142, 0, 108), f, { size: 13, color: theme.text, zIndex: 6 });
 		const price = this.priceButton(item.price, f, new UDim2(0, 150, 0, 48), new UDim2(1, -168, 1, -66), "coin");
 		price.MouseButton1Click.Connect(() => this.purchase(item.id));
 		this.cards.set(item.id, { button: price, price: item.price });
@@ -101,8 +101,8 @@ export class ShopUi {
 	/** Gold bundle card: title, description, item tiles with counts, sticker, old price struck, price. */
 	private bundleCard(bundle: ShopBundle, order: number): void {
 		const f = this.card(232, order, theme.gold);
-		text(bundle.name.upper(), new UDim2(1, -120, 0, 44), new UDim2(0, 0, 0, 10), f, { size: 36, align: Enum.TextXAlignment.Center, color: Color3.fromHex("#fff3c4"), zIndex: 6 });
-		body(bundle.description, new UDim2(1, -140, 0, 20), new UDim2(0, 0, 0, 52), f, { size: 13, align: Enum.TextXAlignment.Center, color: Color3.fromHex("#5a3a10"), zIndex: 6 });
+		text(bundle.name.upper(), new UDim2(1, -120, 0, 44), new UDim2(0, 0, 0, 10), f, { size: 36, align: Enum.TextXAlignment.Center, color: lighten(theme.text, 0.1), zIndex: 6 });
+		body(bundle.description, new UDim2(1, -140, 0, 20), new UDim2(0, 0, 0, 52), f, { size: 13, align: Enum.TextXAlignment.Center, color: darken(theme.gold[1], 0.45), zIndex: 6 });
 		// tiles
 		const tiles = bundle.items.map((e) => ({ entry: e, item: ShopCatalog.items.find((i) => i.id === e.itemId) })).filter((t) => t.item !== undefined);
 		const tileW = 100;
@@ -137,7 +137,7 @@ export class ShopUi {
 		// sticker + prices
 		const original = bundle.originalPrice ?? bundle.items.reduce((s, e) => s + (ShopCatalog.items.find((i) => i.id === e.itemId)?.price ?? 0) * e.count, 0);
 		const discount = original > 0 ? math.floor((1 - bundle.price / original) * 100) : 0;
-		badge(bundle.badge ?? `-${discount}%`, new UDim2(1, -128, 0, 16), f, Color3.fromHex("#ff4f7a"), -12, 26);
+		badge(bundle.badge ?? `-${discount}%`, new UDim2(1, -128, 0, 16), f, theme.accent, -12, 26);
 		if (original > bundle.price) strike(`${original}`, new UDim2(1, -136, 0, 128), f, 22);
 		const price = this.priceButton(bundle.price, f, new UDim2(0, 136, 0, 48), new UDim2(1, -150, 1, -66), "coin");
 		price.MouseButton1Click.Connect(() => this.purchase(`bundle:${bundle.id}`));
@@ -178,7 +178,7 @@ export class ShopUi {
 			const ic = itemIcon(item, 56, tile);
 			ic.Position = new UDim2(0.5, -28, 0, 38);
 			ic.ZIndex = 5;
-			body(item.description, new UDim2(1, -12, 0, 30), new UDim2(0, 6, 0, 96), tile, { size: 11, align: Enum.TextXAlignment.Center, color: Color3.fromHex("#e9e2cf"), zIndex: 5 });
+			body(item.description, new UDim2(1, -12, 0, 30), new UDim2(0, 6, 0, 96), tile, { size: 11, align: Enum.TextXAlignment.Center, color: theme.text, zIndex: 5 });
 			const price = this.priceButton(item.price, tile, new UDim2(1, -20, 0, 36), new UDim2(0, 10, 1, -44), "coin");
 			price.MouseButton1Click.Connect(() => this.purchase(item.id));
 			this.cards.set(item.id, { button: price, price: item.price });
@@ -195,7 +195,7 @@ export class ShopUi {
 		ic.Position = new UDim2(0, 16, 0.5, -32);
 		ic.ZIndex = 6;
 		text(item.name, new UDim2(1, -300, 0, 30), new UDim2(0, 96, 0, 12), f, { size: 24, zIndex: 6 });
-		body(item.description, new UDim2(1, -300, 0, 40), new UDim2(0, 97, 0, 44), f, { size: 12, color: Color3.fromHex("#f6f1e4"), zIndex: 6 });
+		body(item.description, new UDim2(1, -300, 0, 40), new UDim2(0, 97, 0, 44), f, { size: 12, color: theme.text, zIndex: 6 });
 		const have = text("You have: 0", new UDim2(0, 150, 0, 22), new UDim2(1, -170, 0, 10), f, { size: 15, align: Enum.TextXAlignment.Right, zIndex: 6, outline: 1.5 });
 		const price = this.priceButton(item.price, f, new UDim2(0, 136, 0, 42), new UDim2(1, -152, 1, -54), "coin");
 		price.MouseButton1Click.Connect(() => this.purchase(item.id));
@@ -204,12 +204,12 @@ export class ShopUi {
 	}
 
 	private robuxCard(item: RobuxItem, order: number): void {
-		const f = this.card(76, order, [Color3.fromHex("#3a4150"), Color3.fromHex("#1c2130")]);
+		const f = this.card(76, order, [lighten(theme.tile, 0.08), darken(theme.tile, 0.25)]);
 		const ic = itemIcon(item, 48, f);
 		ic.Position = new UDim2(0, 16, 0.5, -24);
 		ic.ZIndex = 6;
 		text(item.name, new UDim2(1, -300, 0, 28), new UDim2(0, 78, 0, 10), f, { size: 21, zIndex: 6 });
-		body(item.kind === "gamepass" ? "GAME PASS · " + item.description : item.description, new UDim2(1, -300, 0, 22), new UDim2(0, 79, 0, 42), f, { size: 11, color: Color3.fromHex("#c9d0dd"), zIndex: 6 });
+		body(item.kind === "gamepass" ? "GAME PASS · " + item.description : item.description, new UDim2(1, -300, 0, 22), new UDim2(0, 79, 0, 42), f, { size: 11, color: theme.text, zIndex: 6 });
 		const price = this.priceButton(item.priceRobux, f, new UDim2(0, 130, 0, 42), new UDim2(1, -146, 0.5, -21), "robux");
 		price.MouseButton1Click.Connect(() => {
 			const res = this.promptRobux.InvokeServer(item.id) as { ok: boolean; message: string };
@@ -223,13 +223,13 @@ export class ShopUi {
 		const b = new Instance("TextButton");
 		b.Size = size;
 		b.Position = position;
-		b.BackgroundColor3 = icon === "robux" ? Color3.fromHex("#151a26") : theme.pill;
+		b.BackgroundColor3 = icon === "robux" ? darken(theme.pill, 0.35) : theme.pill;
 		b.BorderSizePixel = 0;
 		b.Text = "";
 		b.AutoButtonColor = false;
 		b.ZIndex = 7;
 		corner(b, 12);
-		stroke(b, icon === "robux" ? Color3.fromHex("#5a6478") : theme.pillStroke, 3);
+		stroke(b, icon === "robux" ? lighten(theme.pillStroke, 0.25) : theme.pillStroke, theme.strokeThickness);
 		b.Parent = parent;
 		const ic = icon === "coin" ? coinIcon(24, b) : (() => {
 			const i = new Instance("ImageLabel");
@@ -259,7 +259,7 @@ export class ShopUi {
 		const old = l.Text;
 		l.Text = message.size() > 14 ? message.sub(1, 14) + "…" : message;
 		l.TextScaled = true;
-		TweenService.Create(b, new TweenInfo(0.12), { BackgroundColor3: Color3.fromHex("#8a2a2a") }).Play();
+		TweenService.Create(b, new TweenInfo(0.12), { BackgroundColor3: theme.bad }).Play();
 		task.delay(1.4, () => {
 			l.TextScaled = false;
 			l.Text = old;
@@ -282,7 +282,7 @@ export class ShopUi {
 			if (!item.consumable) {
 				const owned = state.owned.includes(item.id);
 				this.setButtonText(card.button, owned ? "Owned" : `${item.price}`);
-				card.button.BackgroundColor3 = owned ? Color3.fromHex("#4b4640") : theme.pill;
+				card.button.BackgroundColor3 = owned ? lighten(theme.pill, 0.18) : theme.pill;
 			} else if (card.have) {
 				card.have.Text = `You have: ${state.counts[item.id] ?? 0}`;
 				const left = item.effect.stat !== undefined ? state.buffs[item.effect.stat] : undefined;
@@ -294,7 +294,7 @@ export class ShopUi {
 			if (!card) continue;
 			const owned = state.owned.includes(`bundle:${bundle.id}`);
 			this.setButtonText(card.button, owned ? "Claimed" : `${bundle.price}`);
-			card.button.BackgroundColor3 = owned ? Color3.fromHex("#4b4640") : theme.pill;
+			card.button.BackgroundColor3 = owned ? lighten(theme.pill, 0.18) : theme.pill;
 		}
 		for (const item of ShopCatalog.robux) {
 			const card = this.cards.get(item.id);

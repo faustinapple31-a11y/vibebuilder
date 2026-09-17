@@ -1,7 +1,7 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { PlayerStats } from "shared/net";
-import { body, button, coinIcon, corner, gradient, lastShadow, panel, pill, shadow, stroke, text, theme } from "./kit";
+import { body, button, coinIcon, corner, darken, gradient, lastShadow, lighten, panel, pill, shadow, stroke, text, theme } from "./kit";
 
 /**
  * HUD in the kit's mobile-game look: currency pill (coin icon, outlined number) with the hunger bar under
@@ -48,39 +48,39 @@ export class Hud {
 		const coinPill = pill("0", new UDim2(0, 180, 0, 46), new UDim2(0, 18, 0, 18), this.gui, "coin", { textSize: 22 });
 		this.coins = coinPill.label;
 		shadow(coinPill.frame, 4, 0.5);
-		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: Color3.fromHex("#cfe5c8"), zIndex: 6 });
+		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: theme.text, zIndex: 6 });
 		curName.Visible = false;
 
 		// hunger bar under the pill (survival only)
-		const barBg = panel(new UDim2(0, 180, 0, 18), new UDim2(0, 18, 0, 70), this.gui, { color: Color3.fromHex("#2a2320"), strokeThickness: 2.5, radius: 9, shadow: false });
+		const barBg = panel(new UDim2(0, 180, 0, 18), new UDim2(0, 18, 0, 70), this.gui, { color: theme.track, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(9, theme.radius), shadow: false });
 		this.hungerFill = new Instance("Frame");
 		this.hungerFill.Size = new UDim2(1, 0, 1, 0);
-		this.hungerFill.BackgroundColor3 = Color3.fromHex("#7fd07a");
+		this.hungerFill.BackgroundColor3 = theme.good;
 		this.hungerFill.BorderSizePixel = 0;
 		this.hungerFill.ZIndex = 3;
-		corner(this.hungerFill, 9);
-		gradient(this.hungerFill, Color3.fromHex("#a8f07a"), Color3.fromHex("#4fa53a"));
+		corner(this.hungerFill, math.min(9, theme.radius));
+		if (theme.gradients) gradient(this.hungerFill, lighten(theme.good, 0.25), darken(theme.good, 0.2));
 		this.hungerFill.Parent = barBg;
 		const hl = text("HUNGER", new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), barBg, { size: 12, align: Enum.TextXAlignment.Center, zIndex: 4, outline: 1.5 });
 		if (!GameConfig.survival.enabled) barBg.Visible = false;
 		void hl;
 
 		// health bar (top-left, under the hunger bar or the pill)
-		const healthBg = panel(new UDim2(0, 180, 0, 14), new UDim2(0, 18, 0, GameConfig.survival.enabled ? 94 : 70), this.gui, { color: Color3.fromHex("#2a2320"), strokeThickness: 2.5, radius: 7, shadow: false });
+		const healthBg = panel(new UDim2(0, 180, 0, 14), new UDim2(0, 18, 0, GameConfig.survival.enabled ? 94 : 70), this.gui, { color: theme.track, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(7, theme.radius), shadow: false });
 		this.healthFill = new Instance("Frame");
 		this.healthFill.Size = new UDim2(1, 0, 1, 0);
-		this.healthFill.BackgroundColor3 = Color3.fromHex("#6fd06f");
+		this.healthFill.BackgroundColor3 = theme.good;
 		this.healthFill.BorderSizePixel = 0;
 		this.healthFill.ZIndex = 3;
-		corner(this.healthFill, 7);
+		corner(this.healthFill, math.min(7, theme.radius));
 		this.healthFill.Parent = healthBg;
 
 		// right-hand value card + big centre banner
-		this.values = panel(new UDim2(0, 250, 0, 12), new UDim2(1, -268, 0, 18), this.gui, { color: Color3.fromHex("#2a2320"), transparency: 0.1, strokeColor: Color3.fromHex("#5a4a40"), strokeThickness: 2.5, radius: 12 });
+		this.values = panel(new UDim2(0, 250, 0, 12), new UDim2(1, -268, 0, 18), this.gui, { color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.pillStroke, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(12, theme.radius) });
 		this.values.Visible = false;
 		this.valuesShadow = lastShadow(this.gui);
 		if (this.valuesShadow) this.valuesShadow.Visible = false;
-		this.banner = text("", new UDim2(0, 720, 0, 60), new UDim2(0.5, -360, 0, 26), this.gui, { size: 40, align: Enum.TextXAlignment.Center, color: Color3.fromHex("#ffd24a"), outline: 3.5, zIndex: 5 });
+		this.banner = text("", new UDim2(0, 720, 0, 60), new UDim2(0.5, -360, 0, 26), this.gui, { size: 40, align: Enum.TextXAlignment.Center, color: theme.highlight, outline: math.max(2, theme.textOutline + 1), zIndex: 5 });
 		this.banner.Visible = false;
 
 		// shop button (bottom-left)
@@ -104,7 +104,7 @@ export class Hud {
 		this.dialogueText = body("", new UDim2(1, -32, 1, -36), new UDim2(0, 16, 0, 24), this.dialogue, { size: 17, valign: Enum.TextYAlignment.Top, zIndex: 4 });
 
 		// toast notification (top-centre, slides in)
-		this.notif = panel(new UDim2(0, 360, 0, 44), new UDim2(0.5, -180, 0, -60), this.gui, { color: Color3.fromHex("#2a2320"), strokeColor: theme.primary[1], strokeThickness: 3, radius: 12, zIndex: 6 });
+		this.notif = panel(new UDim2(0, 360, 0, 44), new UDim2(0.5, -180, 0, -60), this.gui, { color: theme.pill, strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(12, theme.radius), zIndex: 6 });
 		this.notif.Visible = false;
 		this.notifText = text("", new UDim2(1, -16, 1, 0), new UDim2(0, 8, 0, 0), this.notif, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 
@@ -122,7 +122,7 @@ export class Hud {
 		const barHolder = new Instance("Frame");
 		barHolder.Size = new UDim2(1, -48, 0, 18);
 		barHolder.Position = new UDim2(0, 24, 0, 116);
-		barHolder.BackgroundColor3 = Color3.fromHex("#2a2320");
+		barHolder.BackgroundColor3 = theme.track;
 		barHolder.BorderSizePixel = 0;
 		barHolder.ZIndex = 12;
 		corner(barHolder, 9);
@@ -174,7 +174,7 @@ export class Hud {
 			this.valueRows.set(key, row);
 			this.relayoutValues();
 		}
-		row.Text = `<font color="#cfc4b4">${label}</font>   <font color="#ffd24a">${value}</font>`;
+		row.Text = `<font color="#${theme.text.ToHex()}">${label}</font>   <font color="#${theme.highlight.ToHex()}">${value}</font>`;
 	}
 
 	private relayoutValues(): void {
@@ -196,7 +196,7 @@ export class Hud {
 
 	setHealth(fraction: number): void {
 		this.healthFill.Size = new UDim2(math.clamp(fraction, 0, 1), 0, 1, 0);
-		this.healthFill.BackgroundColor3 = fraction > 0.5 ? Color3.fromHex("#6fd06f") : fraction > 0.25 ? Color3.fromHex("#e0b040") : Color3.fromHex("#e05050");
+		this.healthFill.BackgroundColor3 = fraction > 0.5 ? theme.good : fraction > 0.25 ? theme.warn : theme.bad;
 	}
 
 	setStats(stats: PlayerStats): void {

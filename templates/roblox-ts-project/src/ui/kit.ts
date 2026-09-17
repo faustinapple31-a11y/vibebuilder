@@ -54,16 +54,31 @@ export interface Theme {
 	press: UiPress;
 	/** accent colour of the world's style family (GameConfig.ui.accentColor) */
 	accent: Color3;
+	// ---- derived from the library, so nothing in the UI hard-codes a colour
+	/** true when the library's panels are dark (drives the HUD text and bar tracks) */
+	isDark: boolean;
+	/** outline colour for panels and tiles — `ink`, or the softer ink when it vanishes into the panel */
+	edge: Color3;
+	/** empty background of a bar (hunger, health, progress, countdown) */
+	track: Color3;
+	/** the library's "value" colour: timers, prices in the HUD, scores */
+	highlight: Color3;
+	/** semantic states, tinted towards the library so they never clash */
+	good: Color3;
+	warn: Color3;
+	bad: Color3;
 }
 
 const hex = (h: string) => Color3.fromHex(h);
 const UI = GameConfig.ui as { kit?: string; style?: string; accentColor?: string };
 const ACCENT = hex(UI.accentColor ?? "#7ed957");
 
-function lighten(c: Color3, k: number): Color3 {
+/** Blend towards white (kits use it for highlights and bar fills). */
+export function lighten(c: Color3, k: number): Color3 {
 	return c.Lerp(new Color3(1, 1, 1), k);
 }
-function darken(c: Color3, k: number): Color3 {
+/** Blend towards black (bevels, tracks, hover states). */
+export function darken(c: Color3, k: number): Color3 {
 	return c.Lerp(new Color3(0, 0, 0), k);
 }
 
@@ -74,12 +89,15 @@ function makeTheme(): Theme {
 	const t = kitDef.tokens;
 	const s = kitDef.shape;
 	const pair = (v: [string, string]): [Color3, Color3] => [hex(v[0]), hex(v[1])];
+	const paper = hex(t.paper);
+	const ink = hex(t.ink);
+	const isDark = luminance(paper) < 0.35;
 	return {
 		kit: kitDef.id,
 		kitName: kitDef.name,
-		paper: hex(t.paper),
+		paper: paper,
 		paperDark: hex(t.paperDark),
-		ink: hex(t.ink),
+		ink: ink,
 		inkSoft: hex(t.inkSoft),
 		text: hex(t.text),
 		textDark: hex(t.textDark),
@@ -104,7 +122,37 @@ function makeTheme(): Theme {
 		ornament: s.ornament,
 		press: s.press,
 		accent: ACCENT,
+		isDark,
+		edge: contrast(ink, paper) >= 1.8 || contrast(ink, paper) >= contrast(hex(t.inkSoft), paper) ? ink : hex(t.inkSoft),
+		track: isDark ? darken(paper, 0.45) : darken(paper, 0.24),
+		highlight: hex(t.gold[0]),
+		// keep the meaning (green / amber / red) but pull each towards the library's ink
+		good: hex("#6fd06f").Lerp(ink, 0.18),
+		warn: hex("#e8b23a").Lerp(ink, 0.18),
+		bad: hex("#e05050").Lerp(ink, 0.18),
 	};
+}
+
+/** Perceived luminance (WCAG relative luminance, sRGB) — used for the dark / light decisions. */
+export function luminance(c: Color3): number {
+	const channel = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+	return 0.2126 * channel(c.R) + 0.7152 * channel(c.G) + 0.0722 * channel(c.B);
+}
+
+/** WCAG contrast ratio between two colours (1 = identical, 21 = black on white). */
+export function contrast(a: Color3, b: Color3): number {
+	const la = luminance(a);
+	const lb = luminance(b);
+	return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+}
+
+/**
+ * Label colour for a coloured surface: whichever of the library's two text colours reads better on
+ * it. Every button and card uses it, so a gold banner gets dark type and a deep-green one white type
+ * without the kit having to declare both.
+ */
+export function textOn(background: Color3): Color3 {
+	return contrast(theme.text, background) >= contrast(theme.textDark, background) ? theme.text : theme.textDark;
 }
 
 export const theme = makeTheme();
@@ -202,7 +250,7 @@ export function panel(size: UDim2, position: UDim2, parent: Instance, opts: Pane
 	f.BorderSizePixel = 0;
 	f.ZIndex = opts.zIndex ?? 2;
 	corner(f, opts.radius ?? theme.radius);
-	stroke(f, opts.strokeColor ?? theme.ink, opts.strokeThickness ?? theme.strokeThickness);
+	stroke(f, opts.strokeColor ?? theme.edge, opts.strokeThickness ?? theme.strokeThickness);
 	if (theme.gradients && opts.color === undefined) gradient(f, lighten(color, 0.06), darken(color, 0.08));
 	f.Parent = parent;
 	if (opts.shadow !== false && theme.shadowOffset > 0) shadow(f);
@@ -420,7 +468,7 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 	const radius = opts.radius ?? math.max(2, theme.radius - 2);
 	corner(b, radius);
 	if (theme.gradients) gradient(b, top, bottom);
-	stroke(b, theme.ink, theme.strokeThickness);
+	stroke(b, theme.edge, theme.strokeThickness);
 	if (theme.bevel) {
 		// bevel: darker band at the bottom
 		const bevel = new Instance("Frame");
@@ -442,7 +490,7 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 		corner(hi, 2);
 		hi.Parent = b;
 	}
-	const label = text(str, new UDim2(1, -12, 1, -6), new UDim2(0, 6, 0, -1), b, { size: opts.size ?? 20, align: Enum.TextXAlignment.Center, color: opts.textColor ?? theme.text, zIndex: b.ZIndex + 2 });
+	const label = text(str, new UDim2(1, -12, 1, -6), new UDim2(0, 6, 0, -1), b, { size: opts.size ?? 20, align: Enum.TextXAlignment.Center, color: opts.textColor ?? textOn(bottom), zIndex: b.ZIndex + 2 });
 	label.Name = "Label";
 	if (opts.icon) {
 		const ic = opts.icon(b);
@@ -535,11 +583,11 @@ export function badge(str: string, position: UDim2, parent: Instance, color: Col
 
 /** Struck-through old price (red line). */
 export function strike(str: string, position: UDim2, parent: Instance, size = 18): TextLabel {
-	const l = text(str, new UDim2(0, str.size() * size * 0.62 + 8, 0, size + 6), position, parent, { size, align: Enum.TextXAlignment.Center, color: hex("#e9e2cf"), outline: 2, zIndex: 6 });
+	const l = text(str, new UDim2(0, str.size() * size * 0.62 + 8, 0, size + 6), position, parent, { size, align: Enum.TextXAlignment.Center, color: theme.text, outline: math.min(2, theme.textOutline), zIndex: 6 });
 	const line = new Instance("Frame");
 	line.Size = new UDim2(1, 4, 0, 3);
 	line.Position = new UDim2(0, -2, 0.5, -1);
-	line.BackgroundColor3 = hex("#e5352b");
+	line.BackgroundColor3 = theme.bad;
 	line.BorderSizePixel = 0;
 	line.Rotation = -8;
 	line.ZIndex = 7;
@@ -743,16 +791,16 @@ export function tooltip(target: GuiObject, title: string, description: string, r
 		if (tip && tip.Parent) return;
 		tip = new Instance("Frame");
 		tip.Size = new UDim2(0, 240, 0, 84);
-		tip.BackgroundColor3 = hex("#2a2320");
+		tip.BackgroundColor3 = theme.pill;
 		tip.BackgroundTransparency = 0.05;
 		tip.BorderSizePixel = 0;
 		tip.ZIndex = 50;
 		tip.Visible = false;
 		corner(tip, 12);
-		stroke(tip, hex("#5a4a40"), 3);
+		stroke(tip, theme.pillStroke, theme.strokeThickness);
 		tip.Parent = root;
-		tipTitle = text("", new UDim2(1, -16, 0, 26), new UDim2(0, 8, 0, 6), tip, { size: 20, align: Enum.TextXAlignment.Center, color: hex("#ffd24a"), outline: 2, zIndex: 51 });
-		tipBody = text("", new UDim2(1, -16, 0, 44), new UDim2(0, 8, 0, 34), tip, { size: 14, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, color: hex("#f2eadb"), outline: 0, font: theme.fontBody, zIndex: 51 });
+		tipTitle = text("", new UDim2(1, -16, 0, 26), new UDim2(0, 8, 0, 6), tip, { size: 20, align: Enum.TextXAlignment.Center, color: theme.highlight, outline: math.min(2, theme.textOutline), zIndex: 51 });
+		tipBody = text("", new UDim2(1, -16, 0, 44), new UDim2(0, 8, 0, 34), tip, { size: 14, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, color: theme.text, outline: 0, font: theme.fontBody, zIndex: 51 });
 	};
 	target.MouseEnter.Connect(() => {
 		ensure();
@@ -924,7 +972,7 @@ export function card(height: number, order: number, parent: Instance, colors: [C
 	f.ZIndex = 4;
 	corner(f, radius);
 	gradient(f, colors[0], colors[1]);
-	stroke(f, theme.ink, 3);
+	stroke(f, theme.edge, theme.strokeThickness);
 	f.Parent = holder;
 	return f;
 }
@@ -941,7 +989,7 @@ export function progressBar(size: UDim2, position: UDim2, parent: Instance, colo
 	const bg = new Instance("Frame");
 	bg.Size = size;
 	bg.Position = position;
-	bg.BackgroundColor3 = darken(theme.ink, 0.15);
+	bg.BackgroundColor3 = theme.track;
 	bg.BorderSizePixel = 0;
 	bg.ZIndex = zIndex;
 	corner(bg, 9);
@@ -1010,7 +1058,7 @@ export function slider(value: number, size: UDim2, position: UDim2, parent: Inst
 	const track = new Instance("Frame");
 	track.Size = size;
 	track.Position = position;
-	track.BackgroundColor3 = darken(theme.ink, 0.15);
+	track.BackgroundColor3 = theme.track;
 	track.BorderSizePixel = 0;
 	track.ZIndex = 5;
 	corner(track, 10);

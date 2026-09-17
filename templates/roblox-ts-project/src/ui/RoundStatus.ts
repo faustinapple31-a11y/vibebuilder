@@ -29,10 +29,10 @@ export class RoundStatus {
 		this.gui.DisplayOrder = 3;
 		this.gui.Parent = pg;
 
-		this.card = panel(new UDim2(0, W, 0, 108), new UDim2(0.5, -W / 2, 0, 96), this.gui, { color: Color3.fromHex("#2a2320"), transparency: 0.08, strokeColor: theme.primary[1], strokeThickness: 3, radius: 14, zIndex: 3 });
+		this.card = panel(new UDim2(0, W, 0, 108), new UDim2(0.5, -W / 2, 0, 96), this.gui, { color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(14, theme.radius), zIndex: 3 });
 		this.card.Visible = false;
 		this.phase = text("", new UDim2(1, -20, 0, 26), new UDim2(0, 10, 0, 8), this.card, { size: 20, align: Enum.TextXAlignment.Center, zIndex: 5, outline: 2 });
-		this.timer = text("", new UDim2(1, -20, 0, 22), new UDim2(0, 10, 0, 32), this.card, { size: 16, align: Enum.TextXAlignment.Center, color: Color3.fromHex("#ffd24a"), zIndex: 5, outline: 2 });
+		this.timer = text("", new UDim2(1, -20, 0, 22), new UDim2(0, 10, 0, 32), this.card, { size: 16, align: Enum.TextXAlignment.Center, color: theme.highlight, zIndex: 5, outline: math.min(2, theme.textOutline) });
 		this.bar = progressBar(new UDim2(1, -28, 0, 12), new UDim2(0, 14, 0, 56), this.card, theme.primary, 5);
 		this.rowsHolder = new Instance("Frame");
 		this.rowsHolder.Size = new UDim2(1, -28, 0, 40);
@@ -90,11 +90,11 @@ export class RoundStatus {
 			if (index >= 4) return;
 			let row = this.rows.get(entry.key);
 			if (!row) {
-				row = body("", new UDim2(1, 0, 0, 20), new UDim2(0, 0, 0, index * 20), this.rowsHolder, { size: 15, color: Color3.fromHex("#f2eadb"), rich: true, zIndex: 5 });
+				row = body("", new UDim2(1, 0, 0, 20), new UDim2(0, 0, 0, index * 20), this.rowsHolder, { size: 15, color: theme.text, rich: true, zIndex: 5 });
 				this.rows.set(entry.key, row);
 			}
 			row.Position = new UDim2(0, 0, 0, index * 20);
-			row.Text = `${entry.label}   <font color="#ffd24a">${entry.value}</font>`;
+			row.Text = `${entry.label}   <font color="#${theme.highlight.ToHex()}">${entry.value}</font>`;
 		});
 		const shown = math.min(entries.size(), 4);
 		this.rowsHolder.Size = new UDim2(1, -28, 0, shown * 20);

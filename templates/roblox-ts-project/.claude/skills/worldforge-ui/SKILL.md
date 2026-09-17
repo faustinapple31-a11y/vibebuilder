@@ -38,6 +38,14 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
   shadow, and a glass kit expects transparent panels. `panel()` also draws the library's ornament
   (rivets, scanlines, brackets, filigree, stripes, glow, grain, notch) and `pressAnimation()` its
   button feedback, so use those two rather than building frames by hand.
+- **Never write a hex colour in a screen.** The theme also carries what used to be hard-coded:
+  `edge` (panel outline — falls back to the soft ink when the ink disappears into a dark panel),
+  `track` (empty part of a bar), `highlight` (timers, scores, values), `good` / `warn` / `bad`
+  (health, hunger, missing crafting inputs — tinted towards the library), `isDark`, and the
+  helpers `textOn(background)` (picks the readable label colour for a coloured card — always use it
+  on a gradient), `contrast(a, b)` and `luminance(c)`. A WCAG test in the WorldForge repo
+  (`packages/core/test/uiKits.test.ts`) enforces 4.5:1 on panels and pills and 3.5:1 on gradients,
+  so a new colour that fails it is a bug, not a style choice.
 - `kit.Window`: the shell every screen uses — dim backdrop, panel scaled to fit small screens, title,
   coin pill, red X, scrolling body with a list layout, `setOpen` / `toggle` / `clearBody` / `onOpen`
   (re-render there). A new screen is `new Window("Name", "Title", { width, height, displayOrder })`

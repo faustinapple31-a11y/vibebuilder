@@ -38,6 +38,12 @@ game follows.
 - **tokens**: lowercase `#rrggbb` only (the test enforces it). `paper` is the panel background, `ink`
   the outline colour (it is also what `glow` uses), `text` goes on coloured surfaces, `textDark` on
   paper. `pill` / `tile` are the dark chips and item tiles; keep them readable against `text`.
+- **readability is tested**: `packages/core/test/uiKits.test.ts` requires 4.5:1 on `paper`,
+  `paperDark`, `pill` and `tile` and 3.5:1 on the `primary` / `gold` / `danger` / `info` gradient
+  bottoms, measured against the label the renderer actually picks (`bestTextOn`, mirrored at runtime
+  by `textOn()`), plus a visible panel outline (1.8:1 for `panelEdge`) and 3:1 for `gold[0]` on
+  `pill`. A gradient bottom that is too light is the usual failure — darken it (a light `gold[1]`
+  gets dark type automatically, but it still has to clear 3.5:1 with *one* of the two text colours).
 - **shape**: start from `base` and override. `gradients: false` gives flat kits, `bevel: false` removes
   the button band, `shadow: 0` a flat look, `textOutline: 0` type without the sticker stroke,
   `panelTransparency` > 0 makes glass. `radius: 0` + `strokeThickness: 4` reads as a pixel console.

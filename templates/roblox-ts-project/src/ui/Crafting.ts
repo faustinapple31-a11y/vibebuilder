@@ -1,6 +1,6 @@
 import { Remotes, waitRemoteEvent, type ProfileStateMsg } from "shared/net";
 import { RecipeConfig, type RecipeDef } from "shared/recipes";
-import { body, button, card, panel, prettyName, resourceIcon, stroke, text, theme, Window } from "./kit";
+import { body, button, card, darken, lighten, panel, prettyName, resourceIcon, stroke, text, theme, Window } from "./kit";
 
 /**
  * Crafting screen: one card per recipe of shared/recipes.ts — output tile with the produced count, the
@@ -78,7 +78,7 @@ export class Crafting {
 				const id = item as string;
 				const count = need as number;
 				const enough = this.have(id) >= count;
-				const chip = panel(new UDim2(0, 104, 0, 34), new UDim2(0, x, 0, 52), row, { color: enough ? theme.pill : Color3.fromHex("#5a2a28"), strokeColor: enough ? theme.pillStroke : Color3.fromHex("#8a3a34"), radius: 10, shadow: false, zIndex: 6 });
+				const chip = panel(new UDim2(0, 104, 0, 34), new UDim2(0, x, 0, 52), row, { color: enough ? theme.pill : darken(theme.bad, 0.55), strokeColor: enough ? theme.pillStroke : theme.bad, radius: math.min(10, theme.radius), shadow: false, zIndex: 6 });
 				const ic = resourceIcon(id, 24, chip);
 				ic.Position = new UDim2(0, 6, 0.5, -12);
 				ic.ZIndex = 8;
@@ -87,7 +87,7 @@ export class Crafting {
 				x += 112;
 			}
 
-			const craft = button("Craft", new UDim2(0, 128, 0, 48), new UDim2(1, -144, 0.5, -24), row, { colors: ok ? theme.primary : [Color3.fromHex("#9a9a9a"), Color3.fromHex("#5f5f5f")], size: 22, radius: 12, zIndex: 7 });
+			const craft = button("Craft", new UDim2(0, 128, 0, 48), new UDim2(1, -144, 0.5, -24), row, { colors: ok ? theme.primary : [lighten(theme.inkSoft, 0.15), darken(theme.inkSoft, 0.25)], size: 22, radius: math.min(12, theme.radius), zIndex: 7 });
 			craft.MouseButton1Click.Connect(() => {
 				if (!this.canCraft(recipe)) return;
 				this.action.FireServer("craft", recipe.id);

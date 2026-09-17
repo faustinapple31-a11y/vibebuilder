@@ -147,7 +147,7 @@ export const UI_KITS: UiKitDef[] = [
       primary: ["#ff9ad5", "#e0489a"],
       gold: ["#ffe27a", "#f0a020"],
       danger: ["#ff8a8a", "#d43a5a"],
-      info: ["#9ad8ff", "#4a9ae0"],
+      info: ["#9ad8ff", "#2f6fa8"],
       pill: "#7a2a5a",
       pillStroke: "#4d1538",
       tile: "#5a2a4a",
@@ -170,7 +170,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#eaffff",
       textDark: "#bdf5ff",
       primary: ["#35f0ff", "#0b6fb4"],
-      gold: ["#ffd965", "#e0631f"],
+      gold: ["#ffd965", "#b84a12"],
       danger: ["#ff4f7a", "#9a0f3a"],
       info: ["#9a7aff", "#4a2fd0"],
       pill: "#0a1a26",
@@ -195,9 +195,9 @@ export const UI_KITS: UiKitDef[] = [
       text: "#eaf8ff",
       textDark: "#aee2ff",
       primary: ["#7fd8ff", "#1d6fa8"],
-      gold: ["#ffe08a", "#c8901f"],
+      gold: ["#ffe08a", "#8a5c10"],
       danger: ["#ff8a6a", "#b03a20"],
-      info: ["#8affd0", "#1f9a7a"],
+      info: ["#8affd0", "#14755c"],
       pill: "#06121c",
       pillStroke: "#7fd8ff",
       tile: "#0b1a26",
@@ -245,7 +245,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#f7f7e8",
       textDark: "#f7f7e8",
       primary: ["#5ad46a", "#2a8f3a"],
-      gold: ["#ffd24a", "#c08a10"],
+      gold: ["#ffd24a", "#a1740d"],
       danger: ["#ff5a5a", "#a01f1f"],
       info: ["#5ab4ff", "#1f5fb0"],
       pill: "#14141d",
@@ -266,11 +266,11 @@ export const UI_KITS: UiKitDef[] = [
       paper: "#1a0f2e",
       paperDark: "#251440",
       ink: "#12061f",
-      inkSoft: "#6a4a9a",
+      inkSoft: "#8f6ad0",
       text: "#ffffff",
       textDark: "#ffd9f6",
       primary: ["#ff5ad4", "#7a1fb4"],
-      gold: ["#ffe15a", "#e07a1f"],
+      gold: ["#ffe15a", "#c56b1b"],
       danger: ["#ff4f5e", "#a01f3a"],
       info: ["#5affe1", "#1f8fb4"],
       pill: "#12061f",
@@ -370,7 +370,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#f0f0ea",
       textDark: "#f0f0ea",
       primary: ["#7fb0d0", "#2f6a90"],
-      gold: ["#e0c070", "#a07a20"],
+      gold: ["#e0c070", "#9a751f"],
       danger: ["#d06a5a", "#8a2a20"],
       info: ["#9ac0d0", "#4a7a90"],
       pill: "#2a2a2e",
@@ -391,11 +391,11 @@ export const UI_KITS: UiKitDef[] = [
       paper: "#2b2f26",
       paperDark: "#1f221b",
       ink: "#0f120c",
-      inkSoft: "#7a8050",
+      inkSoft: "#9aa06a",
       text: "#e8e6d6",
       textDark: "#dcdcc4",
       primary: ["#9dbf5a", "#4d6b23"],
-      gold: ["#e8c25a", "#a8781a"],
+      gold: ["#e8c25a", "#946a17"],
       danger: ["#d4603a", "#8a2a12"],
       info: ["#7a9ab0", "#35566a"],
       pill: "#171c12",
@@ -420,7 +420,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#ffeccd",
       textDark: "#f5dcb4",
       primary: ["#e0a850", "#96601c"],
-      gold: ["#ffd98a", "#b8801e"],
+      gold: ["#ffd98a", "#a2711a"],
       danger: ["#c8562e", "#7a2a10"],
       info: ["#8aa8a0", "#3a5a54"],
       pill: "#2e2012",
@@ -445,7 +445,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#fff4de",
       textDark: "#fff4de",
       primary: ["#9ad55a", "#4a8a2a"],
-      gold: ["#ffd07a", "#c88a2a"],
+      gold: ["#ffd07a", "#a87423"],
       danger: ["#e08a5a", "#a04a20"],
       info: ["#8ac0d0", "#3a7a90"],
       pill: "#3d2a14",
@@ -469,8 +469,8 @@ export const UI_KITS: UiKitDef[] = [
       inkSoft: "#8a7328",
       text: "#f7eccd",
       textDark: "#e8d8a8",
-      primary: ["#e8cd7a", "#a8832a"],
-      gold: ["#ffe9a8", "#c8a03a"],
+      primary: ["#e8cd7a", "#8a6a1e"],
+      gold: ["#ffe9a8", "#90732a"],
       danger: ["#d05a5a", "#8a2020"],
       info: ["#9aa8d0", "#4a558a"],
       pill: "#0d0d10",
@@ -494,14 +494,14 @@ export const UI_KITS: UiKitDef[] = [
       inkSoft: "#c0a0d0",
       text: "#ffffff",
       textDark: "#6a4a7a",
-      primary: ["#ffb3e0", "#c86ab0"],
+      primary: ["#ffb3e0", "#c066a9"],
       gold: ["#ffe6a8", "#e0b060"],
-      danger: ["#ffa8b8", "#d06a80"],
-      info: ["#b8e0ff", "#6aa8d0"],
-      pill: "#8a6a9a",
-      pillStroke: "#5a3a6a",
-      tile: "#a888b8",
-      tileStroke: "#5a3a6a",
+      danger: ["#ffa8b8", "#c8667b"],
+      info: ["#b8e0ff", "#3f7fa8"],
+      pill: "#6a4a7a",
+      pillStroke: "#43284f",
+      tile: "#7a5a8a",
+      tileStroke: "#43284f",
     },
     shape: { ...base, radius: 26, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.6, textOutline: 2, font: "Kalam", fontBody: "Nunito", ornament: "none", press: "pulse" },
   },
@@ -554,4 +554,42 @@ export function pickUiKit(prompt: string, theme: UiTheme, genreId?: string): str
   const byTheme = UI_KITS.filter((k) => k.themes.includes(theme));
   if (byTheme.length > 0) return UI_THEME_DEFAULT_KIT[theme] ?? byTheme[0]!.id;
   return UI_THEME_DEFAULT_KIT[theme] ?? DEFAULT_UI_KIT;
+}
+
+// ---------------------------------------------------------------- readability helpers
+
+function channel(v: number): number {
+  const s = v / 255;
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+
+/** WCAG relative luminance of a `#rrggbb` token. */
+export function luminance(hex: string): number {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+}
+
+/** WCAG contrast ratio between two `#rrggbb` tokens (1 = identical, 21 = black on white). */
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The label colour a kit uses on a given surface: whichever of `text` / `textDark` reads better —
+ * the same choice `textOn()` makes at runtime in the template's kit.ts.
+ */
+export function bestTextOn(kit: UiKitDef, background: string): string {
+  return contrastRatio(kit.tokens.text, background) >= contrastRatio(kit.tokens.textDark, background) ? kit.tokens.text : kit.tokens.textDark;
+}
+
+/**
+ * Outline colour for the kit's panels: `ink`, unless it disappears into the panel (dark libraries),
+ * in which case the softer ink reads better. Mirrors `theme.edge` in the template.
+ */
+export function panelEdge(kit: UiKitDef): string {
+  const ink = contrastRatio(kit.tokens.ink, kit.tokens.paper);
+  const soft = contrastRatio(kit.tokens.inkSoft, kit.tokens.paper);
+  return ink >= 1.8 || ink >= soft ? kit.tokens.ink : kit.tokens.inkSoft;
 }
