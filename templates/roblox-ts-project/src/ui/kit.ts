@@ -714,6 +714,7 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 	limit.MaxTextSize = math.floor((opts.size ?? 20) * theme.textScale);
 	limit.Parent = label;
 	b.MouseButton1Click.Connect(() => playUiSound());
+	makeSelectable(b);
 	return b;
 }
 
@@ -1139,6 +1140,7 @@ export class Window {
 		this.onOpen?.();
 		const home = new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2);
 		this.window.Position = home;
+		selectFirst(this.window);
 		if (theme.enter === "pop") {
 			const target = this.scale.Scale;
 			this.scale.Scale = target * 0.86;
@@ -1378,4 +1380,214 @@ export function prettyName(id: string): string {
 	const out: string[] = [];
 	for (const p of parts) if (p !== "") out.push(p.sub(1, 1).upper() + p.sub(2));
 	return out.join(" ");
+}
+
+// ---------------------------------------------------------------- rarity
+
+/**
+ * Rarity ramp of the library (common → legendary), derived from its own tokens so an item frame, an
+ * egg or a pet card never needs a hard-coded purple. Use `rarityFrame` to outline a tile.
+ */
+export const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"] as const;
+export const RARITY_COLORS: Color3[] = [theme.inkSoft, theme.primary[0], theme.info[0], theme.accent, theme.gold[0]];
+
+/** Outlines a tile with its rarity colour and drops a small corner ribbon. Tier is 0…4. */
+export function rarityFrame(target: GuiObject, tier: number): Color3 {
+	const color = RARITY_COLORS[math.clamp(tier, 0, RARITY_COLORS.size() - 1)]!;
+	const existing = target.FindFirstChildOfClass("UIStroke");
+	if (existing) {
+		existing.Color = color;
+		existing.Thickness = math.max(2.5, theme.strokeThickness);
+	} else {
+		stroke(target, color, math.max(2.5, theme.strokeThickness));
+	}
+	if (tier >= 3) {
+		// legendary / epic: a rotated ribbon in the top-right corner
+		const ribbon = new Instance("Frame");
+		ribbon.Size = new UDim2(0, 44, 0, 12);
+		ribbon.Position = new UDim2(1, -30, 0, 6);
+		ribbon.BackgroundColor3 = color;
+		ribbon.BorderSizePixel = 0;
+		ribbon.Rotation = 38;
+		ribbon.ZIndex = target.ZIndex + 3;
+		stroke(ribbon, theme.edge, 1.5);
+		ribbon.Parent = target;
+	}
+	return color;
+}
+
+// ---------------------------------------------------------------- tabs, dialog, input, stepper
+
+export interface TabsHandle {
+	/** switches the active tab (also fires the callback) */
+	select: (index: number) => void;
+	buttons: TextButton[];
+	frame: Frame;
+}
+
+/**
+ * Row of tab pills (shop sections, inventory categories, leaderboard periods). The active tab uses
+ * the library's primary gradient, the others its pill colour.
+ */
+export function tabs(labels: string[], size: UDim2, position: UDim2, parent: Instance, onChange: (index: number) => void): TabsHandle {
+	const frame = new Instance("Frame");
+	frame.Size = size;
+	frame.Position = position;
+	frame.BackgroundTransparency = 1;
+	frame.ZIndex = 5;
+	frame.Parent = parent;
+	const count = math.max(1, labels.size());
+	const width = 1 / count;
+	const buttons: TextButton[] = [];
+	let active = 0;
+	const render = () => {
+		buttons.forEach((b, i) => {
+			const on = i === active;
+			b.BackgroundColor3 = on ? theme.primary[1] : theme.pill;
+			const g = b.FindFirstChildOfClass("UIGradient");
+			if (g) g.Enabled = on && theme.gradients;
+			const label = b.FindFirstChild("Label") as TextLabel | undefined;
+			if (label) label.TextColor3 = on ? textOnGradient(theme.primary) : theme.text;
+		});
+	};
+	labels.forEach((label, i) => {
+		const b = button(label, new UDim2(width, -6, 1, 0), new UDim2(width * i, 3, 0, 0), frame, { size: 16, radius: math.min(12, theme.radius), zIndex: 6 });
+		buttons.push(b);
+		b.MouseButton1Click.Connect(() => {
+			active = i;
+			render();
+			onChange(i);
+		});
+	});
+	render();
+	return {
+		buttons,
+		frame,
+		select: (index: number) => {
+			active = math.clamp(index, 0, buttons.size() - 1);
+			render();
+			onChange(active);
+		},
+	};
+}
+
+/**
+ * Confirmation dialog in the library's look ("Buy Ultra Luck for 60?"). Stacks above the screens,
+ * closes on either button and on the backdrop. Server-authoritative actions still validate.
+ */
+export function confirmDialog(title: string, message: string, confirmLabel: string, onConfirm: () => void): void {
+	const pg = Players.LocalPlayer.WaitForChild("PlayerGui") as PlayerGui;
+	const gui = new Instance("ScreenGui");
+	gui.Name = "WorldForgeConfirm";
+	gui.ResetOnSpawn = false;
+	gui.IgnoreGuiInset = true;
+	gui.DisplayOrder = 20;
+	gui.Parent = pg;
+	const dim = new Instance("TextButton");
+	dim.Text = "";
+	dim.AutoButtonColor = false;
+	dim.Size = new UDim2(1, 0, 1, 0);
+	dim.BackgroundColor3 = new Color3(0, 0, 0);
+	dim.BackgroundTransparency = 0.5;
+	dim.BorderSizePixel = 0;
+	dim.ZIndex = 1;
+	dim.Parent = gui;
+	const W = 380;
+	const H = 190;
+	const box = panel(new UDim2(0, W, 0, H), new UDim2(0.5, -W / 2, 0.5, -H / 2), gui, { radius: theme.radius, strokeThickness: theme.strokeThickness, zIndex: 3 });
+	const scale = new Instance("UIScale");
+	scale.Scale = uiScale();
+	scale.Parent = box;
+	text(title, new UDim2(1, -24, 0, 34), new UDim2(0, 12, 0, 12), box, { size: 24, align: Enum.TextXAlignment.Center, color: theme.textDark, outline: 0, zIndex: 5 });
+	body(message, new UDim2(1, -32, 0, 56), new UDim2(0, 16, 0, 50), box, { size: 15, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, zIndex: 5 });
+	const close = () => gui.Destroy();
+	dim.MouseButton1Click.Connect(close);
+	const cancel = button("Cancel", new UDim2(0, 150, 0, 46), new UDim2(0, 20, 1, -60), box, { colors: [theme.inkSoft, darken(theme.inkSoft, 0.3)], size: 20, zIndex: 5 });
+	cancel.MouseButton1Click.Connect(close);
+	const ok = button(confirmLabel, new UDim2(0, 170, 0, 46), new UDim2(1, -190, 1, -60), box, { size: 20, zIndex: 5 });
+	ok.MouseButton1Click.Connect(() => {
+		close();
+		onConfirm();
+	});
+	selectFirst(box);
+}
+
+/** Text field in the library's look (search, rename, trade amount). Returns the TextBox. */
+export function input(placeholder: string, size: UDim2, position: UDim2, parent: Instance, onChanged: (value: string) => void): TextBox {
+	const holder = panel(size, position, parent, { color: theme.pill, strokeColor: theme.pillStroke, radius: math.min(12, theme.radius), shadow: false, ornament: false, zIndex: 5 });
+	const box = new Instance("TextBox");
+	box.Size = new UDim2(1, -20, 1, -6);
+	box.Position = new UDim2(0, 10, 0, 3);
+	box.BackgroundTransparency = 1;
+	box.ClearTextOnFocus = false;
+	box.PlaceholderText = placeholder;
+	box.PlaceholderColor3 = lighten(theme.pillStroke, 0.45);
+	box.Text = "";
+	box.TextColor3 = theme.text;
+	box.Font = theme.fontBody;
+	box.TextSize = math.floor(16 * theme.textScale);
+	box.TextXAlignment = Enum.TextXAlignment.Left;
+	box.ZIndex = 6;
+	box.Parent = holder;
+	box.GetPropertyChangedSignal("Text").Connect(() => onChanged(box.Text));
+	return box;
+}
+
+/** − value + quantity picker (shop bundles, trades, crafting batches). */
+export function stepper(value: number, min: number, max: number, size: UDim2, position: UDim2, parent: Instance, onChange: (v: number) => void): Frame {
+	const frame = new Instance("Frame");
+	frame.Size = size;
+	frame.Position = position;
+	frame.BackgroundTransparency = 1;
+	frame.ZIndex = 5;
+	frame.Parent = parent;
+	let current = math.clamp(value, min, max);
+	const label = pill(`${current}`, new UDim2(1, -96, 1, 0), new UDim2(0, 48, 0, 0), frame, "none", { textSize: 18, zIndex: 6 });
+	label.label.TextXAlignment = Enum.TextXAlignment.Center;
+	const step = (delta: number) => {
+		current = math.clamp(current + delta, min, max);
+		label.label.Text = `${current}`;
+		onChange(current);
+	};
+	const minus = button("−", new UDim2(0, 42, 1, 0), new UDim2(0, 0, 0, 0), frame, { colors: [theme.inkSoft, darken(theme.inkSoft, 0.3)], size: 22, zIndex: 6 });
+	minus.MouseButton1Click.Connect(() => step(-1));
+	const plus = button("+", new UDim2(0, 42, 1, 0), new UDim2(1, -42, 0, 0), frame, { size: 22, zIndex: 6 });
+	plus.MouseButton1Click.Connect(() => step(1));
+	return frame;
+}
+
+// ---------------------------------------------------------------- gamepad / console
+
+/** Highlight drawn around the selected button on a gamepad (styled by the library). */
+function selectionHighlight(): Frame {
+	const f = new Instance("Frame");
+	f.BackgroundTransparency = 1;
+	f.Size = new UDim2(1, 8, 1, 8);
+	f.Position = new UDim2(0, -4, 0, -4);
+	corner(f, theme.radius);
+	stroke(f, theme.accent, math.max(2.5, theme.strokeThickness));
+	return f;
+}
+
+/**
+ * Makes a button reachable with a gamepad / arrow keys: Roblox's own selection walks Selectable
+ * GuiObjects, and the highlight follows the library's accent. `button()` calls it, so every screen is
+ * console-playable without extra work.
+ */
+export function makeSelectable(b: GuiButton): void {
+	b.Selectable = true;
+	if (!b.SelectionImageObject) b.SelectionImageObject = selectionHighlight();
+}
+
+/** Focuses the first button of a container when a gamepad is in use (called when a screen opens). */
+export function selectFirst(container: Instance): void {
+	const gui = game.GetService("GuiService");
+	const input = game.GetService("UserInputService");
+	if (!input.GamepadEnabled || input.MouseEnabled) return;
+	for (const d of container.GetDescendants()) {
+		if (d.IsA("GuiButton") && d.Selectable && d.Visible) {
+			gui.SelectedObject = d;
+			return;
+		}
+	}
 }

@@ -60,6 +60,9 @@ game follows.
   gradients — never an image asset) and the union in `packages/roblox-export/src/uiKitFiles.ts`; a
   test fails if a kit asks for an ornament `kit.ts` does not render.
 - **press**: `squash`, `pulse`, `slide`, `flicker`, `none`.
+- the **rarity ramp** (`RARITY_COLORS` in `kit.ts`) is derived from `inkSoft`, `primary[0]`,
+  `info[0]`, the style accent and `gold[0]` — so a new library gets item rarities for free, but check
+  that those five read apart from each other in the preview sheet.
 - **enter**: how a window opens — `pop`, `slide`, `fade`, `none`.
 - **sound**: the click a button plays — `soft`, `click`, `beep`, `pop`, `thud`, `none`. They map to
   built-in Roblox sounds in `kit.ts` (`UI_SOUNDS`), so nothing is uploaded; a test fails if a kit asks

@@ -49,6 +49,17 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
   on a gradient), `contrast(a, b)` and `luminance(c)`. A WCAG test in the WorldForge repo
   (`packages/core/test/uiKits.test.ts`) enforces 4.5:1 on panels and pills and 3.5:1 on gradients,
   so a new colour that fails it is a bug, not a style choice.
+- **widgets** (all themed, all in `kit.ts`): `panel`, `card`, `sectionHeader`, `button`, `text`,
+  `body`, `pill`, `badge`, `strike`, `progressBar`, `toggle`, `slider`, `tabs` (a row of tab pills),
+  `input` (TextBox for search / rename / amounts), `stepper` (− value +), `confirmDialog`
+  (a "Buy X for 250?" modal above the screens), `tooltip`, the drawn icons and `resourceIcon`.
+  Build a new screen out of these — never a raw Frame with hard-coded colours.
+- **rarity**: `RARITY_COLORS` / `RARITY_NAMES` (common → legendary, derived from the library) and
+  `rarityFrame(tile, tier)` which outlines a tile and adds a ribbon for epic / legendary. The
+  inventory derives the tier from the item's price; a pet / egg / crate screen should do the same.
+- **gamepad & console**: `button()` already marks its control `Selectable` with the library's
+  selection highlight, and a window focuses its first control on open (`selectFirst`). Keep custom
+  clickables on `button()` so they stay reachable without a mouse.
 - `kit.Window`: the shell every screen uses — dim backdrop, panel scaled to fit small screens, title,
   coin pill, red X, scrolling body with a list layout, `setOpen` / `toggle` / `clearBody` / `onOpen`
   (re-render there). A new screen is `new Window("Name", "Title", { width, height, displayOrder })`

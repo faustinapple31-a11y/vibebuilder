@@ -1,7 +1,8 @@
 import { TweenService } from "@rbxts/services";
+import { GameConfig } from "shared/config";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { badge, body, button, coinIcon, cloverIcon, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
+import { badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 
 /**
  * Shop window (mobile-game look): paper panel with a thick outline, title with an outline, red X, then a
@@ -12,6 +13,9 @@ import { badge, body, button, coinIcon, cloverIcon, corner, darken, gradient, it
  */
 const W = 640;
 const H = 660;
+/** Coin purchases at or above this price ask for a confirmation first. */
+const CONFIRM_ABOVE = 250;
+const CURRENCY = GameConfig.currency.name;
 
 export class ShopUi {
 	private win: Window;
@@ -267,7 +271,18 @@ export class ShopUi {
 		});
 	}
 
+	/** Big spends ask first (a mis-tap on a 250+ purchase is the classic complaint). */
 	private purchase(itemId: string): void {
+		const card = this.cards.get(itemId);
+		if (card && card.price >= CONFIRM_ABOVE && !this.state.owned.includes(itemId)) {
+			const name = ShopCatalog.items.find((i) => i.id === itemId)?.name ?? ShopCatalog.bundles.find((b) => `bundle:${b.id}` === itemId)?.name ?? "this item";
+			confirmDialog("Confirm purchase", `Buy ${name} for ${card.price} ${CURRENCY}?`, `Buy · ${card.price}`, () => this.send(itemId));
+			return;
+		}
+		this.send(itemId);
+	}
+
+	private send(itemId: string): void {
 		const res = this.buy.InvokeServer(itemId) as { ok: boolean; message: string };
 		const card = this.cards.get(itemId);
 		if (card && !res.ok) this.flash(card.button, res.message);

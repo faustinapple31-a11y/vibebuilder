@@ -83,6 +83,27 @@ describe("UI screens of the template", () => {
     }
   });
 
+  it("ships the widget set the screens (and agents) build on", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    for (const api of ["export function tabs(", "export function confirmDialog(", "export function input(", "export function stepper(", "export function rarityFrame(", "export function makeSelectable(", "export function selectFirst(", "export function progressBar(", "export function toggle(", "export function slider(", "export const RARITY_COLORS"]) {
+      expect(kit.includes(api), `kit.ts is missing ${api}`).toBe(true);
+    }
+    // the widgets are used, not just available
+    expect(TEMPLATE_FILES["src/ui/Inventory.ts"]!.includes("tabs(["), "the inventory should use the tab row").toBe(true);
+    expect(TEMPLATE_FILES["src/ui/Inventory.ts"]!.includes("rarityFrame("), "the inventory should show rarity").toBe(true);
+    expect(TEMPLATE_FILES["src/ui/ShopUi.ts"]!.includes("confirmDialog("), "a big purchase should ask first").toBe(true);
+  });
+
+  it("makes every button reachable with a gamepad", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    // button() marks its control Selectable and gives it the library's selection highlight
+    expect(kit.includes("makeSelectable(b);")).toBe(true);
+    expect(kit.includes("b.Selectable = true;")).toBe(true);
+    expect(kit.includes("SelectionImageObject")).toBe(true);
+    // opening a screen focuses its first control when a gamepad is in use
+    expect(kit.includes("selectFirst(this.window)")).toBe(true);
+  });
+
   it("builds every screen on the kit's Window (same open / close / scaling behaviour)", () => {
     for (const [id, file] of Object.entries(SCREEN_FILES)) {
       if (id === "hud" || id === "loading" || id === "round_status" || id === "minimap") continue; // HUD-level overlays, not modals

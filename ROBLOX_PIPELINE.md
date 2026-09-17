@@ -211,10 +211,15 @@ dégradé. Un test WCAG (`packages/core/test/uiKits.test.ts`) impose 4,5:1 sur l
 pastilles et 3,5:1 sur les dégradés pour les 26 librairies.
 
 Primitives : `panel`, `button`, `text`, `body`, `badge`, `strike`, `pill`, `progressBar`, `toggle`,
-`slider`, `card`, `sectionHeader`, `gradient`, `shadow`, `tooltip`, `Window`, plus les icônes dessinées
+`slider`, `tabs`, `input`, `stepper`, `confirmDialog`, `rarityFrame` (+ `RARITY_COLORS` / `RARITY_NAMES`),
+`card`, `sectionHeader`, `gradient`, `shadow`, `tooltip`, `Window`, plus les icônes dessinées
 (monnaie, Robux, potion, trèfle, dé, nourriture, éclair, couronne, `resourceIcon` pour un item
 quelconque). Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient) : **aucun asset à uploader**,
 et l'accent de la famille de style (`GameConfig.ui.accentColor`) colore les stickers promo.
+
+**Manette / console** : chaque `button()` est `Selectable` avec un liseré de sélection à l'accent de la
+librairie, et une fenêtre donne le focus à son premier contrôle à l'ouverture (`selectFirst`) — les
+écrans sont jouables sans souris.
 
 **Échelle** : `kit.scaleContainer()` met à l'échelle le HUD, le panneau de manche et la minimap selon le
 viewport (jusqu'à ×0,72 sur petit téléphone) et selon le réglage *UI scale* du joueur (persisté dans le
