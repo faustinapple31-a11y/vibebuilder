@@ -44,7 +44,9 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       overrides in the Rojo project; world/Materials.ts only re-asserts the overrides), mesh tree crowns.
  *   7 — UI kit (src/ui/kit.ts): themed panels / buttons / drawn icons shared by the HUD and the shop,
  *       GameConfig.ui (style + accent), shop bundles and a featured banner (ShopCatalog.bundles /
- *       .featured, `bundle:<id>` purchases).
+ *       .featured, `bundle:<id>` purchases); the screens of GameConfig.ui.screens (inventory, quests,
+ *       crafting, leaderboard, teams, round status, settings, minimap, menu) with the ProfileState
+ *       remote that feeds them and persisted client settings (`setting_*`).
  */
 export const TEMPLATE_VERSION = 7;
 
@@ -78,6 +80,15 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/ui/kit.ts",
   "src/ui/Hud.ts",
   "src/ui/ShopUi.ts",
+  "src/ui/Inventory.ts",
+  "src/ui/Quests.ts",
+  "src/ui/Crafting.ts",
+  "src/ui/Leaderboard.ts",
+  "src/ui/Teams.ts",
+  "src/ui/RoundStatus.ts",
+  "src/ui/Settings.ts",
+  "src/ui/Minimap.ts",
+  "src/ui/Menu.ts",
 ];
 
 /** The engine runtime files of the template (world builder, decode, prefab factory, effects) for an existing project. */

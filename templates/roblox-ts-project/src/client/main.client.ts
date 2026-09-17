@@ -1,24 +1,116 @@
-import { Players, RunService, UserInputService, Workspace } from "@rbxts/services";
+import { Players, RunService, SoundService, UserInputService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { Remotes, waitRemoteEvent, type PlayerStats, type RoundStateMsg, type ShopState } from "shared/net";
+import { Remotes, waitRemoteEvent, type PlayerStats, type ProfileStateMsg, type RoundStateMsg, type ShopState } from "shared/net";
 import { Hud } from "ui/Hud";
 import { AudioConfig } from "shared/audio";
 import { ShopUi } from "ui/ShopUi";
+import { Inventory } from "ui/Inventory";
+import { Quests } from "ui/Quests";
+import { Crafting } from "ui/Crafting";
+import { Leaderboard } from "ui/Leaderboard";
+import { Teams } from "ui/Teams";
+import { RoundStatus } from "ui/RoundStatus";
+import { Settings, type SettingsValues } from "ui/Settings";
+import { Minimap } from "ui/Minimap";
+import { Menu } from "ui/Menu";
 import { startWeather } from "client/Weather";
 import { startMeshRender } from "client/MeshRender";
 
-/** Client bootstrap: HUD, shop window, NPC dialogue, SFX, world loading overlay. */
+/**
+ * Client bootstrap: HUD, the screens GameConfig.ui.screens enables (shop, inventory, quests, crafting,
+ * leaderboard, teams, round status, minimap, settings, menu), NPC dialogue, SFX, loading overlay.
+ * Every screen is built on the kit's Window, gets a HUD button (the only way in on touch) and a
+ * desktop hotkey.
+ */
+const screens = GameConfig.ui.screens;
+const enabled = (id: string) => screens.includes(id);
+
 const hud = new Hud();
 const shop = new ShopUi();
 hud.onShop = () => shop.toggle();
+const inventory = enabled("inventory") ? new Inventory() : undefined;
+const quests = enabled("quests") ? new Quests() : undefined;
+const crafting = enabled("crafting") ? new Crafting() : undefined;
+const leaderboard = enabled("leaderboard") ? new Leaderboard() : undefined;
+const teams = enabled("teams") ? new Teams() : undefined;
+const roundStatus = enabled("round_status") ? new RoundStatus() : undefined;
+const settings = enabled("settings") ? new Settings() : undefined;
+const minimap = enabled("minimap") ? new Minimap() : undefined;
+const menu = enabled("menu") ? new Menu() : undefined;
+
+// HUD buttons + menu entries for every enabled screen
+if (inventory) {
+	hud.addButton("Backpack", () => inventory.toggle());
+	menu?.addEntry("Backpack", () => inventory.toggle());
+}
+if (quests) {
+	hud.addButton("Quests", () => quests.toggle());
+	menu?.addEntry("Quests", () => quests.toggle());
+}
+if (crafting) {
+	hud.addButton("Craft", () => crafting.toggle());
+	menu?.addEntry("Craft", () => crafting.toggle());
+}
+if (leaderboard) {
+	hud.addButton("Ranking", () => leaderboard.toggle());
+	menu?.addEntry("Ranking", () => leaderboard.toggle());
+}
+if (teams) {
+	hud.addButton("Teams", () => teams.toggle());
+	menu?.addEntry("Teams", () => teams.toggle());
+}
+if (settings) {
+	hud.addButton("Settings", () => settings.toggle());
+	menu?.addEntry("Settings", () => settings.toggle());
+}
+menu?.addEntry("Shop", () => shop.toggle());
+if (menu) hud.addButton("Menu", () => menu.toggle());
+
+// settings are applied locally and persisted server-side (PlayerData `setting_*`)
+let shakeEnabled = true;
+function applySettings(values: SettingsValues): void {
+	hud.setSfxVolume(values.sfx);
+	shakeEnabled = values.shake;
+	minimap?.setEnabled(values.minimap);
+	// music / ambience are the looped sounds the Audio system parents to SoundService
+	for (const sound of SoundService.GetDescendants()) {
+		if (sound.IsA("Sound") && sound.Looped) sound.Volume = AudioConfig.musicVolume * values.music;
+	}
+}
+if (settings) {
+	settings.onChange = applySettings;
+	applySettings(settings.current());
+} else {
+	minimap?.setEnabled(true);
+}
+roundStatus?.setEnabled(true);
+
 startWeather();
 startMeshRender();
 UserInputService.InputBegan.Connect((input, processed) => {
-	if (!processed && input.KeyCode === Enum.KeyCode.B) shop.toggle();
+	if (processed) return;
+	if (input.KeyCode === Enum.KeyCode.B) shop.toggle();
+	else if (input.KeyCode === Enum.KeyCode.I) inventory?.toggle();
+	else if (input.KeyCode === Enum.KeyCode.J) quests?.toggle();
+	else if (input.KeyCode === Enum.KeyCode.C) crafting?.toggle();
+	else if (input.KeyCode === Enum.KeyCode.L) leaderboard?.toggle();
+	else if (input.KeyCode === Enum.KeyCode.T) teams?.toggle();
+	else if (input.KeyCode === Enum.KeyCode.O) settings?.toggle();
+	else if (input.KeyCode === Enum.KeyCode.M) menu?.toggle();
+});
+waitRemoteEvent(Remotes.ProfileState).OnClientEvent.Connect((state) => {
+	const profile = state as ProfileStateMsg;
+	inventory?.setProfile(profile);
+	quests?.setProfile(profile);
+	crafting?.setProfile(profile);
+	settings?.setProfile(profile);
 });
 waitRemoteEvent(Remotes.StatsChanged).OnClientEvent.Connect((stats) => hud.setStats(stats as PlayerStats));
 waitRemoteEvent(Remotes.Notify).OnClientEvent.Connect((text) => hud.notify(text as string));
-waitRemoteEvent(Remotes.ShopState).OnClientEvent.Connect((state) => shop.setState(state as ShopState));
+waitRemoteEvent(Remotes.ShopState).OnClientEvent.Connect((state) => {
+	shop.setState(state as ShopState);
+	inventory?.setShopState(state as ShopState);
+});
 waitRemoteEvent(Remotes.NpcTalk).OnClientEvent.Connect((name, text) => hud.say(name as string, text as string));
 // accepts a resolved sound id or an AudioConfig.sfx key ("collect", "purchase", …)
 waitRemoteEvent(Remotes.PlaySfx).OnClientEvent.Connect((id) => {
@@ -34,6 +126,8 @@ waitRemoteEvent(Remotes.RoundState).OnClientEvent.Connect((msg) => {
 	const ss = m.secondsLeft % 60;
 	const timer = m.secondsLeft > 0 ? `  ${mm}:${string.format("%02d", ss)}` : "";
 	hud.setBanner(`${m.message}${timer}`);
+	roundStatus?.setRoundState(m);
+	teams?.setRoundState(m);
 	if (m.scores) {
 		const parts: string[] = [];
 		for (const [k, v] of pairs(m.scores)) if ((k as string).sub(1, 5) === "team_") parts.push(`${(k as string).sub(6).upper()} ${v}`);
@@ -54,6 +148,24 @@ waitRemoteEvent(Remotes.Fx).OnClientEvent.Connect((kindRaw, position) => {
 	p.CFrame = new CFrame(position);
 	p.Parent = Workspace;
 	task.delay(0.25, () => p.Destroy());
+	// short camera shake when the effect lands near the player (Settings → Camera shake).
+	// Humanoid.CameraOffset is the shake the default camera script keeps: no CFrame fight.
+	const humanoid = Players.LocalPlayer.Character?.FindFirstChildOfClass("Humanoid");
+	if (!shakeEnabled || !humanoid) return;
+	const root = Players.LocalPlayer.Character?.FindFirstChild("HumanoidRootPart") as BasePart | undefined;
+	const distance = root ? root.Position.sub(position).Magnitude : 999;
+	if (distance > 80) return;
+	const strength = (1 - distance / 80) * (kind === "hit" ? 0.8 : 0.4);
+	task.spawn(() => {
+		const base = humanoid.CameraOffset;
+		for (let i = 0; i < 8; i++) {
+			if (!humanoid.Parent) return;
+			const decay = strength * (1 - i / 8);
+			humanoid.CameraOffset = base.add(new Vector3((math.random() - 0.5) * decay, (math.random() - 0.5) * decay, 0));
+			task.wait(0.03);
+		}
+		if (humanoid.Parent) humanoid.CameraOffset = base;
+	});
 });
 
 // ---- hotkeys: V vehicle, P hatch, Q/F abilities, Shift sprint, R rebirth, double jump (parkour)

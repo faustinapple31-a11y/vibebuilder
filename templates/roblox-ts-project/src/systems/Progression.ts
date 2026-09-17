@@ -1,6 +1,6 @@
 import { DataStoreService, Lighting, Players, RunService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { getRemoteEvent, Remotes } from "shared/net";
+import { getRemoteEvent, Remotes, type QuestProgress } from "shared/net";
 import { QuestConfig } from "shared/quests";
 import * as PlayerData from "./PlayerData";
 
@@ -86,10 +86,23 @@ export function progressQuest(player: Player, objectiveType: string, target: str
 		} else {
 			hudValue.FireClient(player, `quest_${q.id}`, q.title, `${cur} / ${q.objective.count}`);
 		}
+		PlayerData.replicate(player);
 	}
 }
 
+/** Snapshot for the Quests screen (PlayerData replicates it inside ProfileState). */
+function questSnapshot(player: Player): Record<string, QuestProgress> {
+	const map = questProgress.get(player);
+	const out: Record<string, QuestProgress> = {};
+	for (const q of QuestConfig.quests) {
+		const done = PlayerData.getStat(player, `quest_${q.id}`) === 1;
+		out[q.id] = { progress: done ? q.objective.count : (map?.get(q.id) ?? 0), done };
+	}
+	return out;
+}
+
 function startQuests(): void {
+	PlayerData.registerQuestProvider(questSnapshot);
 	const setup = (player: Player) => {
 		task.delay(2, () => {
 			for (const q of QuestConfig.quests) if (PlayerData.getStat(player, `quest_${q.id}`) !== 1) hudValue.FireClient(player, `quest_${q.id}`, q.title, `0 / ${q.objective.count}`);

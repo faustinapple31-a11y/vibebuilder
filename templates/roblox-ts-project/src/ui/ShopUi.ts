@@ -1,7 +1,7 @@
-import { Players, TweenService } from "@rbxts/services";
+import { TweenService } from "@rbxts/services";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { badge, body, button, coinIcon, cloverIcon, corner, gradient, itemIcon, panel, pill, pressAnimation, shadow, strike, stroke, text, theme, tooltip } from "./kit";
+import { badge, body, button, coinIcon, cloverIcon, corner, gradient, itemIcon, panel, pill, pressAnimation, shadow, strike, stroke, text, theme, tooltip, Window } from "./kit";
 
 /**
  * Shop window (mobile-game look): paper panel with a thick outline, title with an outline, red X, then a
@@ -14,76 +14,19 @@ const W = 640;
 const H = 660;
 
 export class ShopUi {
+	private win: Window;
+	/** kept as fields so the row builders below read like the other screens */
 	private gui: ScreenGui;
-	private window: Frame;
 	private list: ScrollingFrame;
-	private coins: TextLabel;
 	private state: ShopState = { coins: 0, owned: [], counts: {}, buffs: {} };
 	private buy = waitRemoteFunction(Remotes.ShopBuy);
 	private promptRobux = waitRemoteFunction(Remotes.ShopPromptRobux);
 	private cards = new Map<string, { button: TextButton; have?: TextLabel; price: number }>();
-	public open = false;
 
 	constructor() {
-		const pg = Players.LocalPlayer.WaitForChild("PlayerGui") as PlayerGui;
-		this.gui = new Instance("ScreenGui");
-		this.gui.Name = "WorldForgeShop";
-		this.gui.ResetOnSpawn = false;
-		this.gui.IgnoreGuiInset = true;
-		this.gui.DisplayOrder = 5;
-		this.gui.Enabled = false;
-		this.gui.Parent = pg;
-
-		// dim backdrop
-		const dim = new Instance("Frame");
-		dim.Size = new UDim2(1, 0, 1, 0);
-		dim.BackgroundColor3 = new Color3(0, 0, 0);
-		dim.BackgroundTransparency = 0.45;
-		dim.BorderSizePixel = 0;
-		dim.ZIndex = 1;
-		dim.Parent = this.gui;
-
-		this.window = panel(new UDim2(0, W, 0, H), new UDim2(0.5, -W / 2, 0.5, -H / 2), this.gui, { radius: 20, strokeThickness: 4, zIndex: 2 });
-		this.window.Name = "Window";
-		// keep it on screen on small displays
-		const scale = new Instance("UIScale");
-		scale.Parent = this.window;
-		const fit = () => {
-			const vp = this.gui.AbsoluteSize;
-			scale.Scale = math.clamp(math.min(vp.X / (W + 40), vp.Y / (H + 40)), 0.55, 1);
-		};
-		this.gui.GetPropertyChangedSignal("AbsoluteSize").Connect(fit);
-		task.defer(fit);
-
-		// header
-		text(ShopCatalog.title, new UDim2(0, 300, 0, 56), new UDim2(0, 24, 0, 10), this.window, { size: 40 });
-		const coinPill = pill("0", new UDim2(0, 150, 0, 40), new UDim2(1, -232, 0, 18), this.window, "coin", { textSize: 20 });
-		this.coins = coinPill.label;
-		const close = button("X", new UDim2(0, 52, 0, 52), new UDim2(1, -68, 0, 12), this.window, { colors: theme.danger, size: 26, radius: 12, zIndex: 4 });
-		close.MouseButton1Click.Connect(() => this.setOpen(false));
-
-		// scrolling body
-		this.list = new Instance("ScrollingFrame");
-		this.list.Size = new UDim2(1, -36, 1, -92);
-		this.list.Position = new UDim2(0, 18, 0, 76);
-		this.list.BackgroundTransparency = 1;
-		this.list.BorderSizePixel = 0;
-		this.list.ScrollBarThickness = 8;
-		this.list.ScrollBarImageColor3 = theme.ink;
-		this.list.CanvasSize = new UDim2(0, 0, 0, 0);
-		this.list.AutomaticCanvasSize = Enum.AutomaticSize.Y;
-		this.list.ZIndex = 3;
-		this.list.Parent = this.window;
-		const layout = new Instance("UIListLayout");
-		layout.Padding = new UDim(0, 12);
-		layout.SortOrder = Enum.SortOrder.LayoutOrder;
-		layout.Parent = this.list;
-		const pad = new Instance("UIPadding");
-		pad.PaddingRight = new UDim(0, 12);
-		pad.PaddingBottom = new UDim(0, 12);
-		pad.PaddingTop = new UDim(0, 4);
-		pad.PaddingLeft = new UDim(0, 4);
-		pad.Parent = this.list;
+		this.win = new Window("Shop", ShopCatalog.title, { width: W, height: H, displayOrder: 5 });
+		this.gui = this.win.gui;
+		this.list = this.win.body;
 
 		let order = 0;
 		if (ShopCatalog.featured !== undefined) {
@@ -332,7 +275,7 @@ export class ShopUi {
 
 	setState(state: ShopState): void {
 		this.state = state;
-		this.coins.Text = `${math.floor(state.coins)}`;
+		this.win.setCoins(state.coins);
 		for (const item of ShopCatalog.items) {
 			const card = this.cards.get(item.id);
 			if (!card) continue;
@@ -360,19 +303,14 @@ export class ShopUi {
 	}
 
 	setOpen(open: boolean): void {
-		this.open = open;
-		this.gui.Enabled = open;
-		if (open) {
-			const scale = this.window.FindFirstChildOfClass("UIScale");
-			if (scale) {
-				const target = scale.Scale;
-				scale.Scale = target * 0.85;
-				TweenService.Create(scale, new TweenInfo(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: target }).Play();
-			}
-		}
+		this.win.setOpen(open);
+	}
+
+	isOpen(): boolean {
+		return this.win.open;
 	}
 
 	toggle(): void {
-		this.setOpen(!this.open);
+		this.win.toggle();
 	}
 }

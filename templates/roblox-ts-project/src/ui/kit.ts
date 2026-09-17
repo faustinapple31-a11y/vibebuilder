@@ -1,4 +1,4 @@
-import { TweenService } from "@rbxts/services";
+import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 
 /**
@@ -559,4 +559,341 @@ export function tooltip(target: GuiObject, title: string, description: string, r
 	target.MouseLeave.Connect(() => {
 		if (tip) tip.Visible = false;
 	});
+}
+
+// ---------------------------------------------------------------- window shell (screens)
+
+export interface WindowOptions {
+	width?: number;
+	height?: number;
+	/** ScreenGui.DisplayOrder — screens above the HUD, tooltips above the screens. */
+	displayOrder?: number;
+	/** Right-hand pill in the header (coins counter). */
+	coinPill?: boolean;
+	/** Vertical list in the body (default) or a free-form body the caller lays out. */
+	list?: boolean;
+}
+
+/**
+ * Modal window: dim backdrop, paper panel scaled to fit small screens, outlined title, red X and a
+ * scrolling body with a list layout. Every screen of the template is built on it, so they all open,
+ * close and scale the same way.
+ */
+export class Window {
+	public readonly gui: ScreenGui;
+	public readonly window: Frame;
+	/** Scrolling body (list layout when `opts.list !== false`). */
+	public readonly body: ScrollingFrame;
+	public readonly coins: TextLabel | undefined;
+	public open = false;
+	/** Called every time the window is opened (refresh the contents here). */
+	public onOpen: (() => void) | undefined;
+	private scale: UIScale;
+	private width: number;
+	private height: number;
+
+	constructor(name: string, title: string, opts: WindowOptions = {}) {
+		const w = opts.width ?? 620;
+		const h = opts.height ?? 620;
+		this.width = w;
+		this.height = h;
+		const pg = Players.LocalPlayer.WaitForChild("PlayerGui") as PlayerGui;
+		this.gui = new Instance("ScreenGui");
+		this.gui.Name = `WorldForge${name}`;
+		this.gui.ResetOnSpawn = false;
+		this.gui.IgnoreGuiInset = true;
+		this.gui.DisplayOrder = opts.displayOrder ?? 5;
+		this.gui.Enabled = false;
+		this.gui.Parent = pg;
+
+		const dim = new Instance("TextButton");
+		dim.Text = "";
+		dim.AutoButtonColor = false;
+		dim.Size = new UDim2(1, 0, 1, 0);
+		dim.BackgroundColor3 = new Color3(0, 0, 0);
+		dim.BackgroundTransparency = 0.45;
+		dim.BorderSizePixel = 0;
+		dim.ZIndex = 1;
+		dim.Parent = this.gui;
+		dim.MouseButton1Click.Connect(() => this.setOpen(false));
+
+		this.window = panel(new UDim2(0, w, 0, h), new UDim2(0.5, -w / 2, 0.5, -h / 2), this.gui, { radius: 20, strokeThickness: 4, zIndex: 2 });
+		this.window.Name = "Window";
+		this.scale = new Instance("UIScale");
+		this.scale.Parent = this.window;
+		const fit = () => {
+			const vp = this.gui.AbsoluteSize;
+			this.scale.Scale = math.clamp(math.min(vp.X / (w + 40), vp.Y / (h + 40)), 0.55, 1);
+		};
+		this.gui.GetPropertyChangedSignal("AbsoluteSize").Connect(fit);
+		task.defer(fit);
+
+		text(title, new UDim2(0, w - 260, 0, 56), new UDim2(0, 24, 0, 10), this.window, { size: 38 });
+		if (opts.coinPill !== false) {
+			const cp = pill("0", new UDim2(0, 150, 0, 40), new UDim2(1, -232, 0, 18), this.window, "coin", { textSize: 20 });
+			this.coins = cp.label;
+		}
+		const close = button("X", new UDim2(0, 52, 0, 52), new UDim2(1, -68, 0, 12), this.window, { colors: theme.danger, size: 26, radius: 12, zIndex: 4 });
+		close.MouseButton1Click.Connect(() => this.setOpen(false));
+
+		this.body = new Instance("ScrollingFrame");
+		this.body.Size = new UDim2(1, -36, 1, -92);
+		this.body.Position = new UDim2(0, 18, 0, 76);
+		this.body.BackgroundTransparency = 1;
+		this.body.BorderSizePixel = 0;
+		this.body.ScrollBarThickness = 8;
+		this.body.ScrollBarImageColor3 = theme.ink;
+		this.body.CanvasSize = new UDim2(0, 0, 0, 0);
+		this.body.AutomaticCanvasSize = opts.list === false ? Enum.AutomaticSize.None : Enum.AutomaticSize.Y;
+		this.body.ZIndex = 3;
+		this.body.Parent = this.window;
+		if (opts.list !== false) {
+			const layout = new Instance("UIListLayout");
+			layout.Padding = new UDim(0, 12);
+			layout.SortOrder = Enum.SortOrder.LayoutOrder;
+			layout.Parent = this.body;
+			padding(this.body, 4, 4, 12);
+		}
+	}
+
+	setCoins(value: number): void {
+		if (this.coins) this.coins.Text = `${math.floor(value)}`;
+	}
+
+	setOpen(value: boolean): void {
+		if (value === this.open) return;
+		this.open = value;
+		if (value) {
+			this.gui.Enabled = true;
+			this.onOpen?.();
+			this.window.Position = new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2 + 24);
+			TweenService.Create(this.window, new TweenInfo(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position: new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2) }).Play();
+		} else {
+			this.gui.Enabled = false;
+		}
+	}
+
+	toggle(): void {
+		this.setOpen(!this.open);
+	}
+
+	/** Removes every row of the body (keeps the layout / padding). */
+	clearBody(): void {
+		for (const child of this.body.GetChildren()) if (child.IsA("GuiObject")) child.Destroy();
+	}
+}
+
+/** Section title inside a window body (list layout). */
+export function sectionHeader(str: string, parent: Instance, order: number): TextLabel {
+	const holder = new Instance("Frame");
+	holder.Size = new UDim2(1, 0, 0, 34);
+	holder.BackgroundTransparency = 1;
+	holder.LayoutOrder = order;
+	holder.ZIndex = 3;
+	holder.Parent = parent;
+	const line = new Instance("Frame");
+	line.Size = new UDim2(1, 0, 0, 3);
+	line.Position = new UDim2(0, 0, 1, -4);
+	line.BackgroundColor3 = theme.inkSoft;
+	line.BackgroundTransparency = 0.4;
+	line.BorderSizePixel = 0;
+	line.ZIndex = 3;
+	line.Parent = holder;
+	return text(str.upper(), new UDim2(1, -8, 0, 28), new UDim2(0, 4, 0, 0), holder, { size: 24, color: theme.textDark, outline: 0, zIndex: 4 });
+}
+
+/** Rounded gradient row for a list body; returns the card (the holder carries the layout order). */
+export function card(height: number, order: number, parent: Instance, colors: [Color3, Color3] = [theme.paperDark, darken(theme.paperDark, 0.12)], radius = 16): Frame {
+	const holder = new Instance("Frame");
+	holder.Size = new UDim2(1, 0, 0, height + 6);
+	holder.BackgroundTransparency = 1;
+	holder.LayoutOrder = order;
+	holder.ZIndex = 3;
+	holder.Parent = parent;
+	const f = new Instance("Frame");
+	f.Size = new UDim2(1, 0, 0, height);
+	f.BackgroundColor3 = colors[1];
+	f.BorderSizePixel = 0;
+	f.ZIndex = 4;
+	corner(f, radius);
+	gradient(f, colors[0], colors[1]);
+	stroke(f, theme.ink, 3);
+	f.Parent = holder;
+	return f;
+}
+
+export interface BarHandle {
+	/** sets the filled fraction (0…1) */
+	set: (fraction: number) => void;
+	fill: Frame;
+	label: TextLabel;
+}
+
+/** Outlined progress bar with a centred label ("3 / 5"). */
+export function progressBar(size: UDim2, position: UDim2, parent: Instance, colors: [Color3, Color3] = theme.primary, zIndex = 5): BarHandle {
+	const bg = new Instance("Frame");
+	bg.Size = size;
+	bg.Position = position;
+	bg.BackgroundColor3 = darken(theme.ink, 0.15);
+	bg.BorderSizePixel = 0;
+	bg.ZIndex = zIndex;
+	corner(bg, 9);
+	stroke(bg, theme.ink, 2.5);
+	bg.Parent = parent;
+	const fill = new Instance("Frame");
+	fill.Size = new UDim2(0, 0, 1, 0);
+	fill.BackgroundColor3 = colors[1];
+	fill.BorderSizePixel = 0;
+	fill.ZIndex = zIndex + 1;
+	corner(fill, 9);
+	gradient(fill, colors[0], colors[1]);
+	fill.Parent = bg;
+	const label = text("", new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), bg, { size: 14, align: Enum.TextXAlignment.Center, zIndex: zIndex + 2, outline: 2 });
+	return {
+		fill,
+		label,
+		set: (fraction: number) => {
+			TweenService.Create(fill, new TweenInfo(0.2), { Size: new UDim2(math.clamp(fraction, 0, 1), 0, 1, 0) }).Play();
+		},
+	};
+}
+
+/** Pill switch (settings): dark track, sliding knob, ON / OFF label. */
+export function toggle(value: boolean, size: UDim2, position: UDim2, parent: Instance, onChange: (v: boolean) => void): TextButton {
+	const b = new Instance("TextButton");
+	b.Size = size;
+	b.Position = position;
+	b.Text = "";
+	b.AutoButtonColor = false;
+	b.BackgroundColor3 = theme.pill;
+	b.BorderSizePixel = 0;
+	b.ZIndex = 5;
+	corner(b, 14);
+	stroke(b, theme.ink, 2.5);
+	b.Parent = parent;
+	const knob = new Instance("Frame");
+	knob.Size = new UDim2(0, size.Y.Offset - 8, 0, size.Y.Offset - 8);
+	knob.BackgroundColor3 = theme.paper;
+	knob.BorderSizePixel = 0;
+	knob.ZIndex = 7;
+	corner(knob, 12);
+	stroke(knob, theme.ink, 2);
+	knob.Parent = b;
+	const label = text("", new UDim2(1, -12, 1, 0), new UDim2(0, 6, 0, 0), b, { size: 13, align: Enum.TextXAlignment.Center, zIndex: 6, outline: 1.5 });
+	let on = value;
+	const render = () => {
+		const pad = 4;
+		const x = on ? size.X.Offset - knob.Size.X.Offset - pad : pad;
+		TweenService.Create(knob, new TweenInfo(0.14, Enum.EasingStyle.Quad), { Position: new UDim2(0, x, 0, pad) }).Play();
+		b.BackgroundColor3 = on ? theme.primary[1] : theme.pill;
+		label.Text = on ? "ON" : "OFF";
+		label.TextXAlignment = on ? Enum.TextXAlignment.Left : Enum.TextXAlignment.Right;
+	};
+	render();
+	b.MouseButton1Click.Connect(() => {
+		on = !on;
+		render();
+		onChange(on);
+	});
+	return b;
+}
+
+/** Draggable slider (0…1): outlined track, gradient fill, round knob, percentage label. */
+export function slider(value: number, size: UDim2, position: UDim2, parent: Instance, onChange: (v: number) => void): Frame {
+	const track = new Instance("Frame");
+	track.Size = size;
+	track.Position = position;
+	track.BackgroundColor3 = darken(theme.ink, 0.15);
+	track.BorderSizePixel = 0;
+	track.ZIndex = 5;
+	corner(track, 10);
+	stroke(track, theme.ink, 2.5);
+	track.Parent = parent;
+	const fill = new Instance("Frame");
+	fill.Size = new UDim2(math.clamp(value, 0, 1), 0, 1, 0);
+	fill.BackgroundColor3 = theme.primary[1];
+	fill.BorderSizePixel = 0;
+	fill.ZIndex = 6;
+	corner(fill, 10);
+	gradient(fill, theme.primary[0], theme.primary[1]);
+	fill.Parent = track;
+	const knob = new Instance("Frame");
+	knob.Size = new UDim2(0, size.Y.Offset + 6, 0, size.Y.Offset + 6);
+	knob.Position = new UDim2(math.clamp(value, 0, 1), -(size.Y.Offset + 6) / 2, 0.5, -(size.Y.Offset + 6) / 2);
+	knob.BackgroundColor3 = theme.paper;
+	knob.BorderSizePixel = 0;
+	knob.ZIndex = 8;
+	corner(knob, 14);
+	stroke(knob, theme.ink, 2.5);
+	knob.Parent = track;
+	const label = text(`${math.floor(math.clamp(value, 0, 1) * 100)}%`, new UDim2(0, 60, 1, 0), new UDim2(1, 10, 0, 0), track, { size: 15, align: Enum.TextXAlignment.Left, zIndex: 7, outline: 2 });
+	// invisible button over the track captures the drag (works with touch and mouse)
+	const grab = new Instance("TextButton");
+	grab.Text = "";
+	grab.AutoButtonColor = false;
+	grab.BackgroundTransparency = 1;
+	grab.Size = new UDim2(1, 24, 1, 24);
+	grab.Position = new UDim2(0, -12, 0, -12);
+	grab.ZIndex = 9;
+	grab.Parent = track;
+	let dragging = false;
+	const apply = (x: number) => {
+		const left = track.AbsolutePosition.X;
+		const w = math.max(1, track.AbsoluteSize.X);
+		const v = math.clamp((x - left) / w, 0, 1);
+		fill.Size = new UDim2(v, 0, 1, 0);
+		knob.Position = new UDim2(v, -knob.Size.X.Offset / 2, 0.5, -knob.Size.Y.Offset / 2);
+		label.Text = `${math.floor(v * 100)}%`;
+		onChange(v);
+	};
+	grab.InputBegan.Connect((input) => {
+		if (input.UserInputType === Enum.UserInputType.MouseButton1 || input.UserInputType === Enum.UserInputType.Touch) {
+			dragging = true;
+			apply(input.Position.X);
+		}
+	});
+	grab.InputChanged.Connect((input) => {
+		if (dragging && (input.UserInputType === Enum.UserInputType.MouseMovement || input.UserInputType === Enum.UserInputType.Touch)) apply(input.Position.X);
+	});
+	grab.InputEnded.Connect((input) => {
+		if (input.UserInputType === Enum.UserInputType.MouseButton1 || input.UserInputType === Enum.UserInputType.Touch) dragging = false;
+	});
+	return track;
+}
+
+/**
+ * Icon for an inventory / recipe item id: the drawn kit icons for the ones we recognise (food, ore,
+ * wood, cloth, potion…), otherwise a coloured tile with the initials — no asset ids either way.
+ */
+export function resourceIcon(id: string, size: number, parent: Instance): GuiObject {
+	const key = id.lower();
+	const has = (s: string) => key.find(s, 1, true)[0] !== undefined;
+	if (has("coin") || has("cash") || has("gold")) return coinIcon(size, parent);
+	if (has("potion") || has("elixir") || has("flask")) return potionIcon(size, parent);
+	if (has("clover") || has("luck")) return cloverIcon(size, parent);
+	if (has("food") || has("carrot") || has("crop") || has("fish") || has("meat") || has("bread") || has("apple")) return foodIcon(size, parent);
+	if (has("speed") || has("bolt") || has("energy")) return boltIcon(size, parent);
+	if (has("vip") || has("crown") || has("trophy")) return crownIcon(size, parent);
+	const palette: Record<string, string> = { wood: "#a5742f", plank: "#c08a3e", log: "#8a5a22", stone: "#9aa0a6", rock: "#8a9096", ore: "#c0c6cc", iron: "#b8bec4", copper: "#c87a3a", cloth: "#e0d6bc", scrap: "#8a8f95", gem: "#6fd0ff", crystal: "#9ad8ff", torch: "#ffb347", bandage: "#f2eadb", key: "#ffd24a", seed: "#7fd07a", egg: "#f6efdc", pet: "#ffb3d1" };
+	let color = hex("#cfd6e6");
+	for (const [k, v] of pairs(palette)) if (has(k as string)) color = hex(v as string);
+	const f = new Instance("Frame");
+	f.Size = new UDim2(0, size, 0, size);
+	f.BackgroundColor3 = color;
+	f.BorderSizePixel = 0;
+	f.ZIndex = 5;
+	corner(f, math.floor(size * 0.25));
+	stroke(f, theme.ink, 2.5);
+	gradient(f, lighten(color, 0.25), darken(color, 0.2));
+	f.Parent = parent;
+	text(id.sub(1, 2).upper(), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), f, { size: math.floor(size * 0.46), align: Enum.TextXAlignment.Center, zIndex: 6, outline: 2 });
+	return f;
+}
+
+/** Title-cased label from an item id ("wild_carrot" → "Wild Carrot"). */
+export function prettyName(id: string): string {
+	const parts = id.split("_");
+	const out: string[] = [];
+	for (const p of parts) if (p !== "") out.push(p.sub(1, 1).upper() + p.sub(2));
+	return out.join(" ");
 }

@@ -8,6 +8,28 @@ export interface PlayerStats {
 	hunger: number;
 }
 
+/** Quest progress replicated to the client (Progression): counter + completion. */
+export interface QuestProgress {
+	progress: number;
+	done: boolean;
+}
+
+/**
+ * Replicated profile: what the inventory / quests / crafting / settings screens read. Sent by
+ * PlayerData on every change (same moment as StatsChanged).
+ */
+export interface ProfileStateMsg {
+	coins: number;
+	/** item id → count (survival / farming / mining / crafting resources). */
+	inventory: Record<string, number>;
+	/** permanently owned shop upgrades and passes. */
+	owned: string[];
+	/** persisted numbers (stage, wins, xp, level, rebirths, setting_*…). */
+	stats: Record<string, number>;
+	/** quest id → progress (only when the quests system is enabled). */
+	quests: Record<string, QuestProgress>;
+}
+
 /** Replicated shop state: owned upgrades, consumable counts, active buffs (seconds left). */
 export interface ShopState {
 	coins: number;
@@ -65,6 +87,8 @@ export const Remotes = {
 	Notify: "Notify",
 	WorldProgress: "WorldProgress",
 	ShopState: "ShopState",
+	/** Full profile replication for the inventory / quests / crafting screens (ProfileStateMsg). */
+	ProfileState: "ProfileState",
 	ShopBuy: "ShopBuy",
 	ShopPromptRobux: "ShopPromptRobux",
 	NpcTalk: "NpcTalk",

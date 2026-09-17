@@ -35,7 +35,8 @@ commandes Rust `studio.rs`, `opencloud.rs`, `process.rs`.
 │   │   ├── TerrainBuilder.ts
 │   │   └── Streaming.ts                 # LOD/cull, StreamingEnabled
 │   ├── systems/                         # PlayerData (owned/inventory/multipliers/buffs), Shop, Npcs, Audio, Survival, Collectibles…
-│   └── ui/                              # kit.ts (thème, panneaux, boutons, icônes dessinées), Hud, ShopUi, …
+│   └── ui/                              # kit.ts (thème, Window, boutons, icônes), Hud, ShopUi, Inventory,
+│                                        # Quests, Crafting, Leaderboard, Teams, RoundStatus, Settings, Minimap, Menu
 ├── assets/
 │   ├── world/WorldBake.json             # → ReplicatedStorage.WorldAssets.WorldBake (ModuleScript via Rojo)
 │   └── models/*.rbxmx                   # prefabs individuels (asset browser)
@@ -187,6 +188,40 @@ primitives (`panel`, `button`, `text`, `body`, `badge`, `strike`, `gradient`, `s
 dessinées pour la monnaie / les items / les effets). Look "mobile game" : panneaux crème à contour d'encre
 épais, ombre portée, typo arrondie contournée. Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient),
 donc aucun upload n'est nécessaire et le thème suit le style du monde.
+
+`kit.Window` est la coquille commune de tous les écrans (fond assombri, panneau mis à l'échelle sur petit
+écran, titre, pastille de monnaie, croix rouge, corps défilant) : `ShopUi` et tous les écrans ci-dessous
+s'appuient dessus, donc ils s'ouvrent, se ferment et se redimensionnent de la même façon.
+
+### Écrans (`GameSpec.ui.screens` → `GameConfig.ui.screens`)
+
+Le client (`src/client/main.client.ts`) ne monte que les écrans listés par le genre ; chacun reçoit un
+bouton HUD (seul accès sur mobile, empilés au-dessus du bouton Shop sur deux colonnes) et un raccourci
+clavier. Un test (`packages/roblox-export/test/uiScreens.test.ts`) garantit que tout écran déclaré par un
+genre est implémenté et monté.
+
+| écran | fichier | source de données | touche |
+|---|---|---|---|
+| `hud`, `loading` | `ui/Hud.ts` | StatsChanged, HudValue, RoundState, WorldProgress | — |
+| `shop`, `gamepass_shop` | `ui/ShopUi.ts` | `ShopCatalog` + ShopState | **B** |
+| `inventory` | `ui/Inventory.ts` | ProfileState (`inventory`, `owned`) + ShopState (consommables, buffs) | **I** |
+| `quests` | `ui/Quests.ts` | `QuestConfig` + ProfileState (`quests`) | **J** |
+| `crafting` | `ui/Crafting.ts` | `RecipeConfig` + ProfileState (`inventory`), action `craft` | **C** |
+| `leaderboard` | `ui/Leaderboard.ts` | `leaderstats` répliqués par Roblox | **L** |
+| `teams` | `ui/Teams.ts` | attribut `Team` des joueurs + `RoundState.scores` | **T** |
+| `round_status` | `ui/RoundStatus.ts` | RoundState (phase, compte à rebours, scores) | — |
+| `settings` | `ui/Settings.ts` | ProfileState (`setting_*`), action `set_setting` | **O** |
+| `minimap` | `ui/Minimap.ts` | WorldBake (hauteurs / eau / matériaux, landmarks, zones) | — |
+| `menu` | `ui/Menu.ts` | les autres écrans activés | **M** |
+
+`Remotes.ProfileState` (`ProfileStateMsg`) réplique le profil à chaque changement (`PlayerData.replicate`) :
+coins, inventaire, items possédés, stats persistées et progression des quêtes (fournie par `Progression`
+via `PlayerData.registerQuestProvider`) — c'est ce que lisent l'inventaire, les quêtes, le craft et les
+réglages. Les réglages (volume musique / SFX, minimap, secousse caméra) sont appliqués côté client et
+persistés dans le profil (`setting_<clé>`, 0…100) par l'action `set_setting`, donc ils reviennent à la
+reconnexion. La minimap est dessinée à partir du bake que le client possède déjà (grille de frames
+colorées par matériau et profondeur d'eau, points pour les landmarks / zones / spawn, flèche du joueur
+orientée par la caméra) — aucun asset image.
 
 ### PNJ, animations, audio
 

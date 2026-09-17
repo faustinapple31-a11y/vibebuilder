@@ -1,6 +1,6 @@
 import { DataStoreService, Players, RunService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { getRemoteEvent, Remotes, type PlayerStats } from "shared/net";
+import { getRemoteEvent, Remotes, type PlayerStats, type ProfileStateMsg, type QuestProgress } from "shared/net";
 
 /**
  * Persistent player profile (DataStore) + leaderstats + stat replication.
@@ -71,12 +71,29 @@ export function multiplierFor(player: Player, stat: string): number {
 	if (b && b.until > os.time()) m *= b.value;
 	return m;
 }
+/**
+ * Quest progress provider registered by Progression (avoids a circular import): PlayerData mirrors it
+ * into the replicated profile so the Quests screen shows live counters.
+ */
+let questProvider: ((player: Player) => Record<string, QuestProgress>) | undefined;
+export function registerQuestProvider(provider: (player: Player) => Record<string, QuestProgress>): void {
+	questProvider = provider;
+}
+
+/** Client setting persisted in the profile (`setting_<key>`, 0…100): music, sfx, minimap… */
+export function getSetting(player: Player, key: string, fallback: number): number {
+	const p = profiles.get(player);
+	const v = p?.stats[`setting_${key}`];
+	return v === undefined ? fallback : v;
+}
+
 const profiles = new Map<Player, Profile>();
 const store = (() => {
 	const [ok, ds] = pcall(() => DataStoreService.GetDataStore(GameConfig.dataStore.name));
 	return ok ? (ds as DataStore) : undefined;
 })();
 const statsChanged = getRemoteEvent(Remotes.StatsChanged);
+const profileState = getRemoteEvent(Remotes.ProfileState);
 
 function keyFor(player: Player): string {
 	return `player_${player.UserId}`;
@@ -108,6 +125,8 @@ export function replicate(player: Player): void {
 	if (!p) return;
 	const stats: PlayerStats = { coins: p.coins, hunger: p.hunger };
 	statsChanged.FireClient(player, stats);
+	const state: ProfileStateMsg = { coins: p.coins, inventory: p.inventory, owned: p.owned, stats: p.stats, quests: questProvider?.(player) ?? {} };
+	profileState.FireClient(player, state);
 	const ls = player.FindFirstChild("leaderstats");
 	const coins = ls?.FindFirstChild(GameConfig.currency.name) as IntValue | undefined;
 	if (coins) coins.Value = math.floor(p.coins);
@@ -171,8 +190,20 @@ function installDevHook(): void {
 	hook.Parent = game.GetService("ServerStorage");
 }
 
+/** Client settings (music / sfx volume, minimap…) persisted in the profile via the Action remote. */
+const SETTING_KEYS = ["music", "sfx", "minimap", "shake"];
+function startSettings(): void {
+	getRemoteEvent(Remotes.Action).OnServerEvent.Connect((player, name, key, value) => {
+		if (name !== "set_setting" || !typeIs(key, "string") || !typeIs(value, "number")) return;
+		if (!SETTING_KEYS.includes(key)) return;
+		setStat(player, `setting_${key}`, math.clamp(math.floor(value), 0, 100));
+		replicate(player);
+	});
+}
+
 export function start(): void {
 	installDevHook();
+	startSettings();
 	Players.PlayerAdded.Connect(onJoin);
 	Players.PlayerRemoving.Connect(onLeave);
 	for (const p of Players.GetPlayers()) onJoin(p);

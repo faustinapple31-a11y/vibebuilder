@@ -24,6 +24,31 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
   (`ShopCatalog.bundles`, bought with the id `bundle:<id>`), sections from `src/shared/catalog.ts`
   (`ShopCatalog`), coin items via `ShopBuy`, gamepasses / dev products via `ShopPromptRobux`
   (MarketplaceService prompt on the server).
+- `kit.Window`: the shell every screen uses — dim backdrop, panel scaled to fit small screens, title,
+  coin pill, red X, scrolling body with a list layout, `setOpen` / `toggle` / `clearBody` / `onOpen`
+  (re-render there). A new screen is `new Window("Name", "Title", { width, height, displayOrder })`
+  plus `card()` / `sectionHeader()` rows — never a hand-rolled ScreenGui.
+- The screens of `GameConfig.ui.screens`, all implemented and mounted by `main.client.ts`:
+
+  | screen | file | data | key |
+  |---|---|---|---|
+  | `inventory` | `ui/Inventory.ts` | `ProfileState` (inventory, owned) + `ShopState` (counts, buffs) | I |
+  | `quests` | `ui/Quests.ts` | `QuestConfig` + `ProfileState.quests` | J |
+  | `crafting` | `ui/Crafting.ts` | `RecipeConfig` + inventory, `Action("craft", id)` | C |
+  | `leaderboard` | `ui/Leaderboard.ts` | `leaderstats` (no remote) | L |
+  | `teams` | `ui/Teams.ts` | player `Team` attribute + `RoundState.scores` | T |
+  | `round_status` | `ui/RoundStatus.ts` | `RoundState` (HUD-level panel, not a modal) | — |
+  | `settings` | `ui/Settings.ts` | `setting_*` stats, `Action("set_setting", key, 0…100)` | O |
+  | `minimap` | `ui/Minimap.ts` | the WorldBake grids + landmarks / zones | — |
+  | `menu` | `ui/Menu.ts` | the other enabled screens (pause menu) | M |
+
+- `Remotes.ProfileState` (`ProfileStateMsg`: coins, inventory, owned, stats, quests) is fired by
+  `PlayerData.replicate` on every change — read it instead of adding a remote for player data. Quest
+  progress comes from `Progression` through `PlayerData.registerQuestProvider`.
+- A new screen must be added to `GameSpec.ui.screens` (and the genre, when every game of that genre
+  needs it), mounted in `main.client.ts` behind `enabled("<id>")`, given a `hud.addButton(...)` (the
+  only way in on touch) and a hotkey. `packages/roblox-export/test/uiScreens.test.ts` in the WorldForge
+  repo fails when a declared screen is missing or never mounted.
 - Client hotkeys and effects live in `src/client/main.client.ts`; the weather layer in `src/client/Weather.ts`.
 
 ## Theme
@@ -57,8 +82,10 @@ only for full-screen overlays. Never hard-code pixel positions for gameplay-crit
 ## Screens the GameSpec may request (`design/game.spec.json` → `ui.screens`)
 
 hud, inventory, shop, settings, quests, gamepass_shop, loading, menu, leaderboard, crafting, teams, round_status,
-minimap. Implement each as a class in `src/ui/`, mounted
-once from `main.client.ts`, toggled by a HUD button and a hotkey, closed with Escape / the X button.
+minimap — **all of them already exist** (table above): extend them rather than starting a new screen, and
+keep them fed by the existing remotes. A game-specific screen (a fishing log, a pet index…) is a new class
+in `src/ui/` built on `kit.Window`, mounted once from `main.client.ts` behind `enabled("<id>")`, toggled by
+a HUD button and a hotkey, closed with the X button.
 
 ## Checklist before finishing
 

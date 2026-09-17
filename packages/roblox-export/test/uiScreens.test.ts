@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+import { GENRES } from "@worldforge/core";
+import { GameSpecSchema } from "@worldforge/core";
+import { TEMPLATE_FILES } from "../src/template-files.generated";
+
+/**
+ * Every screen a genre declares (GameSpec `ui.screens`) must exist in the template and be mounted by
+ * the client bootstrap — otherwise a generated game promises a screen nobody implemented.
+ */
+const SCREEN_FILES: Record<string, string> = {
+  hud: "src/ui/Hud.ts",
+  loading: "src/ui/Hud.ts", // the loading overlay lives in the HUD
+  shop: "src/ui/ShopUi.ts",
+  gamepass_shop: "src/ui/ShopUi.ts", // Robux section of the same window
+  inventory: "src/ui/Inventory.ts",
+  quests: "src/ui/Quests.ts",
+  crafting: "src/ui/Crafting.ts",
+  leaderboard: "src/ui/Leaderboard.ts",
+  teams: "src/ui/Teams.ts",
+  round_status: "src/ui/RoundStatus.ts",
+  settings: "src/ui/Settings.ts",
+  minimap: "src/ui/Minimap.ts",
+  menu: "src/ui/Menu.ts",
+};
+
+describe("UI screens of the template", () => {
+  const client = TEMPLATE_FILES["src/client/main.client.ts"]!;
+  const screenIds = Object.keys(GameSpecSchema.shape.ui.unwrap().shape.screens.unwrap().element.enum);
+
+  it("implements every screen id of the GameSpec enum", () => {
+    for (const id of screenIds) {
+      const file = SCREEN_FILES[id];
+      expect(file, `screen "${id}" has no template file`).toBeTruthy();
+      expect((TEMPLATE_FILES[file!] ?? "").length, file).toBeGreaterThan(200);
+    }
+  });
+
+  it("mounts every screen a genre declares from the client bootstrap", () => {
+    for (const genre of GENRES) {
+      for (const id of genre.screens) {
+        expect(SCREEN_FILES[id], `genre ${genre.id} declares the unknown screen "${id}"`).toBeTruthy();
+        // hud / loading / shop / gamepass_shop are always mounted; the others are gated on ui.screens
+        if (id === "hud" || id === "loading" || id === "shop" || id === "gamepass_shop") continue;
+        expect(client.includes(`enabled("${id}")`), `${genre.id}: "${id}" is never mounted by main.client.ts`).toBe(true);
+      }
+    }
+  });
+
+  it("builds every screen on the kit's Window (same open / close / scaling behaviour)", () => {
+    for (const [id, file] of Object.entries(SCREEN_FILES)) {
+      if (id === "hud" || id === "loading" || id === "round_status" || id === "minimap") continue; // HUD-level overlays, not modals
+      expect(TEMPLATE_FILES[file]!.includes("new Window("), file).toBe(true);
+    }
+  });
+});

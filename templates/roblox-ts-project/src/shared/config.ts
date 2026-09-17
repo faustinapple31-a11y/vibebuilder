@@ -20,6 +20,8 @@ export const GameConfig = {
 	dataStore: { name: "WorldForgePlayerData_v1", autosaveSeconds: 120 },
 	/** Genre + enabled gameplay systems (ids from the WorldForge taxonomy); systems start only when listed. */
 	genre: "adventure" as string,
+	/** UI: kit theme (style family + accent) and the screens the client mounts (src/ui/*). */
+	ui: { style: "stylized" as string, accentColor: "#b48cff" as string, screens: ["loading", "hud", "inventory", "quests", "shop", "gamepass_shop", "settings", "menu"] as string[] },
 	systems: ["player_data", "currency", "collectibles", "survival_stats", "npcs", "shop", "leaderboards"] as string[],
 	/** Extra leaderstats mirrored from Profile.stats. */
 	leaderstats: [] as string[],

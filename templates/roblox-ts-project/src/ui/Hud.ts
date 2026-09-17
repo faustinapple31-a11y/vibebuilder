@@ -29,6 +29,9 @@ export class Hud {
 	private valueRows = new Map<string, TextLabel>();
 	private banner: TextLabel;
 	private healthFill: Frame;
+	/** Extra screen buttons stacked above the Shop button (bottom-left). */
+	private screenButtons: TextButton[] = [];
+	private sfxVolume = 0.6;
 	/** Set by the client bootstrap to open the shop window. */
 	public onShop: (() => void) | undefined;
 
@@ -135,6 +138,28 @@ export class Hud {
 		this.loadingFill.Parent = barHolder;
 	}
 
+	/**
+	 * Adds a button for one of the game's screens (inventory, quests, crafting, leaderboard, teams,
+	 * settings, menu). They stack above the Shop button, stay ≥ 44 px high for touch and are the only
+	 * way to reach the screens on mobile (the hotkeys are the desktop shortcut).
+	 */
+	addButton(label: string, onClick: () => void, icon?: (parent: GuiObject) => GuiObject): TextButton {
+		const index = this.screenButtons.size();
+		// one column above the Shop button, wrapping into a second column after four entries
+		const column = math.floor(index / 4);
+		const row = index % 4;
+		const b = button(label, new UDim2(0, 150, 0, 48), new UDim2(0, 18 + column * 160, 1, -76 - (row + 1) * 56), this.gui, { colors: theme.info, size: 20, radius: 12, icon });
+		b.MouseButton1Click.Connect(onClick);
+		this.screenButtons.push(b);
+		return b;
+	}
+
+	/** SFX volume (0…1) from the settings screen. */
+	setSfxVolume(volume: number): void {
+		this.sfxVolume = math.clamp(volume, 0, 1);
+		for (const [, sound] of this.sfx) sound.Volume = this.sfxVolume;
+	}
+
 	/** Add / update a row in the right-hand value panel (empty value removes the row). */
 	setValue(key: string, label: string, value: string): void {
 		let row = this.valueRows.get(key);
@@ -210,7 +235,7 @@ export class Hud {
 		if (!s) {
 			s = new Instance("Sound");
 			s.SoundId = id;
-			s.Volume = 0.6;
+			s.Volume = this.sfxVolume;
 			s.Parent = this.gui;
 			this.sfx.set(id, s);
 		}

@@ -72,6 +72,13 @@ Chaque genre définit ses **systèmes** (ids de `GAMEPLAY_SYSTEMS`, tous implém
 son **archétype de layout**, ses écrans UI, sa monnaie, sa monétisation par défaut, sa caméra, ses
 styles de prédilection, s'il a des ennemis, sa structure multijoueur et son modèle de progression.
 
+Les **écrans** (`screens` → `GameSpec.ui.screens` → `GameConfig.ui.screens`) sont tous implémentés dans
+le template et montés par le client uniquement quand le genre les déclare : `hud` / `loading`,
+`shop` / `gamepass_shop`, `inventory`, `quests`, `crafting`, `leaderboard`, `teams`, `round_status`,
+`settings`, `minimap`, `menu` (voir ROBLOX_PIPELINE.md pour la source de données et la touche de chacun).
+`round_status` et `teams` suivent les systèmes `rounds` / `teams`, `minimap` les genres à grande carte ;
+`settings` et `menu` sont universels.
+
 ## 4. Archétypes de layout (`worldSpec.layout.archetype`)
 
 Posés sur le terrain par `packages/world-gen/src/pipeline/layout.ts`, ils créent des structures
