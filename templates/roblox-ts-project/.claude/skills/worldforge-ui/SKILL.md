@@ -96,6 +96,15 @@ Always: `TextScaled` with `UITextSizeConstraint` (min 12 / max 28), `AutomaticSi
 `UIPadding`, `ZIndexBehavior.Sibling`, `ResetOnSpawn = false` on the ScreenGui, `IgnoreGuiInset = true`
 only for full-screen overlays. Never hard-code pixel positions for gameplay-critical UI.
 
+## Scaling (mobile + accessibility)
+
+`kit.scaleContainer(frame)` keeps a HUD-level frame scaled by the viewport (down to ×0.72 on a small
+phone) **and** by the player's *Settings → UI scale* slider; `kit.Window` folds the same factor into
+its fit, and `kit.setUiScale(factor)` / `kit.uiScale()` / `kit.onScaleChanged(cb)` are the API. The
+HUD, the round-status panel and the minimap already register; a new HUD-level element must call
+`scaleContainer` on its root frame (a modal built on `Window` gets it for free). The setting persists
+in the profile (`setting_uiscale`).
+
 ## Mobile & accessibility
 
 - Layout with `UDim2.fromScale` + `UIAspectRatioConstraint`; test at 16:9 and 4:3 (`GuiService:GetScreenResolution()`).

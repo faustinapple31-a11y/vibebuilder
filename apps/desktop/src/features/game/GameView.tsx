@@ -1,7 +1,7 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { CloudUpload, Coins, Crown, ExternalLink, LayoutDashboard, Music, PersonStanding, Play, Plus, ShoppingBag, Trash2, Upload, Volume2, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { UI_KITS, UI_SCREENS, type AnimSpec, type GameSpec, type ShopEffect, type ShopItem, type UiScreen } from "@worldforge/core";
+import { UI_KITS, UI_SCREENS, bestTextOn, panelEdge, textStroke, type AnimSpec, type GameSpec, type ShopEffect, type ShopItem, type UiScreen } from "@worldforge/core";
 import { creatorDashboardUrls } from "@worldforge/roblox-cloud";
 import { Button, Input, Label, Select, Slider, Switch, Textarea } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,70 @@ const SCREEN_LABELS: Record<UiScreen, string> = {
 };
 
 /**
+ * Miniature of a library: the same panel / title / price pill / button the generated game draws, with
+ * the kit's radius, outline weight, gradients, shadow, text outline and ornament — so the look can be
+ * judged before generating anything. `textOn` mirrors the runtime choice of label colour.
+ */
+function KitPreview({ kit }: { kit: (typeof UI_KITS)[number] }) {
+  const s = kit.shape;
+  const label = bestTextOn(kit, kit.tokens.primary[1]);
+  const edge = panelEdge(kit);
+  const outline = s.textOutline > 0 ? { WebkitTextStroke: `${Math.min(1.4, s.textOutline / 2)}px ${textStroke(kit)}` } : undefined;
+  return (
+    <div
+      className="relative h-[86px] overflow-hidden p-2"
+      style={{
+        background: s.gradients ? `linear-gradient(${kit.tokens.paper}, ${kit.tokens.paperDark})` : kit.tokens.paper,
+        border: `${Math.max(1, s.strokeThickness / 1.5)}px solid ${edge}`,
+        borderRadius: s.radius,
+        boxShadow: s.shadow > 0 ? `${s.shadow / 2}px ${s.shadow / 2}px 0 rgba(0,0,0,${1 - s.shadowTransparency})` : undefined,
+        opacity: 1 - s.panelTransparency / 2,
+      }}
+    >
+      {s.ornament === "scanlines" && <div className="pointer-events-none absolute inset-0" style={{ background: "repeating-linear-gradient(#fff2 0 1px, transparent 1px 4px)" }} />}
+      {s.ornament === "grid" && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2" style={{ background: `repeating-linear-gradient(${kit.tokens.primary[0]}66 0 1px, transparent 1px 8px)` }} />}
+      {s.ornament === "grain" && <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(#fff3 0.5px, transparent 0.6px) 0 0/7px 7px" }} />}
+      {s.ornament === "stitch" && <div className="pointer-events-none absolute inset-[5px]" style={{ border: `1px dashed ${kit.tokens.inkSoft}` }} />}
+      {s.ornament === "glow" && <div className="pointer-events-none absolute inset-0" style={{ boxShadow: `inset 0 0 8px ${kit.tokens.ink}` }} />}
+      {s.ornament === "rivets" &&
+        [0, 1, 2, 3].map((i) => (
+          <span key={i} className="pointer-events-none absolute h-1.5 w-1.5 rounded-full" style={{ background: kit.tokens.inkSoft, top: i < 2 ? 4 : undefined, bottom: i >= 2 ? 4 : undefined, left: i % 2 === 0 ? 4 : undefined, right: i % 2 === 1 ? 4 : undefined }} />
+        ))}
+      {(s.ornament === "brackets" || s.ornament === "chevrons" || s.ornament === "filigree" || s.ornament === "notch" || s.ornament === "stripes" || s.ornament === "bubbles") && (
+        <div className="pointer-events-none absolute right-1.5 top-1 text-[8px]" style={{ color: kit.tokens.inkSoft }}>
+          {s.ornament}
+        </div>
+      )}
+      <div className="relative text-[11px] font-bold leading-none" style={{ color: kit.tokens.textDark, ...outline }}>
+        {kit.name.toUpperCase()}
+      </div>
+      <div className="relative mt-1 flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: kit.tokens.pill, color: kit.tokens.text, borderRadius: Math.min(10, s.radius), border: `1px solid ${kit.tokens.pillStroke}` }}>
+          <span className="inline-block h-2 w-2 rounded-full" style={{ background: kit.tokens.gold[0] }} />
+          250
+        </span>
+        <span className="px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: `linear-gradient(${kit.tokens.gold[0]}, ${kit.tokens.gold[1]})`, color: bestTextOn(kit, kit.tokens.gold[1]), borderRadius: Math.min(10, s.radius), border: `1px solid ${edge}` }}>
+          PACK
+        </span>
+      </div>
+      <div
+        className="relative mt-1.5 inline-block px-2 py-1 text-[10px] font-bold"
+        style={{
+          background: s.gradients ? `linear-gradient(${kit.tokens.primary[0]}, ${kit.tokens.primary[1]})` : kit.tokens.primary[1],
+          color: label,
+          borderRadius: Math.max(2, s.radius - 2),
+          border: `${Math.max(1, s.strokeThickness / 1.5)}px solid ${edge}`,
+          borderBottomWidth: s.bevel ? 3 : undefined,
+          ...outline,
+        }}
+      >
+        Buy
+      </div>
+    </div>
+  );
+}
+
+/**
  * UI library picker: every kit of the taxonomy is a complete design system shipped in the project
  * (src/ui/kits.generated.ts) — selecting one rewrites GameConfig.ui.kit and every screen follows.
  * The screen list decides what the client mounts (each has a HUD button and a hotkey).
@@ -108,19 +172,12 @@ function InterfacePanel({ game }: { game: GameSpec }) {
               onClick={() => void update({ ui: { ...game.ui, kit: kit.id } })}
               className={cn("flex flex-col gap-2 rounded-md border p-2 text-left transition", selected ? "border-brand bg-brand-soft" : "border-line hover:bg-panel-2")}
             >
-              <div className="flex h-12 items-stretch gap-0 overflow-hidden rounded" style={{ border: `2px solid ${kit.tokens.ink}` }}>
-                <div className="flex-1" style={{ background: kit.tokens.paper }} />
-                <div className="flex-1" style={{ background: `linear-gradient(${kit.tokens.primary[0]}, ${kit.tokens.primary[1]})` }} />
-                <div className="w-4" style={{ background: kit.tokens.gold[0] }} />
-                <div className="w-4" style={{ background: kit.tokens.pill }} />
-              </div>
-              <div className="text-xs font-semibold" style={selected ? undefined : { color: undefined }}>
-                {kit.name}
-              </div>
+              <KitPreview kit={kit} />
+              <div className="text-xs font-semibold">{kit.name}</div>
               <div className="text-[10px] leading-snug text-faint">{kit.description}</div>
               <div className="text-[10px] text-faint">
                 {kit.shape.ornament !== "none" ? `${kit.shape.ornament} · ` : ""}
-                {kit.shape.font} · r{kit.shape.radius}
+                {kit.shape.press} · {kit.shape.font} · r{kit.shape.radius}
               </div>
             </button>
           );

@@ -211,10 +211,10 @@ export const UI_KITS: UiKitDef[] = [
       inkSoft: "#2c5f7a",
       text: "#eaf8ff",
       textDark: "#aee2ff",
-      primary: ["#7fd8ff", "#1d6fa8"],
-      gold: ["#ffe08a", "#8a5c10"],
+      primary: ["#4fb0e0", "#134f7a"],
+      gold: ["#d8b45a", "#6a4308"],
       danger: ["#ff8a6a", "#b03a20"],
-      info: ["#8affd0", "#14755c"],
+      info: ["#58d8ae", "#0c523f"],
       pill: "#06121c",
       pillStroke: "#7fd8ff",
       tile: "#0b1a26",
@@ -261,8 +261,8 @@ export const UI_KITS: UiKitDef[] = [
       inkSoft: "#6a6a86",
       text: "#f7f7e8",
       textDark: "#f7f7e8",
-      primary: ["#5ad46a", "#2a8f3a"],
-      gold: ["#ffd24a", "#a1740d"],
+      primary: ["#3aa84f", "#1b6529"],
+      gold: ["#d9a91f", "#775207"],
       danger: ["#ff5a5a", "#a01f1f"],
       info: ["#5ab4ff", "#1f5fb0"],
       pill: "#14141d",
@@ -437,7 +437,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#ffeccd",
       textDark: "#f5dcb4",
       primary: ["#e0a850", "#96601c"],
-      gold: ["#ffd98a", "#a2711a"],
+      gold: ["#f0c56e", "#8b5f12"],
       danger: ["#c8562e", "#7a2a10"],
       info: ["#8aa8a0", "#3a5a54"],
       pill: "#2e2012",
@@ -486,8 +486,8 @@ export const UI_KITS: UiKitDef[] = [
       inkSoft: "#8a7328",
       text: "#f7eccd",
       textDark: "#e8d8a8",
-      primary: ["#e8cd7a", "#8a6a1e"],
-      gold: ["#ffe9a8", "#90732a"],
+      primary: ["#b2914a", "#55400f"],
+      gold: ["#c9aa5f", "#5c4713"],
       danger: ["#d05a5a", "#8a2020"],
       info: ["#9aa8d0", "#4a558a"],
       pill: "#0d0d10",
@@ -562,7 +562,7 @@ export const UI_KITS: UiKitDef[] = [
       text: "#fff0ff",
       textDark: "#ffd9f6",
       primary: ["#ff8ad8", "#8a2fa8"],
-      gold: ["#ffe79a", "#a96d1a"],
+      gold: ["#f0d271", "#8f5b12"],
       danger: ["#ff6f8a", "#9a1f45"],
       info: ["#8ae7ff", "#1f7aa8"],
       pill: "#180a28",
@@ -859,4 +859,33 @@ export function panelEdge(kit: UiKitDef): string {
   const ink = contrastRatio(kit.tokens.ink, kit.tokens.paper);
   const soft = contrastRatio(kit.tokens.inkSoft, kit.tokens.paper);
   return ink >= 1.8 || ink >= soft ? kit.tokens.ink : kit.tokens.inkSoft;
+}
+
+/**
+ * Outline colour for the kit's type. `ink` doubles as the text rim, but a library whose ink is light
+ * (neon cyan, gold, pale HUD blue) would then put a light rim around light text — gold on gold. Those
+ * kits get a deepened ink instead, which is what `theme.textStroke` resolves to at runtime.
+ */
+export function textStroke(kit: UiKitDef): string {
+  const ink = kit.tokens.ink;
+  if (luminance(ink) < 0.25) return ink;
+  const n = Number.parseInt(ink.slice(1), 16);
+  const deep = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v * 0.22));
+  return `#${deep.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Label colour for a gradient: the text sits across both stops, so the choice maximises the *worst*
+ * of the two contrasts (a cream label on a gradient that starts pale gold would pass on the dark
+ * bottom and vanish at the top). `textOnGradient` in the template mirrors this.
+ */
+export function bestTextOnGradient(kit: UiKitDef, gradient: [string, string]): string {
+  const worst = (color: string) => Math.min(contrastRatio(color, gradient[0]), contrastRatio(color, gradient[1]));
+  return worst(kit.tokens.text) >= worst(kit.tokens.textDark) ? kit.tokens.text : kit.tokens.textDark;
+}
+
+/** Contrast of the label a gradient actually gets, against its worst stop. */
+export function gradientContrast(kit: UiKitDef, gradient: [string, string]): number {
+  const label = bestTextOnGradient(kit, gradient);
+  return Math.min(contrastRatio(label, gradient[0]), contrastRatio(label, gradient[1]));
 }

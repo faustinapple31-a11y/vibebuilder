@@ -1,7 +1,7 @@
 import { Players } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { RoundStateMsg } from "shared/net";
-import { body, panel, progressBar, text, theme, type BarHandle } from "./kit";
+import { body, panel, progressBar, scaleContainer, text, theme, type BarHandle } from "./kit";
 
 /**
  * Round status panel (not a modal): a compact card under the HUD banner with the phase, a countdown
@@ -40,6 +40,7 @@ export class RoundStatus {
 		this.rowsHolder.BackgroundTransparency = 1;
 		this.rowsHolder.ZIndex = 4;
 		this.rowsHolder.Parent = this.card;
+		scaleContainer(this.card);
 	}
 
 	setEnabled(value: boolean): void {

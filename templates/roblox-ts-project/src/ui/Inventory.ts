@@ -1,6 +1,6 @@
 import { ShopCatalog } from "shared/catalog";
 import type { ProfileStateMsg, ShopState } from "shared/net";
-import { body, card, itemIcon, panel, prettyName, resourceIcon, sectionHeader, stroke, text, textOn, theme, tooltip, Window } from "./kit";
+import { body, card, itemIcon, panel, prettyName, resourceIcon, sectionHeader, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 
 /**
  * Inventory screen: the resources of the profile (crafting / farming / mining / survival items) as a
@@ -86,8 +86,8 @@ export class Inventory {
 				const row = card(62, order++, this.win.body, theme.primary);
 				const icon = item ? itemIcon(item, 40, row) : resourceIcon(id, 40, row);
 				icon.Position = new UDim2(0, 12, 0.5, -20);
-				text(item?.name ?? prettyName(id), new UDim2(1, -180, 0, 30), new UDim2(0, 62, 0, 8), row, { size: 22, color: textOn(theme.primary[1]), zIndex: 6 });
-				body(item?.description ?? "Owned", new UDim2(1, -180, 0, 20), new UDim2(0, 62, 0, 36), row, { size: 13, color: textOn(theme.primary[1]), zIndex: 6 });
+				text(item?.name ?? prettyName(id), new UDim2(1, -180, 0, 30), new UDim2(0, 62, 0, 8), row, { size: 22, color: textOnGradient(theme.primary), zIndex: 6 });
+				body(item?.description ?? "Owned", new UDim2(1, -180, 0, 20), new UDim2(0, 62, 0, 36), row, { size: 13, color: textOnGradient(theme.primary), zIndex: 6 });
 				const tag = panel(new UDim2(0, 96, 0, 34), new UDim2(1, -110, 0.5, -17), row, { color: theme.pill, strokeColor: theme.pillStroke, radius: 10, shadow: false, zIndex: 6 });
 				text("OWNED", new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), tag, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 			}
@@ -102,10 +102,10 @@ export class Inventory {
 				const row = card(52, order++, this.win.body, theme.info);
 				const icon = resourceIcon(buff.stat, 34, row);
 				icon.Position = new UDim2(0, 12, 0.5, -17);
-				text(prettyName(buff.stat), new UDim2(1, -200, 1, 0), new UDim2(0, 56, 0, 0), row, { size: 20, color: textOn(theme.info[1]), zIndex: 6 });
+				text(prettyName(buff.stat), new UDim2(1, -200, 1, 0), new UDim2(0, 56, 0, 0), row, { size: 20, color: textOnGradient(theme.info), zIndex: 6 });
 				const mm = math.floor(buff.seconds / 60);
 				const ss = math.floor(buff.seconds % 60);
-				text(`${mm}:${string.format("%02d", ss)} left`, new UDim2(0, 140, 1, 0), new UDim2(1, -152, 0, 0), row, { size: 18, align: Enum.TextXAlignment.Right, color: textOn(theme.info[1]), zIndex: 6 });
+				text(`${mm}:${string.format("%02d", ss)} left`, new UDim2(0, 140, 1, 0), new UDim2(1, -152, 0, 0), row, { size: 18, align: Enum.TextXAlignment.Right, color: textOnGradient(theme.info), zIndex: 6 });
 			}
 		}
 	}

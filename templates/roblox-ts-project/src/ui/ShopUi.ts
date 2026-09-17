@@ -1,7 +1,7 @@
 import { TweenService } from "@rbxts/services";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { badge, body, button, coinIcon, cloverIcon, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, shadow, strike, stroke, text, theme, tooltip, Window } from "./kit";
+import { badge, body, button, coinIcon, cloverIcon, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 
 /**
  * Shop window (mobile-game look): paper panel with a thick outline, title with an outline, red X, then a
@@ -91,8 +91,8 @@ export class ShopUi {
 		icon.ZIndex = 6;
 		text(headline, new UDim2(1, -320, 0, 40), new UDim2(0, 140, 0, 14), f, { size: 30, zIndex: 6 });
 		const boost = item.effect.type === "buff" || item.effect.type === "multiplier" ? `x1  ➜  x${item.effect.value}` : item.description;
-		text(boost, new UDim2(1, -320, 0, 44), new UDim2(0, 140, 0, 54), f, { size: 32, zIndex: 6, color: lighten(theme.text, 0.1) });
-		body(note !== "" ? note : item.description, new UDim2(1, -320, 0, 24), new UDim2(0, 142, 0, 108), f, { size: 13, color: theme.text, zIndex: 6 });
+		text(boost, new UDim2(1, -320, 0, 44), new UDim2(0, 140, 0, 54), f, { size: 32, zIndex: 6, color: textOnGradient(theme.primary) });
+		body(note !== "" ? note : item.description, new UDim2(1, -320, 0, 24), new UDim2(0, 142, 0, 108), f, { size: 13, color: textOnGradient(theme.primary), zIndex: 6 });
 		const price = this.priceButton(item.price, f, new UDim2(0, 150, 0, 48), new UDim2(1, -168, 1, -66), "coin");
 		price.MouseButton1Click.Connect(() => this.purchase(item.id));
 		this.cards.set(item.id, { button: price, price: item.price });
@@ -101,8 +101,8 @@ export class ShopUi {
 	/** Gold bundle card: title, description, item tiles with counts, sticker, old price struck, price. */
 	private bundleCard(bundle: ShopBundle, order: number): void {
 		const f = this.card(232, order, theme.gold);
-		text(bundle.name.upper(), new UDim2(1, -120, 0, 44), new UDim2(0, 0, 0, 10), f, { size: 36, align: Enum.TextXAlignment.Center, color: lighten(theme.text, 0.1), zIndex: 6 });
-		body(bundle.description, new UDim2(1, -140, 0, 20), new UDim2(0, 0, 0, 52), f, { size: 13, align: Enum.TextXAlignment.Center, color: darken(theme.gold[1], 0.45), zIndex: 6 });
+		text(bundle.name.upper(), new UDim2(1, -120, 0, 44), new UDim2(0, 0, 0, 10), f, { size: 36, align: Enum.TextXAlignment.Center, color: textOnGradient(theme.gold), zIndex: 6 });
+		body(bundle.description, new UDim2(1, -140, 0, 20), new UDim2(0, 0, 0, 52), f, { size: 13, align: Enum.TextXAlignment.Center, color: textOnGradient(theme.gold), zIndex: 6 });
 		// tiles
 		const tiles = bundle.items.map((e) => ({ entry: e, item: ShopCatalog.items.find((i) => i.id === e.itemId) })).filter((t) => t.item !== undefined);
 		const tileW = 100;

@@ -1,7 +1,7 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { PlayerStats } from "shared/net";
-import { body, button, coinIcon, corner, darken, gradient, lastShadow, lighten, panel, pill, shadow, stroke, text, theme } from "./kit";
+import { body, button, coinIcon, corner, darken, gradient, lastShadow, lighten, panel, pill, scaleContainer, shadow, stroke, text, theme } from "./kit";
 
 /**
  * HUD in the kit's mobile-game look: currency pill (coin icon, outlined number) with the hunger bar under
@@ -12,6 +12,8 @@ import { body, button, coinIcon, corner, darken, gradient, lastShadow, lighten, 
  */
 export class Hud {
 	private gui: ScreenGui;
+	/** Full-screen frame holding the whole HUD (scaled for mobile / the UI scale setting). */
+	private root: Frame;
 	private coins: TextLabel;
 	private hungerFill: Frame;
 	private notif: Frame;
@@ -44,15 +46,25 @@ export class Hud {
 		this.gui.IgnoreGuiInset = true;
 		this.gui.Parent = pg;
 
+		// everything lives in one full-screen frame so the HUD scales with the viewport and with the
+		// player's UI scale setting (kit.scaleContainer)
+		const root = new Instance("Frame");
+		root.Name = "Root";
+		root.Size = new UDim2(1, 0, 1, 0);
+		root.BackgroundTransparency = 1;
+		root.Parent = this.gui;
+		this.root = root;
+		scaleContainer(root);
+
 		// currency pill (top-left)
-		const coinPill = pill("0", new UDim2(0, 180, 0, 46), new UDim2(0, 18, 0, 18), this.gui, "coin", { textSize: 22 });
+		const coinPill = pill("0", new UDim2(0, 180, 0, 46), new UDim2(0, 18, 0, 18), this.root, "coin", { textSize: 22 });
 		this.coins = coinPill.label;
 		shadow(coinPill.frame, 4, 0.5);
 		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: theme.text, zIndex: 6 });
 		curName.Visible = false;
 
 		// hunger bar under the pill (survival only)
-		const barBg = panel(new UDim2(0, 180, 0, 18), new UDim2(0, 18, 0, 70), this.gui, { color: theme.track, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(9, theme.radius), shadow: false });
+		const barBg = panel(new UDim2(0, 180, 0, 18), new UDim2(0, 18, 0, 70), this.root, { color: theme.track, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(9, theme.radius), shadow: false });
 		this.hungerFill = new Instance("Frame");
 		this.hungerFill.Size = new UDim2(1, 0, 1, 0);
 		this.hungerFill.BackgroundColor3 = theme.good;
@@ -66,7 +78,7 @@ export class Hud {
 		void hl;
 
 		// health bar (top-left, under the hunger bar or the pill)
-		const healthBg = panel(new UDim2(0, 180, 0, 14), new UDim2(0, 18, 0, GameConfig.survival.enabled ? 94 : 70), this.gui, { color: theme.track, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(7, theme.radius), shadow: false });
+		const healthBg = panel(new UDim2(0, 180, 0, 14), new UDim2(0, 18, 0, GameConfig.survival.enabled ? 94 : 70), this.root, { color: theme.track, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(7, theme.radius), shadow: false });
 		this.healthFill = new Instance("Frame");
 		this.healthFill.Size = new UDim2(1, 0, 1, 0);
 		this.healthFill.BackgroundColor3 = theme.good;
@@ -76,19 +88,19 @@ export class Hud {
 		this.healthFill.Parent = healthBg;
 
 		// right-hand value card + big centre banner
-		this.values = panel(new UDim2(0, 250, 0, 12), new UDim2(1, -268, 0, 18), this.gui, { color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.pillStroke, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(12, theme.radius) });
+		this.values = panel(new UDim2(0, 250, 0, 12), new UDim2(1, -268, 0, 18), this.root, { color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.pillStroke, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(12, theme.radius) });
 		this.values.Visible = false;
-		this.valuesShadow = lastShadow(this.gui);
+		this.valuesShadow = lastShadow(this.root);
 		if (this.valuesShadow) this.valuesShadow.Visible = false;
-		this.banner = text("", new UDim2(0, 720, 0, 60), new UDim2(0.5, -360, 0, 26), this.gui, { size: 40, align: Enum.TextXAlignment.Center, color: theme.highlight, outline: math.max(2, theme.textOutline + 1), zIndex: 5 });
+		this.banner = text("", new UDim2(0, 720, 0, 60), new UDim2(0.5, -360, 0, 26), this.root, { size: 40, align: Enum.TextXAlignment.Center, color: theme.highlight, outline: math.max(2, theme.textOutline + 1), zIndex: 5 });
 		this.banner.Visible = false;
 
 		// shop button (bottom-left)
-		const shopBtn = button("Shop", new UDim2(0, 150, 0, 54), new UDim2(0, 18, 1, -76), this.gui, { size: 24, radius: 14, icon: (p) => coinIcon(26, p) });
+		const shopBtn = button("Shop", new UDim2(0, 150, 0, 54), new UDim2(0, 18, 1, -76), this.root, { size: 24, radius: 14, icon: (p) => coinIcon(26, p) });
 		shopBtn.MouseButton1Click.Connect(() => this.onShop?.());
 
 		// NPC dialogue bubble (bottom-centre): paper panel with a name tag
-		this.dialogue = panel(new UDim2(0, 560, 0, 96), new UDim2(0.5, -280, 1, -140), this.gui, { radius: 16, strokeThickness: 3.5 });
+		this.dialogue = panel(new UDim2(0, 560, 0, 96), new UDim2(0.5, -280, 1, -140), this.root, { radius: 16, strokeThickness: 3.5 });
 		this.dialogue.Visible = false;
 		const tag = new Instance("Frame");
 		tag.Size = new UDim2(0, 200, 0, 30);
@@ -104,7 +116,7 @@ export class Hud {
 		this.dialogueText = body("", new UDim2(1, -32, 1, -36), new UDim2(0, 16, 0, 24), this.dialogue, { size: 17, valign: Enum.TextYAlignment.Top, zIndex: 4 });
 
 		// toast notification (top-centre, slides in)
-		this.notif = panel(new UDim2(0, 360, 0, 44), new UDim2(0.5, -180, 0, -60), this.gui, { color: theme.pill, strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(12, theme.radius), zIndex: 6 });
+		this.notif = panel(new UDim2(0, 360, 0, 44), new UDim2(0.5, -180, 0, -60), this.root, { color: theme.pill, strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(12, theme.radius), zIndex: 6 });
 		this.notif.Visible = false;
 		this.notifText = text("", new UDim2(1, -16, 1, 0), new UDim2(0, 8, 0, 0), this.notif, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 
@@ -115,7 +127,7 @@ export class Hud {
 		this.loading.BorderSizePixel = 0;
 		this.loading.ZIndex = 10;
 		gradient(this.loading, theme.primary[0].Lerp(new Color3(1, 1, 1), 0.2), theme.primary[1].Lerp(new Color3(0, 0, 0), 0.35));
-		this.loading.Parent = this.gui;
+		this.loading.Parent = this.gui; // the loading overlay covers the screen: never scaled
 		const titleCard = panel(new UDim2(0, 560, 0, 150), new UDim2(0.5, -280, 0.5, -110), this.loading, { radius: 22, strokeThickness: 4, zIndex: 11 });
 		text(GameConfig.name, new UDim2(1, -24, 0, 70), new UDim2(0, 12, 0, 14), titleCard, { size: 44, align: Enum.TextXAlignment.Center, zIndex: 12, outline: 3.5, scaled: true });
 		this.loadingText = body("Shaping the world…", new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 86), titleCard, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 12 });
@@ -148,7 +160,7 @@ export class Hud {
 		// one column above the Shop button, wrapping into a second column after four entries
 		const column = math.floor(index / 4);
 		const row = index % 4;
-		const b = button(label, new UDim2(0, 150, 0, 48), new UDim2(0, 18 + column * 160, 1, -76 - (row + 1) * 56), this.gui, { colors: theme.info, size: 20, radius: 12, icon });
+		const b = button(label, new UDim2(0, 150, 0, 48), new UDim2(0, 18 + column * 160, 1, -76 - (row + 1) * 56), this.root, { colors: theme.info, size: 20, radius: 12, icon });
 		b.MouseButton1Click.Connect(onClick);
 		this.screenButtons.push(b);
 		return b;

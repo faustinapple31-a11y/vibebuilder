@@ -1,7 +1,7 @@
 import { GameConfig } from "shared/config";
 import type { ProfileStateMsg } from "shared/net";
 import { QuestConfig } from "shared/quests";
-import { body, card, coinIcon, panel, progressBar, resourceIcon, sectionHeader, text, textOn, theme, Window } from "./kit";
+import { body, card, coinIcon, panel, progressBar, resourceIcon, sectionHeader, text, textOnGradient, theme, Window } from "./kit";
 
 /**
  * Quests screen: one card per quest of shared/quests.ts with its objective, a progress bar fed by the
@@ -96,9 +96,9 @@ export class Quests {
 			sectionHeader("Completed", this.win.body, order++);
 			for (const quest of done) {
 				const row = card(56, order++, this.win.body, theme.primary);
-				text(quest.title, new UDim2(1, -120, 1, 0), new UDim2(0, 16, 0, 0), row, { size: 22, color: textOn(theme.primary[1]), zIndex: 6 });
-				text("✓", new UDim2(0, 60, 1, 0), new UDim2(1, -70, 0, 0), row, { size: 30, align: Enum.TextXAlignment.Center, color: textOn(theme.primary[1]), zIndex: 6 });
-				body(`+${quest.reward.amount} ${GameConfig.currency.name}`, new UDim2(0, 200, 0, 18), new UDim2(0, 16, 1, -22), row, { size: 12, color: textOn(theme.primary[1]), zIndex: 6 });
+				text(quest.title, new UDim2(1, -120, 1, 0), new UDim2(0, 16, 0, 0), row, { size: 22, color: textOnGradient(theme.primary), zIndex: 6 });
+				text("✓", new UDim2(0, 60, 1, 0), new UDim2(1, -70, 0, 0), row, { size: 30, align: Enum.TextXAlignment.Center, color: textOnGradient(theme.primary), zIndex: 6 });
+				body(`+${quest.reward.amount} ${GameConfig.currency.name}`, new UDim2(0, 200, 0, 18), new UDim2(0, 16, 1, -22), row, { size: 12, color: textOnGradient(theme.primary), zIndex: 6 });
 			}
 		}
 	}

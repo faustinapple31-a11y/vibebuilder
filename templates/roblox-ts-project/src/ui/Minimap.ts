@@ -1,7 +1,7 @@
 import { HttpService, Players, ReplicatedStorage, RunService, Workspace } from "@rbxts/services";
 import { base64ToBuffer, readF32, readU8 } from "shared/world/decode";
 import { TERRAIN_MATERIALS, type WorldBakeData } from "shared/world/types";
-import { corner, darken, panel, stroke, text, theme } from "./kit";
+import { corner, darken, panel, scaleContainer, stroke, text, theme } from "./kit";
 
 /**
  * Minimap: a top-down map drawn from the WorldBake the client already has in
@@ -72,6 +72,7 @@ export class Minimap {
 		corner(this.arrow, 2);
 		stroke(this.arrow, theme.ink, 2);
 		this.arrow.Parent = this.grid;
+		scaleContainer(this.frame);
 	}
 
 	setEnabled(value: boolean): void {

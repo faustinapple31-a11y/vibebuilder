@@ -1,5 +1,5 @@
 import { Remotes, waitRemoteEvent, type ProfileStateMsg } from "shared/net";
-import { body, card, sectionHeader, slider, text, theme, toggle, Window } from "./kit";
+import { body, card, sectionHeader, setUiScale, slider, text, theme, toggle, Window } from "./kit";
 
 /** Settings the client applies locally and the server persists in the profile (`setting_<key>`). */
 export interface SettingsValues {
@@ -9,9 +9,16 @@ export interface SettingsValues {
 	sfx: number;
 	minimap: boolean;
 	shake: boolean;
+	/** 0…1 slider → 0.7 … 1.4 of the kit's UI scale (accessibility / small screens) */
+	uiscale: number;
 }
 
-export const DEFAULT_SETTINGS: SettingsValues = { music: 0.6, sfx: 0.7, minimap: true, shake: true };
+export const DEFAULT_SETTINGS: SettingsValues = { music: 0.6, sfx: 0.7, minimap: true, shake: true, uiscale: 0.43 };
+
+/** Slider value (0…1) → the factor `kit.setUiScale` expects. */
+export function uiScaleFactor(slider: number): number {
+	return 0.7 + math.clamp(slider, 0, 1) * 0.7;
+}
 
 /**
  * Settings screen: music and SFX volume sliders, minimap and screen-shake switches. Values are applied
@@ -54,6 +61,7 @@ export class Settings {
 			sfx: read("sfx", DEFAULT_SETTINGS.sfx),
 			minimap: read("minimap", DEFAULT_SETTINGS.minimap ? 1 : 0) >= 0.5,
 			shake: read("shake", DEFAULT_SETTINGS.shake ? 1 : 0) >= 0.5,
+			uiscale: read("uiscale", DEFAULT_SETTINGS.uiscale),
 		};
 		this.onChange?.(this.values);
 		if (this.built) {
@@ -83,6 +91,11 @@ export class Settings {
 			this.push("sfx", v);
 		});
 		sectionHeader("Display", this.win.body, order++);
+		this.sliderRow("UI scale", this.values.uiscale, order++, (v) => {
+			this.values.uiscale = v;
+			setUiScale(uiScaleFactor(v));
+			this.push("uiscale", v);
+		});
 		this.toggleRow("Minimap", this.values.minimap, order++, (v) => {
 			this.values.minimap = v;
 			this.push("minimap", v ? 1 : 0);

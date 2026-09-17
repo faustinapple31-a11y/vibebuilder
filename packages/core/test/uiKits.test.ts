@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GENRES, STYLE_FAMILIES, UI_KITS, UI_KIT_IDS, UI_KIT_INDEX, UI_THEMES, UI_THEME_DEFAULT_KIT, bestTextOn, contrastRatio, panelEdge, pickUiKit } from "../src";
+import { GENRES, STYLE_FAMILIES, UI_KITS, UI_KIT_IDS, UI_KIT_INDEX, UI_THEMES, UI_THEME_DEFAULT_KIT, bestTextOn, bestTextOnGradient, contrastRatio, panelEdge, pickUiKit, textStroke } from "../src";
 
 /** Fonts that exist in Roblox's Enum.Font (a typo here would break rbxtsc in every generated project). */
 const ROBLOX_FONTS = [
@@ -84,32 +84,60 @@ describe("UI kit libraries", () => {
 });
 
 describe("UI kit readability (WCAG)", () => {
-  /** Surfaces a kit puts text on, with the minimum ratio for the label the renderer picks. */
-  const surfaces = (kit: (typeof UI_KITS)[number]): [string, string, number][] => [
-    ["paper", kit.tokens.paper, 4.5],
-    ["paperDark", kit.tokens.paperDark, 4.5],
-    ["primary", kit.tokens.primary[1], 3.5],
-    ["gold", kit.tokens.gold[1], 3.5],
-    ["danger", kit.tokens.danger[1], 3.5],
-    ["info", kit.tokens.info[1], 3.5],
-    ["pill", kit.tokens.pill, 4.5],
-    ["tile", kit.tokens.tile, 4.5],
+  /** Flat surfaces carry no gradient: the label must read on them outright. */
+  const flat = (kit: (typeof UI_KITS)[number]): [string, string][] => [
+    ["paper", kit.tokens.paper],
+    ["paperDark", kit.tokens.paperDark],
+    ["pill", kit.tokens.pill],
+    ["tile", kit.tokens.tile],
   ];
 
-  it("keeps every label readable on every surface it uses", () => {
+  const parse = (hex: string) => {
+    const n = Number.parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  /** What a glyph spanning a vertical gradient effectively sits on. */
+  const midpoint = (a: string, b: string) => {
+    const [r1, g1, b1] = parse(a);
+    const [r2, g2, b2] = parse(b);
+    return `#${[(r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+  };
+
+  it("keeps labels readable on the flat surfaces", () => {
     for (const kit of UI_KITS) {
-      for (const [name, background, min] of surfaces(kit)) {
-        // the renderer picks whichever of the two text colours reads better (kit.ts textOn)
+      for (const [name, background] of flat(kit)) {
         const ratio = contrastRatio(bestTextOn(kit, background), background);
-        expect(ratio, `${kit.id}: text on ${name} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(min);
+        expect(ratio, `${kit.id}: text on ${name} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
       }
     }
   });
 
-  it("keeps the panel outline visible and the highlight readable", () => {
+  it("keeps labels readable on the gradients (an outlined glyph needs less)", () => {
+    for (const kit of UI_KITS) {
+      // the kit's type carries a UIStroke in `textStroke`, which separates it from the fill; a kit
+      // that draws flat type (textOutline 0) has to earn the contrast from the colours alone
+      const min = kit.shape.textOutline > 0 ? 2 : 3;
+      const gradients: [string, [string, string]][] = [
+        ["primary", kit.tokens.primary],
+        ["gold", kit.tokens.gold],
+        ["danger", kit.tokens.danger],
+        ["info", kit.tokens.info],
+      ];
+      for (const [name, pair] of gradients) {
+        const label = bestTextOnGradient(kit, pair);
+        const ratio = contrastRatio(label, midpoint(pair[0], pair[1]));
+        expect(ratio, `${kit.id}: label on the ${name} gradient is ${ratio.toFixed(2)}:1 (outline ${kit.shape.textOutline})`).toBeGreaterThanOrEqual(min);
+      }
+    }
+  });
+
+  it("keeps the panel outline, the text rim and the highlight usable", () => {
     for (const kit of UI_KITS) {
       const edge = contrastRatio(panelEdge(kit), kit.tokens.paper);
       expect(edge, `${kit.id}: panel outline is ${edge.toFixed(2)}:1 against the panel`).toBeGreaterThanOrEqual(1.8);
+      // the rim has to separate the glyph from its fill, so it must contrast with the type itself
+      const rim = contrastRatio(textStroke(kit), kit.tokens.text);
+      expect(rim, `${kit.id}: text rim vs text is ${rim.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
       const highlight = contrastRatio(kit.tokens.gold[0], kit.tokens.pill);
       expect(highlight, `${kit.id}: highlight on the pill is ${highlight.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
     }

@@ -214,6 +214,11 @@ Primitives : `panel`, `button`, `text`, `body`, `badge`, `strike`, `pill`, `prog
 quelconque). Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient) : **aucun asset à uploader**,
 et l'accent de la famille de style (`GameConfig.ui.accentColor`) colore les stickers promo.
 
+**Échelle** : `kit.scaleContainer()` met à l'échelle le HUD, le panneau de manche et la minimap selon le
+viewport (jusqu'à ×0,72 sur petit téléphone) et selon le réglage *UI scale* du joueur (persisté dans le
+profil) ; les fenêtres modales intègrent le même facteur dans leur `fit`. `npx tsx scripts/preview-ui-kits.ts`
+génère une planche HTML des 26 librairies (mock de la fenêtre shop) pour juger un look sans ouvrir Studio.
+
 Le prompt choisit la librairie (« je veux une UI retro » → `pixel_retro`, « interface néon cyberpunk » →
 `neon_cyber`) ; sinon le style du monde décide. Dans l'app : onglet *Game → UI library & screens*
 (sélecteur avec aperçu des couleurs, accent, et les écrans à monter).

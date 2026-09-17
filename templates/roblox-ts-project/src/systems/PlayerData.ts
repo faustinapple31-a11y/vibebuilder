@@ -191,7 +191,7 @@ function installDevHook(): void {
 }
 
 /** Client settings (music / sfx volume, minimap…) persisted in the profile via the Action remote. */
-const SETTING_KEYS = ["music", "sfx", "minimap", "shake"];
+const SETTING_KEYS = ["music", "sfx", "minimap", "shake", "uiscale"];
 function startSettings(): void {
 	getRemoteEvent(Remotes.Action).OnServerEvent.Connect((player, name, key, value) => {
 		if (name !== "set_setting" || !typeIs(key, "string") || !typeIs(value, "number")) return;

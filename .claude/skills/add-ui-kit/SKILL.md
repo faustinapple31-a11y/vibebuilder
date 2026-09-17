@@ -38,12 +38,16 @@ game follows.
 - **tokens**: lowercase `#rrggbb` only (the test enforces it). `paper` is the panel background, `ink`
   the outline colour (it is also what `glow` uses), `text` goes on coloured surfaces, `textDark` on
   paper. `pill` / `tile` are the dark chips and item tiles; keep them readable against `text`.
-- **readability is tested**: `packages/core/test/uiKits.test.ts` requires 4.5:1 on `paper`,
-  `paperDark`, `pill` and `tile` and 3.5:1 on the `primary` / `gold` / `danger` / `info` gradient
-  bottoms, measured against the label the renderer actually picks (`bestTextOn`, mirrored at runtime
-  by `textOn()`), plus a visible panel outline (1.8:1 for `panelEdge`) and 3:1 for `gold[0]` on
-  `pill`. A gradient bottom that is too light is the usual failure — darken it (a light `gold[1]`
-  gets dark type automatically, but it still has to clear 3.5:1 with *one* of the two text colours).
+- **readability is tested** (`packages/core/test/uiKits.test.ts`):
+  - flat surfaces (`paper`, `paperDark`, `pill`, `tile`) need **4.5:1** with the label the renderer
+    picks (`bestTextOn`, mirrored at runtime by `textOn()`);
+  - gradients (`primary`, `gold`, `danger`, `info`) are measured at their **midpoint** against
+    `bestTextOnGradient` — **3:1** for a kit with flat type (`textOutline: 0`), **2:1** when the kit
+    outlines its type, because the `textStroke` rim does part of the work;
+  - the panel outline needs 1.8:1 against the panel (`panelEdge`), the text rim 3:1 against `text`
+    (`textStroke` deepens a light ink so gold type never gets a gold rim) and `gold[0]` 3:1 on `pill`.
+  A gradient whose light stop washes the label out is the usual failure: deepen **both** stops rather
+  than only the bottom.
 - **shape**: start from `base` and override. `gradients: false` gives flat kits, `bevel: false` removes
   the button band, `shadow: 0` a flat look, `textOutline: 0` type without the sticker stroke,
   `panelTransparency` > 0 makes glass. `radius: 0` + `strokeThickness: 4` reads as a pixel console.
@@ -77,6 +81,9 @@ matches the genre and the style's theme. So:
 3. `npx vitest run packages/core/test/uiKits.test.ts packages/roblox-export` — kit well-formedness,
    theme coverage, keyword resolution, template sync.
 4. Add a keyword case to `packages/core/test/uiKits.test.ts` so the prompt → kit mapping is guarded.
-5. Build a project and compile it: `npx tsx scripts/demo-prompt.ts "<prompt with the keyword>" --out demo-output/kit` then `npx rbxtsc` inside it (validates the fonts against @rbxts/types).
-6. Docs: the table in `TAXONOMY.md`, the kit list in `ROBLOX_PIPELINE.md`, and
+5. Look at it: `npx tsx scripts/preview-ui-kits.ts --kit <id>` renders the library as a mock shop
+   screen in `demo-output/ui-kits.html` (same tokens and shape language as `kit.ts`) — open it, or
+   screenshot it with Chromium, before shipping a palette.
+6. Build a project and compile it: `npx tsx scripts/demo-prompt.ts "<prompt with the keyword>" --out demo-output/kit` then `npx rbxtsc` inside it (validates the fonts against @rbxts/types).
+7. Docs: the table in `TAXONOMY.md`, the kit list in `ROBLOX_PIPELINE.md`, and
    `templates/roblox-ts-project/.claude/skills/worldforge-ui/SKILL.md` if the renderer gained anything.

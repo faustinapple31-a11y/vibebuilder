@@ -10,7 +10,8 @@ import { Crafting } from "ui/Crafting";
 import { Leaderboard } from "ui/Leaderboard";
 import { Teams } from "ui/Teams";
 import { RoundStatus } from "ui/RoundStatus";
-import { Settings, type SettingsValues } from "ui/Settings";
+import { Settings, uiScaleFactor, type SettingsValues } from "ui/Settings";
+import { setUiScale } from "ui/kit";
 import { Minimap } from "ui/Minimap";
 import { Menu } from "ui/Menu";
 import { startWeather } from "client/Weather";
@@ -70,6 +71,7 @@ if (menu) hud.addButton("Menu", () => menu.toggle());
 let shakeEnabled = true;
 function applySettings(values: SettingsValues): void {
 	hud.setSfxVolume(values.sfx);
+	setUiScale(uiScaleFactor(values.uiscale));
 	shakeEnabled = values.shake;
 	minimap?.setEnabled(values.minimap);
 	// music / ambience are the looped sounds the Audio system parents to SoundService

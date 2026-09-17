@@ -1,4 +1,4 @@
-import { Players, TweenService } from "@rbxts/services";
+import { Players, TweenService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { DEFAULT_UI_KIT, UI_KITS, type UiEnter, type UiKit, type UiOrnament, type UiPress } from "./kits.generated";
 
@@ -63,6 +63,8 @@ export interface Theme {
 	isDark: boolean;
 	/** outline colour for panels and tiles — `ink`, or the softer ink when it vanishes into the panel */
 	edge: Color3;
+	/** outline colour for type — `ink`, deepened when the library's ink is light (neon, gold) */
+	textStroke: Color3;
 	/** empty background of a bar (hunger, health, progress, countdown) */
 	track: Color3;
 	/** the library's "value" colour: timers, prices in the HUD, scores */
@@ -130,6 +132,7 @@ function makeTheme(): Theme {
 		accent: ACCENT,
 		isDark,
 		edge: contrast(ink, paper) >= 1.8 || contrast(ink, paper) >= contrast(hex(t.inkSoft), paper) ? ink : hex(t.inkSoft),
+		textStroke: luminance(ink) < 0.25 ? ink : darken(ink, 0.78),
 		track: isDark ? darken(paper, 0.45) : darken(paper, 0.24),
 		highlight: hex(t.gold[0]),
 		// keep the meaning (green / amber / red) but pull each towards the library's ink
@@ -161,7 +164,70 @@ export function textOn(background: Color3): Color3 {
 	return contrast(theme.text, background) >= contrast(theme.textDark, background) ? theme.text : theme.textDark;
 }
 
+/**
+ * Label colour for a gradient: the type crosses both stops, so pick the colour whose *worst* contrast
+ * is best. Buttons and gradient cards use this instead of `textOn`.
+ */
+export function textOnGradient(colors: [Color3, Color3]): Color3 {
+	const worst = (c: Color3) => math.min(contrast(c, colors[0]), contrast(c, colors[1]));
+	return worst(theme.text) >= worst(theme.textDark) ? theme.text : theme.textDark;
+}
+
 export const theme = makeTheme();
+
+// ---------------------------------------------------------------- scaling (mobile + accessibility)
+
+/**
+ * Every screen scales from two factors: the viewport (a phone gets a smaller UI so the HUD does not
+ * eat the play area) and the player's own preference (Settings → UI scale, persisted in the profile).
+ * `scaleContainer` keeps a UIScale in sync on a HUD-level frame; modal windows use `uiScale()` in
+ * their fit computation.
+ */
+let userScale = 1;
+const containers: GuiObject[] = [];
+const listeners: (() => void)[] = [];
+
+/** Viewport factor: 1 on desktop, down to 0.72 on a small phone in portrait. */
+function viewportScale(): number {
+	const camera = Workspace.CurrentCamera;
+	const size = camera ? camera.ViewportSize : new Vector2(1280, 720);
+	const short = math.min(size.X, size.Y);
+	if (short <= 0) return 1;
+	return math.clamp(short / 720, 0.72, 1.1);
+}
+
+export function uiScale(): number {
+	return userScale;
+}
+
+/** Called by the Settings screen (0.7 … 1.4). */
+export function setUiScale(value: number): void {
+	userScale = math.clamp(value, 0.7, 1.4);
+	for (const c of containers) applyScale(c);
+	for (const l of listeners) l();
+}
+
+function applyScale(container: GuiObject): void {
+	let scale = container.FindFirstChildOfClass("UIScale");
+	if (!scale) {
+		scale = new Instance("UIScale");
+		scale.Parent = container;
+	}
+	scale.Scale = viewportScale() * userScale;
+}
+
+/** Keeps a HUD-level frame scaled with the viewport and the player's setting. */
+export function scaleContainer(container: GuiObject): void {
+	containers.push(container);
+	applyScale(container);
+	const camera = Workspace.CurrentCamera;
+	if (camera) camera.GetPropertyChangedSignal("ViewportSize").Connect(() => applyScale(container));
+}
+
+/** Runs `callback` whenever the UI scale changes (windows re-fit themselves). */
+export function onScaleChanged(callback: () => void): void {
+	listeners.push(callback);
+}
 
 // ---------------------------------------------------------------- primitives
 
@@ -341,8 +407,8 @@ export function ornament(target: GuiObject, kind: UiOrnament = theme.ornament): 
 	}
 	if (kind === "stripes") {
 		const band = new Instance("Frame");
-		band.Size = new UDim2(1, 0, 0, 10);
-		band.Position = new UDim2(0, 0, 0, 0);
+		band.Size = new UDim2(1, 0, 0, 8);
+		band.Position = new UDim2(0, 0, 0, 1);
 		band.BackgroundTransparency = 1;
 		band.ClipsDescendants = true;
 		decor(band, 2);
@@ -412,15 +478,15 @@ export function ornament(target: GuiObject, kind: UiOrnament = theme.ornament): 
 	if (kind === "chevrons") {
 		// a row of speed chevrons along the top edge
 		const band = new Instance("Frame");
-		band.Size = new UDim2(1, -24, 0, 12);
-		band.Position = new UDim2(0, 12, 0, 6);
+		band.Size = new UDim2(1, -24, 0, 7);
+		band.Position = new UDim2(0, 12, 0, 2);
 		band.BackgroundTransparency = 1;
 		band.ClipsDescendants = true;
 		decor(band, 2);
 		for (let i = 0; i < 14; i++) {
 			for (const lean of [-38, 38]) {
 				const bar = new Instance("Frame");
-				bar.Size = new UDim2(0, 4, 0, 11);
+				bar.Size = new UDim2(0, 4, 0, 7);
 				bar.Position = new UDim2(0, i * 30 + (lean < 0 ? 0 : 7), 0, 0);
 				bar.BackgroundColor3 = theme.primary[0];
 				bar.BackgroundTransparency = 0.35;
@@ -530,7 +596,7 @@ export function text(str: string, size: UDim2, position: UDim2, parent: Instance
 	const o = opts.outline ?? (opts.color === undefined || opts.color === theme.text ? theme.textOutline : 0);
 	if (o > 0) {
 		const s = new Instance("UIStroke");
-		s.Color = opts.outlineColor ?? theme.ink;
+		s.Color = opts.outlineColor ?? theme.textStroke;
 		s.Thickness = o;
 		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual;
 		s.LineJoinMode = Enum.LineJoinMode.Round;
@@ -590,7 +656,7 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 		corner(hi, 2);
 		hi.Parent = b;
 	}
-	const label = text(str, new UDim2(1, -12, 1, -6), new UDim2(0, 6, 0, -1), b, { size: opts.size ?? 20, align: Enum.TextXAlignment.Center, color: opts.textColor ?? textOn(bottom), zIndex: b.ZIndex + 2 });
+	const label = text(str, new UDim2(1, -12, 1, -6), new UDim2(0, 6, 0, -1), b, { size: opts.size ?? 20, align: Enum.TextXAlignment.Center, color: opts.textColor ?? textOnGradient([top, bottom]), zIndex: b.ZIndex + 2 });
 	label.Name = "Label";
 	if (opts.icon) {
 		const ic = opts.icon(b);
@@ -978,9 +1044,10 @@ export class Window {
 		this.scale.Parent = this.window;
 		const fit = () => {
 			const vp = this.gui.AbsoluteSize;
-			this.scale.Scale = math.clamp(math.min(vp.X / (w + 40), vp.Y / (h + 40)), 0.55, 1);
+			this.scale.Scale = math.clamp(math.min(vp.X / (w + 40), vp.Y / (h + 40)), 0.55, 1) * uiScale();
 		};
 		this.gui.GetPropertyChangedSignal("AbsoluteSize").Connect(fit);
+		onScaleChanged(fit);
 		task.defer(fit);
 
 		text(title, new UDim2(0, w - 260, 0, 56), new UDim2(0, 24, 0, 10), this.window, { size: 38 });
