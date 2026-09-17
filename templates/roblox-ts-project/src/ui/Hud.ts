@@ -1,28 +1,31 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { PlayerStats } from "shared/net";
+import { body, button, coinIcon, corner, gradient, lastShadow, panel, pill, shadow, stroke, text, theme } from "./kit";
 
 /**
- * Minimal stylized HUD built from Instances: currency counter, hunger bar, notifications, loading overlay.
- * Agents replace/extend this with the game's UI screens.
+ * HUD in the kit's mobile-game look: currency pill (coin icon, outlined number) with the hunger bar under
+ * it, a right-hand value card (stage, wave, team, lap… filled by HudValue remotes), a big outlined banner,
+ * a health bar, a chunky Shop button, a paper speech bubble for NPC lines, toast notifications and the
+ * loading screen. Same API as before (systems call setValue / setBanner / setHealth / setStats / notify /
+ * say / playSfx / setLoading / hideLoading); agents extend it with the game's own screens.
  */
-const ACCENT = Color3.fromHex("#b48cff");
-const PANEL = Color3.fromHex("#141824");
-const TEXT = Color3.fromHex("#e8ecf6");
-
 export class Hud {
 	private gui: ScreenGui;
 	private coins: TextLabel;
 	private hungerFill: Frame;
-	private notif: TextLabel;
+	private notif: Frame;
+	private notifText: TextLabel;
 	private loading: Frame;
 	private loadingText: TextLabel;
+	private loadingFill: Frame;
 	private dialogue: Frame;
 	private dialogueName: TextLabel;
 	private dialogueText: TextLabel;
 	private sfx = new Map<string, Sound>();
 	/** Generic value panel (stage, wave, team, lap…) filled by HudValue remotes. */
 	private values: Frame;
+	private valuesShadow: Frame | undefined;
 	private valueRows = new Map<string, TextLabel>();
 	private banner: TextLabel;
 	private healthFill: Frame;
@@ -38,108 +41,98 @@ export class Hud {
 		this.gui.IgnoreGuiInset = true;
 		this.gui.Parent = pg;
 
-		const panel = this.frame(new UDim2(0, 220, 0, 74), new UDim2(0, 16, 0, 16), PANEL, 0.25);
-		panel.Parent = this.gui;
-		this.coins = this.label(`0 ${GameConfig.currency.name}`, new UDim2(1, -16, 0, 30), new UDim2(0, 12, 0, 6), 20);
-		this.coins.TextColor3 = ACCENT;
-		this.coins.Parent = panel;
+		// currency pill (top-left)
+		const coinPill = pill("0", new UDim2(0, 180, 0, 46), new UDim2(0, 18, 0, 18), this.gui, "coin", { textSize: 22 });
+		this.coins = coinPill.label;
+		shadow(coinPill.frame, 4, 0.5);
+		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: Color3.fromHex("#cfe5c8"), zIndex: 6 });
+		curName.Visible = false;
 
-		// right-hand value panel + centre banner + health bar
-		this.values = this.frame(new UDim2(0, 260, 0, 8), new UDim2(1, -276, 0, 16), PANEL, 0.35);
-		this.values.Parent = this.gui;
-		this.banner = this.label("", new UDim2(0, 600, 0, 44), new UDim2(0.5, -300, 0, 20), 26);
-		this.banner.TextColor3 = TEXT;
-		this.banner.TextStrokeTransparency = 0.5;
-		this.banner.Visible = false;
-		this.banner.Parent = this.gui;
-		const healthBg = this.frame(new UDim2(0, 220, 0, 10), new UDim2(0, 16, 0, 96), PANEL, 0.25);
-		healthBg.Parent = this.gui;
-		this.healthFill = this.frame(new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), Color3.fromHex("#6fd06f"), 0);
-		this.healthFill.Parent = healthBg;
-		const barBg = this.frame(new UDim2(1, -24, 0, 12), new UDim2(0, 12, 0, 48), Color3.fromHex("#2a3042"), 0);
-		barBg.Parent = panel;
-		this.hungerFill = this.frame(new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), Color3.fromHex("#7fd07a"), 0);
+		// hunger bar under the pill (survival only)
+		const barBg = panel(new UDim2(0, 180, 0, 18), new UDim2(0, 18, 0, 70), this.gui, { color: Color3.fromHex("#2a2320"), strokeThickness: 2.5, radius: 9, shadow: false });
+		this.hungerFill = new Instance("Frame");
+		this.hungerFill.Size = new UDim2(1, 0, 1, 0);
+		this.hungerFill.BackgroundColor3 = Color3.fromHex("#7fd07a");
+		this.hungerFill.BorderSizePixel = 0;
+		this.hungerFill.ZIndex = 3;
+		corner(this.hungerFill, 9);
+		gradient(this.hungerFill, Color3.fromHex("#a8f07a"), Color3.fromHex("#4fa53a"));
 		this.hungerFill.Parent = barBg;
-		const hl = this.label("Hunger", new UDim2(0, 100, 0, 14), new UDim2(0, 12, 0, 34), 12);
-		hl.TextColor3 = Color3.fromHex("#9aa3b8");
-		hl.Parent = panel;
-		// no hunger bar outside survival genres
-		if (!GameConfig.survival.enabled) {
-			barBg.Visible = false;
-			hl.Visible = false;
-			panel.Size = new UDim2(0, 220, 0, 42);
-		}
+		const hl = text("HUNGER", new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), barBg, { size: 12, align: Enum.TextXAlignment.Center, zIndex: 4, outline: 1.5 });
+		if (!GameConfig.survival.enabled) barBg.Visible = false;
+		void hl;
+
+		// health bar (top-left, under the hunger bar or the pill)
+		const healthBg = panel(new UDim2(0, 180, 0, 14), new UDim2(0, 18, 0, GameConfig.survival.enabled ? 94 : 70), this.gui, { color: Color3.fromHex("#2a2320"), strokeThickness: 2.5, radius: 7, shadow: false });
+		this.healthFill = new Instance("Frame");
+		this.healthFill.Size = new UDim2(1, 0, 1, 0);
+		this.healthFill.BackgroundColor3 = Color3.fromHex("#6fd06f");
+		this.healthFill.BorderSizePixel = 0;
+		this.healthFill.ZIndex = 3;
+		corner(this.healthFill, 7);
+		this.healthFill.Parent = healthBg;
+
+		// right-hand value card + big centre banner
+		this.values = panel(new UDim2(0, 250, 0, 12), new UDim2(1, -268, 0, 18), this.gui, { color: Color3.fromHex("#2a2320"), transparency: 0.1, strokeColor: Color3.fromHex("#5a4a40"), strokeThickness: 2.5, radius: 12 });
+		this.values.Visible = false;
+		this.valuesShadow = lastShadow(this.gui);
+		if (this.valuesShadow) this.valuesShadow.Visible = false;
+		this.banner = text("", new UDim2(0, 720, 0, 60), new UDim2(0.5, -360, 0, 26), this.gui, { size: 40, align: Enum.TextXAlignment.Center, color: Color3.fromHex("#ffd24a"), outline: 3.5, zIndex: 5 });
+		this.banner.Visible = false;
 
 		// shop button (bottom-left)
-		const shopBtn = new Instance("TextButton");
-		shopBtn.Size = new UDim2(0, 120, 0, 44);
-		shopBtn.Position = new UDim2(0, 16, 1, -64);
-		shopBtn.BackgroundColor3 = ACCENT;
-		shopBtn.Text = "🛒  Shop";
-		shopBtn.TextSize = 18;
-		shopBtn.Font = Enum.Font.GothamBlack;
-		shopBtn.TextColor3 = Color3.fromHex("#141824");
-		const sc = new Instance("UICorner");
-		sc.CornerRadius = new UDim(0, 12);
-		sc.Parent = shopBtn;
-		shopBtn.Parent = this.gui;
+		const shopBtn = button("Shop", new UDim2(0, 150, 0, 54), new UDim2(0, 18, 1, -76), this.gui, { size: 24, radius: 14, icon: (p) => coinIcon(26, p) });
 		shopBtn.MouseButton1Click.Connect(() => this.onShop?.());
 
-		// NPC dialogue bubble (bottom-centre)
-		this.dialogue = this.frame(new UDim2(0, 520, 0, 90), new UDim2(0.5, -260, 1, -130), PANEL, 0.15);
+		// NPC dialogue bubble (bottom-centre): paper panel with a name tag
+		this.dialogue = panel(new UDim2(0, 560, 0, 96), new UDim2(0.5, -280, 1, -140), this.gui, { radius: 16, strokeThickness: 3.5 });
 		this.dialogue.Visible = false;
-		this.dialogue.Parent = this.gui;
-		this.dialogueName = this.label("", new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 8), 16);
-		this.dialogueName.TextColor3 = ACCENT;
-		this.dialogueName.Parent = this.dialogue;
-		this.dialogueText = this.label("", new UDim2(1, -24, 0, 52), new UDim2(0, 12, 0, 32), 15);
-		this.dialogueText.TextWrapped = true;
-		this.dialogueText.TextYAlignment = Enum.TextYAlignment.Top;
-		this.dialogueText.Parent = this.dialogue;
+		const tag = new Instance("Frame");
+		tag.Size = new UDim2(0, 200, 0, 30);
+		tag.Position = new UDim2(0, 16, 0, -16);
+		tag.BackgroundColor3 = theme.primary[1];
+		tag.BorderSizePixel = 0;
+		tag.ZIndex = 4;
+		corner(tag, 10);
+		gradient(tag, theme.primary[0], theme.primary[1]);
+		stroke(tag, theme.ink, 3);
+		tag.Parent = this.dialogue;
+		this.dialogueName = text("", new UDim2(1, -12, 1, 0), new UDim2(0, 6, 0, 0), tag, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 5, outline: 2 });
+		this.dialogueText = body("", new UDim2(1, -32, 1, -36), new UDim2(0, 16, 0, 24), this.dialogue, { size: 17, valign: Enum.TextYAlignment.Top, zIndex: 4 });
 
-		this.notif = this.label("", new UDim2(0, 320, 0, 32), new UDim2(0.5, -160, 0, 24), 18);
-		this.notif.TextTransparency = 1;
-		this.notif.Parent = this.gui;
+		// toast notification (top-centre, slides in)
+		this.notif = panel(new UDim2(0, 360, 0, 44), new UDim2(0.5, -180, 0, -60), this.gui, { color: Color3.fromHex("#2a2320"), strokeColor: theme.primary[1], strokeThickness: 3, radius: 12, zIndex: 6 });
+		this.notif.Visible = false;
+		this.notifText = text("", new UDim2(1, -16, 1, 0), new UDim2(0, 8, 0, 0), this.notif, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 
-		this.loading = this.frame(new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), Color3.fromHex("#0b0e16"), 0);
+		// loading screen: gradient backdrop, title sticker, progress bar
+		this.loading = new Instance("Frame");
+		this.loading.Size = new UDim2(1, 0, 1, 0);
+		this.loading.BackgroundColor3 = theme.primary[1];
+		this.loading.BorderSizePixel = 0;
 		this.loading.ZIndex = 10;
+		gradient(this.loading, theme.primary[0].Lerp(new Color3(1, 1, 1), 0.2), theme.primary[1].Lerp(new Color3(0, 0, 0), 0.35));
 		this.loading.Parent = this.gui;
-		const title = this.label(GameConfig.name, new UDim2(1, 0, 0, 48), new UDim2(0, 0, 0.42, 0), 34);
-		title.TextColor3 = ACCENT;
-		title.TextXAlignment = Enum.TextXAlignment.Center;
-		title.ZIndex = 11;
-		title.Parent = this.loading;
-		this.loadingText = this.label("Shaping the world…", new UDim2(1, 0, 0, 24), new UDim2(0, 0, 0.42, 56), 16);
-		this.loadingText.TextColor3 = Color3.fromHex("#9aa3b8");
-		this.loadingText.TextXAlignment = Enum.TextXAlignment.Center;
-		this.loadingText.ZIndex = 11;
-		this.loadingText.Parent = this.loading;
-	}
-
-	private frame(size: UDim2, pos: UDim2, color: Color3, transparency: number): Frame {
-		const f = new Instance("Frame");
-		f.Size = size;
-		f.Position = pos;
-		f.BackgroundColor3 = color;
-		f.BackgroundTransparency = transparency;
-		f.BorderSizePixel = 0;
-		const corner = new Instance("UICorner");
-		corner.CornerRadius = new UDim(0, 10);
-		corner.Parent = f;
-		return f;
-	}
-
-	private label(text: string, size: UDim2, pos: UDim2, textSize: number): TextLabel {
-		const l = new Instance("TextLabel");
-		l.Text = text;
-		l.Size = size;
-		l.Position = pos;
-		l.BackgroundTransparency = 1;
-		l.TextColor3 = TEXT;
-		l.TextSize = textSize;
-		l.Font = Enum.Font.GothamBold;
-		l.TextXAlignment = Enum.TextXAlignment.Left;
-		return l;
+		const titleCard = panel(new UDim2(0, 560, 0, 150), new UDim2(0.5, -280, 0.5, -110), this.loading, { radius: 22, strokeThickness: 4, zIndex: 11 });
+		text(GameConfig.name, new UDim2(1, -24, 0, 70), new UDim2(0, 12, 0, 14), titleCard, { size: 44, align: Enum.TextXAlignment.Center, zIndex: 12, outline: 3.5, scaled: true });
+		this.loadingText = body("Shaping the world…", new UDim2(1, -24, 0, 22), new UDim2(0, 12, 0, 86), titleCard, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 12 });
+		const barHolder = new Instance("Frame");
+		barHolder.Size = new UDim2(1, -48, 0, 18);
+		barHolder.Position = new UDim2(0, 24, 0, 116);
+		barHolder.BackgroundColor3 = Color3.fromHex("#2a2320");
+		barHolder.BorderSizePixel = 0;
+		barHolder.ZIndex = 12;
+		corner(barHolder, 9);
+		stroke(barHolder, theme.ink, 2.5);
+		barHolder.Parent = titleCard;
+		this.loadingFill = new Instance("Frame");
+		this.loadingFill.Size = new UDim2(0, 0, 1, 0);
+		this.loadingFill.BackgroundColor3 = theme.gold[0];
+		this.loadingFill.BorderSizePixel = 0;
+		this.loadingFill.ZIndex = 13;
+		corner(this.loadingFill, 9);
+		gradient(this.loadingFill, theme.gold[0], theme.gold[1]);
+		this.loadingFill.Parent = barHolder;
 	}
 
 	/** Add / update a row in the right-hand value panel (empty value removes the row). */
@@ -148,24 +141,32 @@ export class Hud {
 		if (value === "") {
 			row?.Destroy();
 			this.valueRows.delete(key);
-			this.values.Size = new UDim2(0, 260, 0, 8 + this.valueRows.size() * 26);
+			this.relayoutValues();
 			return;
 		}
 		if (!row) {
-			row = this.label("", new UDim2(1, -16, 0, 24), new UDim2(0, 8, 0, 4 + this.valueRows.size() * 26), 15);
-			row.TextXAlignment = Enum.TextXAlignment.Right;
-			row.RichText = true;
-			row.Parent = this.values;
+			row = text("", new UDim2(1, -20, 0, 26), new UDim2(0, 10, 0, 6 + this.valueRows.size() * 28), this.values, { size: 17, align: Enum.TextXAlignment.Right, rich: true, zIndex: 4, outline: 1.5 });
 			this.valueRows.set(key, row);
-			this.values.Size = new UDim2(0, 260, 0, 8 + this.valueRows.size() * 26);
+			this.relayoutValues();
 		}
-		row.Text = `<font color="#b8c0d8">${label}</font>  <b>${value}</b>`;
+		row.Text = `<font color="#cfc4b4">${label}</font>   <font color="#ffd24a">${value}</font>`;
+	}
+
+	private relayoutValues(): void {
+		let i = 0;
+		for (const [, row] of this.valueRows) row.Position = new UDim2(0, 10, 0, 6 + i++ * 28);
+		this.values.Size = new UDim2(0, 250, 0, 12 + this.valueRows.size() * 28);
+		this.values.Visible = this.valueRows.size() > 0;
+		if (this.valuesShadow) {
+			this.valuesShadow.Size = this.values.Size;
+			this.valuesShadow.Visible = this.values.Visible;
+		}
 	}
 
 	/** Big centred banner (round timer, winner, wave). Empty text hides it. */
-	setBanner(text: string): void {
-		this.banner.Text = text;
-		this.banner.Visible = text !== "";
+	setBanner(str: string): void {
+		this.banner.Text = str;
+		this.banner.Visible = str !== "";
 	}
 
 	setHealth(fraction: number): void {
@@ -174,26 +175,32 @@ export class Hud {
 	}
 
 	setStats(stats: PlayerStats): void {
-		this.coins.Text = `${math.floor(stats.coins)} ${GameConfig.currency.name}`;
+		this.coins.Text = `${math.floor(stats.coins)}`;
 		const t = math.clamp(stats.hunger / GameConfig.survival.hungerMax, 0, 1);
 		TweenService.Create(this.hungerFill, new TweenInfo(0.25), { Size: new UDim2(t, 0, 1, 0) }).Play();
-		this.hungerFill.BackgroundColor3 = t < 0.25 ? Color3.fromHex("#e05a5a") : Color3.fromHex("#7fd07a");
 	}
 
-	notify(text: string): void {
-		this.notif.Text = text;
-		this.notif.TextXAlignment = Enum.TextXAlignment.Center;
-		this.notif.TextTransparency = 0;
-		TweenService.Create(this.notif, new TweenInfo(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency: 1 }).Play();
+	notify(str: string): void {
+		this.notifText.Text = str;
+		this.notif.Visible = true;
+		this.notif.Position = new UDim2(0.5, -180, 0, -60);
+		TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position: new UDim2(0.5, -180, 0, 92) }).Play();
+		task.delay(2.2, () => {
+			if (this.notifText.Text !== str) return;
+			TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position: new UDim2(0.5, -180, 0, -60) }).Play();
+			task.delay(0.3, () => {
+				if (this.notifText.Text === str) this.notif.Visible = false;
+			});
+		});
 	}
 
 	/** NPC line: shows the bubble for a few seconds. */
-	say(name: string, text: string): void {
+	say(name: string, str: string): void {
 		this.dialogueName.Text = name;
-		this.dialogueText.Text = text;
+		this.dialogueText.Text = str;
 		this.dialogue.Visible = true;
 		task.delay(5, () => {
-			if (this.dialogueText.Text === text) this.dialogue.Visible = false;
+			if (this.dialogueText.Text === str) this.dialogue.Visible = false;
 		});
 	}
 
@@ -211,14 +218,18 @@ export class Hud {
 	}
 
 	setLoading(stage: string, done: number, total: number): void {
-		this.loadingText.Text = `${stage} ${math.floor((done / math.max(1, total)) * 100)}%`;
+		const f = done / math.max(1, total);
+		this.loadingText.Text = `${stage} ${math.floor(f * 100)}%`;
+		TweenService.Create(this.loadingFill, new TweenInfo(0.2), { Size: new UDim2(math.clamp(f, 0, 1), 0, 1, 0) }).Play();
 	}
 
 	hideLoading(): void {
-		TweenService.Create(this.loading, new TweenInfo(0.8), { BackgroundTransparency: 1 }).Play();
+		TweenService.Create(this.loading, new TweenInfo(0.6), { BackgroundTransparency: 1 }).Play();
 		for (const d of this.loading.GetDescendants()) {
-			if (d.IsA("TextLabel")) TweenService.Create(d, new TweenInfo(0.8), { TextTransparency: 1 }).Play();
+			if (d.IsA("GuiObject")) TweenService.Create(d, new TweenInfo(0.6), { BackgroundTransparency: 1 }).Play();
+			if (d.IsA("TextLabel")) TweenService.Create(d, new TweenInfo(0.6), { TextTransparency: 1 }).Play();
+			if (d.IsA("UIStroke")) TweenService.Create(d, new TweenInfo(0.6), { Transparency: 1 }).Play();
 		}
-		task.delay(0.9, () => (this.loading.Visible = false));
+		task.delay(0.7, () => (this.loading.Visible = false));
 	}
 }

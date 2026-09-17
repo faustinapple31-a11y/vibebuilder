@@ -78,8 +78,32 @@ export function applyEffect(player: Player, itemId: string, effect: ShopEffect, 
 	replicate(player);
 }
 
+function purchaseBundle(player: Player, bundleId: string): { ok: boolean; message: string } {
+	const bundle = ShopCatalog.bundles.find((b) => b.id === bundleId);
+	const p = PlayerData.getProfile(player);
+	if (!bundle || !p) return { ok: false, message: "unknown pack" };
+	const key = `bundle:${bundle.id}`;
+	if (p.owned.includes(key)) return { ok: false, message: "already claimed" };
+	if (p.coins < bundle.price) return { ok: false, message: `Need $ ${bundle.price}` };
+	p.coins -= bundle.price;
+	p.owned.push(key);
+	for (const entry of bundle.items) {
+		const item = itemById(entry.itemId);
+		if (!item) continue;
+		if (!item.consumable) {
+			if (!p.owned.includes(item.id)) applyEffect(player, item.id, item.effect, false);
+			continue;
+		}
+		for (let i = 0; i < entry.count; i++) applyEffect(player, item.id, item.effect, true);
+	}
+	notify.FireClient(player, `${bundle.name} claimed!`);
+	replicate(player);
+	return { ok: true, message: `Claimed ${bundle.name}` };
+}
+
 function purchase(player: Player, itemId: unknown): { ok: boolean; message: string } {
 	if (!typeIs(itemId, "string")) return { ok: false, message: "bad item" };
+	if (itemId.sub(1, 7) === "bundle:") return purchaseBundle(player, itemId.sub(8));
 	const item = itemById(itemId);
 	const p = PlayerData.getProfile(player);
 	if (!item || !p) return { ok: false, message: "unknown item" };

@@ -111,6 +111,21 @@ export const ShopItemSchema = z.object({
 });
 export type ShopItem = z.infer<typeof ShopItemSchema>;
 
+/** One-time discounted pack of catalog items ("Starter Pack"): items are granted, the pack is owned once. */
+export const ShopBundleSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().default("One-time offer — everything you need to start strong!"),
+  items: z.array(z.object({ itemId: z.string().min(1), count: z.number().int().min(1).default(1) })).min(1),
+  /** Coins price of the pack. */
+  price: z.number().int().min(0),
+  /** Shown struck through next to the price (defaults to the sum of the items). */
+  originalPrice: z.number().int().min(0).optional(),
+  /** Sticker text ("-97%", "HOT"); defaults to the computed discount. */
+  badge: z.string().max(12).optional(),
+});
+export type ShopBundle = z.infer<typeof ShopBundleSchema>;
+
 /** Procedural animation: keyframes of joint rotations (degrees, Euler XYZ) on an R15 rig. */
 export const AnimSpecSchema = z.object({
   id: z.string().min(1),
@@ -218,6 +233,9 @@ export const GameSpecSchema = z.object({
         { id: "potions", title: "Potions" },
       ]),
       items: z.array(ShopItemSchema).default([]),
+      bundles: z.array(ShopBundleSchema).default([]),
+      /** Big banner at the top of the shop: a consumable buff with a headline ("BOOST Server Luck!"). */
+      featured: z.object({ itemId: z.string().min(1), headline: z.string().max(40), note: z.string().max(60).default("") }).optional(),
     })
     .prefault({}),
   /** Character animations used by NPCs / emotes (Roblox catalog ids or procedural presets). */

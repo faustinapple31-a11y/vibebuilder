@@ -150,6 +150,8 @@ export const GameConfig = {
 \tdataStore: { name: ${JSON.stringify(`WF_${game.title.replace(/[^A-Za-z0-9]/g, "")}_v1`)}, autosaveSeconds: 120 },
 \t/** Genre + enabled gameplay systems (ids from the WorldForge taxonomy); systems start only when listed. */
 \tgenre: ${JSON.stringify(game.genre)} as string,
+\t/** UI theme of the kit (src/ui/kit.ts): style family + accent colour. */
+\tui: { style: ${JSON.stringify(game.ui.style)}, accentColor: ${JSON.stringify(game.ui.accentColor)} },
 \tsystems: ${JSON.stringify(systemIds)} as string[],
 \t/** Extra leaderstats mirrored from Profile.stats. */
 \tleaderstats: ${JSON.stringify(leaderstats)} as string[],

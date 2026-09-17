@@ -64,6 +64,17 @@ export interface RobuxItem {
 \teffect?: ShopEffect;
 }
 
+/** One-time discounted pack of catalog items (owned as "bundle:<id>"). */
+export interface ShopBundle {
+\tid: string;
+\tname: string;
+\tdescription: string;
+\titems: { itemId: string; count: number }[];
+\tprice: number;
+\toriginalPrice?: number;
+\tbadge?: string;
+}
+
 export const ShopCatalog = {
 \ttitle: ${j(game.shop.title)},
 \tsections: ${j(game.shop.sections)} as { id: string; title: string }[],
@@ -73,6 +84,8 @@ ${items.join("\n")}
 \trobux: [
 ${robux.join("\n")}
 \t] as RobuxItem[],
+\tbundles: ${j(game.shop.bundles ?? [])} as ShopBundle[],
+\tfeatured: ${j(game.shop.featured ?? undefined)} as { itemId: string; headline: string; note: string } | undefined,
 } as const;
 `;
 }
@@ -211,6 +224,8 @@ export function defaultGameContent(): Pick<GameSpec, "shop" | "monetization" | "
         { id: "luck_boost", name: "Luck Boost", description: "Doubles ALL your luck for 15 minutes — rarer finds and drops.", section: "potions", price: 32, consumable: true, effect: { type: "buff", stat: "luck", value: 2, durationSeconds: 900 }, color: "#4a9a4a" },
         { id: "ultra_luck", name: "Ultra Luck Boost", description: "Quadruples ALL your luck (x4) for 10 minutes — the strongest luck surge.", section: "potions", price: 60, consumable: true, effect: { type: "buff", stat: "luck", value: 4, durationSeconds: 600 }, color: "#8a3fbf" },
       ],
+      bundles: [{ id: "starter", name: "Starter Pack", description: "One-time offer — everything you need to start strong!", items: [{ itemId: "x2_coins", count: 1 }, { itemId: "fast_hands", count: 1 }, { itemId: "luck_boost", count: 3 }, { itemId: "ultra_luck", count: 1 }], price: 99, badge: "-85%" }],
+      featured: { itemId: "luck_boost", headline: "BOOST Your Luck!", note: "Lasts for 15 minutes, stackable" },
     },
     monetization: {
       gamepasses: [{ id: "vip", name: "VIP", description: "VIP tag, +25% coins and a golden lantern.", priceRobux: 199, effect: { type: "multiplier", stat: "coins", value: 1.25, durationSeconds: 0 } }],
