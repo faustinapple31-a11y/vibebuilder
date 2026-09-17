@@ -35,7 +35,8 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
 - `kit.theme`: the resolved library — colours (`paper`, `ink`, `primary`, `gold`, `pill`, `tile`,
   `accent`…), fonts, and its shape language: `radius`, `strokeThickness`, `gradients`, `shadowOffset`,
   `bevel`, `textOutline`, `panelTransparency`, `ornament`, `press`, `enter` (window animation) and
-  `textScale` (applied by `text()` / `body()` — never multiply sizes yourself). Read these instead of hard-coding
+  `textScale` (applied by `text()` / `body()` — never multiply sizes yourself) and `sound`
+  (`playUiSound()`, wired into every `button()` and following the SFX slider). Read these instead of hard-coding
   a corner radius or a colour: a flat kit (pixel, military, holo) has no gradient, no bevel and no
   shadow, and a glass kit expects transparent panels. `panel()` also draws the library's ornament
   (rivets, scanlines, brackets, filigree, stripes, glow, grain, notch) and `pressAnimation()` its

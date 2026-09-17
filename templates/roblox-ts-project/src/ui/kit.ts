@@ -1,6 +1,6 @@
 import { Players, TweenService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { DEFAULT_UI_KIT, UI_KITS, type UiEnter, type UiKit, type UiOrnament, type UiPress } from "./kits.generated";
+import { DEFAULT_UI_KIT, UI_KITS, type UiEnter, type UiKit, type UiOrnament, type UiPress, type UiSound } from "./kits.generated";
 
 /**
  * UI kit — one of the design systems of `src/ui/kits.generated.ts` (paper cartoon, candy pop, neon
@@ -56,6 +56,8 @@ export interface Theme {
 	enter: UiEnter;
 	/** multiplies every text size (decorative fonts need more room) */
 	textScale: number;
+	/** click feedback of the library */
+	sound: UiSound;
 	/** accent colour of the world's style family (GameConfig.ui.accentColor) */
 	accent: Color3;
 	// ---- derived from the library, so nothing in the UI hard-codes a colour
@@ -129,6 +131,7 @@ function makeTheme(): Theme {
 		press: s.press,
 		enter: s.enter,
 		textScale: s.textScale,
+		sound: s.sound,
 		accent: ACCENT,
 		isDark,
 		edge: contrast(ink, paper) >= 1.8 || contrast(ink, paper) >= contrast(hex(t.inkSoft), paper) ? ink : hex(t.inkSoft),
@@ -227,6 +230,41 @@ export function scaleContainer(container: GuiObject): void {
 /** Runs `callback` whenever the UI scale changes (windows re-fit themselves). */
 export function onScaleChanged(callback: () => void): void {
 	listeners.push(callback);
+}
+
+// ---------------------------------------------------------------- click sound
+
+/** Built-in Roblox sounds, so a library's click costs no upload. */
+const UI_SOUNDS: { [key: string]: string } = {
+	soft: "rbxasset://sounds/switch.wav",
+	click: "rbxasset://sounds/switch3.wav",
+	beep: "rbxasset://sounds/electronicpingshort.wav",
+	pop: "rbxasset://sounds/clickfast.wav",
+	thud: "rbxasset://sounds/bass.wav",
+};
+
+let uiSoundVolume = 0.5;
+let uiSound: Sound | undefined;
+
+/** Follows the SFX slider of the Settings screen. */
+export function setUiSoundVolume(volume: number): void {
+	uiSoundVolume = math.clamp(volume, 0, 1);
+	if (uiSound) uiSound.Volume = uiSoundVolume * 0.5;
+}
+
+/** Plays the library's click (buttons call it; `none` stays silent). */
+export function playUiSound(): void {
+	const id = UI_SOUNDS[theme.sound];
+	if (id === undefined) return;
+	if (!uiSound || !uiSound.Parent) {
+		uiSound = new Instance("Sound");
+		uiSound.Name = "WorldForgeUiClick";
+		uiSound.SoundId = id;
+		uiSound.Parent = game.GetService("SoundService");
+	}
+	uiSound.SoundId = id;
+	uiSound.Volume = uiSoundVolume * 0.5;
+	uiSound.Play();
 }
 
 // ---------------------------------------------------------------- primitives
@@ -669,6 +707,13 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 	}
 	if (theme.shadowOffset > 0) shadow(b, math.max(3, theme.shadowOffset - 1), math.min(0.85, theme.shadowTransparency + 0.1));
 	pressAnimation(b);
+	// long labels (and translations) shrink instead of clipping
+	label.TextScaled = true;
+	const limit = new Instance("UITextSizeConstraint");
+	limit.MinTextSize = 10;
+	limit.MaxTextSize = math.floor((opts.size ?? 20) * theme.textScale);
+	limit.Parent = label;
+	b.MouseButton1Click.Connect(() => playUiSound());
 	return b;
 }
 

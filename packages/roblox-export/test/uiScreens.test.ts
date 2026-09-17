@@ -76,6 +76,11 @@ describe("UI screens of the template", () => {
       const handled = kit.includes(`theme.enter === "${e}"`) || e === "none";
       expect(handled, `entrance "${e}" has no branch in kit.ts`).toBe(true);
     }
+    for (const sound of new Set(UI_KITS.map((k) => k.shape.sound))) {
+      // every click sound must map to a built-in Roblox asset in kit.ts (nothing to upload)
+      const handled = kit.includes(`\t${sound}: "rbxasset://sounds/`) || sound === "none";
+      expect(handled, `sound "${sound}" has no built-in asset in kit.ts`).toBe(true);
+    }
   });
 
   it("builds every screen on the kit's Window (same open / close / scaling behaviour)", () => {

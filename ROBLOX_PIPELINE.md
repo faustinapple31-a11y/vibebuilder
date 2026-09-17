@@ -200,7 +200,9 @@ Chaque projet embarque les **26 librairies UI** de la taxonomie (voir TAXONOMY.m
 - **retour des boutons** : `squash`, `pulse`, `slide`, `flicker`, `none` ;
 - **ouverture des fenêtres** (`enter`) : `pop`, `slide`, `fade`, `none` ;
 - **échelle de texte** (`textScale`) : les polices décoratives (pixel, horreur, manuscrite) sont
-  agrandies ou réduites pour rester lisibles.
+  agrandies ou réduites pour rester lisibles ;
+- **son de clic** (`sound`) : `soft`, `click`, `beep`, `pop`, `thud` — des sons Roblox intégrés
+  (`rbxasset://sounds/…`), donc aucun upload, volume suivant le curseur SFX des réglages.
 
 Rien n'est codé en dur dans les écrans : le thème fournit aussi `edge` (contour visible même sur un
 panneau sombre), `track` (fond de barre), `highlight` (valeurs, minuteurs), `good` / `warn` / `bad`

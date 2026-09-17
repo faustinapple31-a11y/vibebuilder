@@ -61,6 +61,9 @@ game follows.
   test fails if a kit asks for an ornament `kit.ts` does not render.
 - **press**: `squash`, `pulse`, `slide`, `flicker`, `none`.
 - **enter**: how a window opens — `pop`, `slide`, `fade`, `none`.
+- **sound**: the click a button plays — `soft`, `click`, `beep`, `pop`, `thud`, `none`. They map to
+  built-in Roblox sounds in `kit.ts` (`UI_SOUNDS`), so nothing is uploaded; a test fails if a kit asks
+  for a sound with no mapping.
 - **textScale**: 0.8–1.25, multiplies every text size. Pixel and condensed fonts want < 1, horror /
   handwritten / serif faces want > 1.
 

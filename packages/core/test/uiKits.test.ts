@@ -25,6 +25,7 @@ describe("UI kit libraries", () => {
       expect(kit.shape.textScale, kit.id).toBeGreaterThanOrEqual(0.8);
       expect(kit.shape.textScale, kit.id).toBeLessThanOrEqual(1.25);
       expect(["pop", "slide", "fade", "none"], `${kit.id} enter`).toContain(kit.shape.enter);
+      expect(["soft", "click", "beep", "pop", "thud", "none"], `${kit.id} sound`).toContain(kit.shape.sound);
       for (const genre of kit.genres) expect(GENRES.some((g) => g.id === genre), `${kit.id} → ${genre}`).toBe(true);
     }
   });

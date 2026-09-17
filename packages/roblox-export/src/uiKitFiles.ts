@@ -45,6 +45,7 @@ function kitEntry(kit: UiKitDef): string {
 \t\t\tpress: ${JSON.stringify(s.press)},
 \t\t\tenter: ${JSON.stringify(s.enter)},
 \t\t\ttextScale: ${s.textScale},
+\t\t\tsound: ${JSON.stringify(s.sound)},
 \t\t},
 \t},`;
 }
@@ -63,6 +64,8 @@ export type UiOrnament = "none" | "rivets" | "scanlines" | "brackets" | "filigre
 export type UiPress = "squash" | "slide" | "flicker" | "pulse" | "none";
 /** How a screen (kit.Window) appears. */
 export type UiEnter = "pop" | "slide" | "fade" | "none";
+/** Click feedback of the kit (built-in Roblox sounds). */
+export type UiSound = "soft" | "click" | "beep" | "pop" | "thud" | "none";
 
 export interface UiKitTokens {
 \tpaper: string;
@@ -97,6 +100,7 @@ export interface UiKitShape {
 \tenter: UiEnter;
 \t/** multiplies every text size (decorative fonts need more room) */
 \ttextScale: number;
+\tsound: UiSound;
 }
 
 export interface UiKit {

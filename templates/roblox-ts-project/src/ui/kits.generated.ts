@@ -11,6 +11,8 @@ export type UiOrnament = "none" | "rivets" | "scanlines" | "brackets" | "filigre
 export type UiPress = "squash" | "slide" | "flicker" | "pulse" | "none";
 /** How a screen (kit.Window) appears. */
 export type UiEnter = "pop" | "slide" | "fade" | "none";
+/** Click feedback of the kit (built-in Roblox sounds). */
+export type UiSound = "soft" | "click" | "beep" | "pop" | "thud" | "none";
 
 export interface UiKitTokens {
 	paper: string;
@@ -45,6 +47,7 @@ export interface UiKitShape {
 	enter: UiEnter;
 	/** multiplies every text size (decorative fonts need more room) */
 	textScale: number;
+	sound: UiSound;
 }
 
 export interface UiKit {
@@ -91,6 +94,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "pop",
 			textScale: 1,
+			sound: "soft",
 		},
 	},
 	candy_pop: {
@@ -128,6 +132,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "pulse",
 			enter: "pop",
 			textScale: 1,
+			sound: "pop",
 		},
 	},
 	neon_cyber: {
@@ -165,6 +170,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "flicker",
 			enter: "fade",
 			textScale: 0.95,
+			sound: "beep",
 		},
 	},
 	holo_hud: {
@@ -202,6 +208,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "slide",
 			textScale: 1,
+			sound: "beep",
 		},
 	},
 	grim_horror: {
@@ -239,6 +246,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "none",
 			enter: "fade",
 			textScale: 1.12,
+			sound: "thud",
 		},
 	},
 	pixel_retro: {
@@ -276,6 +284,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "none",
 			enter: "none",
 			textScale: 0.88,
+			sound: "click",
 		},
 	},
 	arcade_synth: {
@@ -313,6 +322,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "pulse",
 			enter: "slide",
 			textScale: 0.88,
+			sound: "beep",
 		},
 	},
 	clean_modern: {
@@ -350,6 +360,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "slide",
 			textScale: 1,
+			sound: "click",
 		},
 	},
 	glass_soft: {
@@ -387,6 +398,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "fade",
 			textScale: 1.05,
+			sound: "soft",
 		},
 	},
 	parchment_fantasy: {
@@ -424,6 +436,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "pop",
 			textScale: 1.08,
+			sound: "soft",
 		},
 	},
 	stone_rune: {
@@ -461,6 +474,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "slide",
 			textScale: 1,
+			sound: "thud",
 		},
 	},
 	military_stencil: {
@@ -498,6 +512,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "none",
 			enter: "none",
 			textScale: 0.95,
+			sound: "click",
 		},
 	},
 	steampunk_brass: {
@@ -535,6 +550,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "pop",
 			textScale: 1.06,
+			sound: "thud",
 		},
 	},
 	wood_nature: {
@@ -572,6 +588,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "pop",
 			textScale: 1.12,
+			sound: "soft",
 		},
 	},
 	luxury_gold: {
@@ -609,6 +626,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "fade",
 			textScale: 1.06,
+			sound: "soft",
 		},
 	},
 	kawaii_pastel: {
@@ -646,6 +664,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "pulse",
 			enter: "pop",
 			textScale: 1.12,
+			sound: "pop",
 		},
 	},
 	western_saloon: {
@@ -683,6 +702,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "slide",
 			textScale: 1.06,
+			sound: "thud",
 		},
 	},
 	vapor_wave: {
@@ -720,6 +740,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "pulse",
 			enter: "fade",
 			textScale: 0.95,
+			sound: "beep",
 		},
 	},
 	y2k_bubble: {
@@ -757,6 +778,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "pulse",
 			enter: "pop",
 			textScale: 1,
+			sound: "pop",
 		},
 	},
 	frost_ice: {
@@ -794,6 +816,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "fade",
 			textScale: 1.05,
+			sound: "soft",
 		},
 	},
 	sand_temple: {
@@ -831,6 +854,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "slide",
 			textScale: 1.05,
+			sound: "thud",
 		},
 	},
 	deep_sea: {
@@ -868,6 +892,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "fade",
 			textScale: 1.05,
+			sound: "soft",
 		},
 	},
 	noir_detective: {
@@ -905,6 +930,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "none",
 			enter: "fade",
 			textScale: 1.08,
+			sound: "click",
 		},
 	},
 	sport_jersey: {
@@ -942,6 +968,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "slide",
 			textScale: 0.98,
+			sound: "click",
 		},
 	},
 	graffiti_street: {
@@ -979,6 +1006,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "squash",
 			enter: "pop",
 			textScale: 1.05,
+			sound: "pop",
 		},
 	},
 	mission_control: {
@@ -1016,6 +1044,7 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			press: "slide",
 			enter: "slide",
 			textScale: 0.95,
+			sound: "beep",
 		},
 	},
 };
