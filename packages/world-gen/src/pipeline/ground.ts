@@ -1,5 +1,5 @@
 import { Rng, TERRAIN_MATERIALS, TERRAIN_MATERIAL_INDEX, deriveSeed, jitterHex, mixHex, type MeshData, type PrefabVariant, type RobloxMaterial, type TerrainMaterial, type TerrainOp, type Vec2 } from "@worldforge/core";
-import { PartListBuilder } from "@worldforge/prefabs";
+import { PartListBuilder, buildMeshLibrary } from "@worldforge/prefabs";
 import { progress, seaLevelOf, type GenContext } from "../context";
 
 /**
@@ -113,8 +113,8 @@ export function flattenToLevel(ctx: GenContext, center: Vec2, radius: number, ta
   const step = GROUND_STEP;
   const [ccx, ccz] = h.toCell(center[0], center[1]);
   const rc = Math.ceil(radius / ctx.cellSize) + 1;
-  let sum = 0;
-  let count = 0;
+  // the pad takes the most common level of the disc (never a mean between two terraces = a pit or a mound)
+  const counts = new Map<number, number>();
   for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) {
     const x = Math.round(ccx) + dx;
     const z = Math.round(ccz) + dz;
@@ -123,10 +123,13 @@ export function flattenToLevel(ctx: GenContext, center: Vec2, radius: number, ta
     if (Math.hypot(wx - center[0], wz - center[1]) > radius) continue;
     const i = z * ctx.width + x;
     if (!Number.isNaN(ctx.water.data[i]!)) continue;
-    sum += h.data[i]!;
-    count++;
+    const l = Math.round(h.data[i]! / step);
+    counts.set(l, (counts.get(l) ?? 0) + 1);
   }
-  const base = Math.round((targetHeight ?? (count ? sum / count : h.sample(center[0], center[1]))) / step) * step;
+  let mode = Math.round(h.sample(center[0], center[1]) / step);
+  let bestN = 0;
+  for (const [l, n] of counts) if (n > bestN) (bestN = n), (mode = l);
+  const base = targetHeight !== undefined ? Math.round(targetHeight / step) * step : mode * step;
   for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) {
     const x = Math.round(ccx) + dx;
     const z = Math.round(ccz) + dz;
@@ -422,7 +425,8 @@ export function buildGround(ctx: GenContext): void {
   let minLevel = Infinity;
   for (let i = 0; i < lv.length; i++) if (lv[i]! < minLevel) minLevel = lv[i]!;
   const rng = new Rng(deriveSeed(ctx.seed, "ground"));
-  const pctx = { rng, style, meshes: {} as Record<string, MeshData> };
+  const meshes = buildMeshLibrary(style, deriveSeed(ctx.seed, "prefabs"));
+  const pctx = { rng, style, meshes: meshes as Record<string, MeshData> };
   const earth = mixHex("#7d5638", style.palette.ground, 0.3);
   const stone = mixHex("#7a746e", style.palette.stone, 0.4);
 
@@ -430,6 +434,7 @@ export function buildGround(ctx: GenContext): void {
   const seen = new Uint8Array(lv.length);
   const variants: PrefabVariant[] = [];
   const placements: typeof ctx.placements = [];
+  const talus: typeof ctx.placements = [];
   const stack: number[] = [];
   let regionCount = 0;
   for (let start = 0; start < lv.length; start++) {
@@ -529,8 +534,32 @@ export function buildGround(ctx: GenContext): void {
           const y1 = -slabT - (drop - slabT) * ((k + 1) / bands);
           const bx = (p[0] + q[0]) / 2 - nx * (inset + t / 2) - cx;
           const bz = (p[1] + q[1]) / 2 - nz * (inset + t / 2) - cz;
-          b.box([bx, (y0 + y1) / 2, bz], [len + t * 0.8, y0 - y1 + 0.1, t], k === 0 ? wallColor : mixHex(wallColor, "#000000", 0.06 * k), { material: wallMat, rotation: [0, yaw, 0], collide: true, lod: k === 0 ? 2 : 1 });
+          b.box([bx, (y0 + y1) / 2, bz], [len + t * 1.3, y0 - y1 + 0.1, t], k === 0 ? wallColor : mixHex(wallColor, "#000000", 0.06 * k), { material: wallMat, rotation: [0, yaw, 0], collide: true, lod: k === 0 ? 2 : 1 });
           wallParts++;
+        }
+        // rock faces: tall rocky walls get a flattened cliff mesh plate over the boxes (rugged mountain sides)
+        if (ROCKY.has(mat) && drop >= step * 2 && len >= 10 && style.id !== "voxel") {
+          const id = rng.chance(0.5) ? "cliff_a" : "cliff_b";
+          const data = meshes[id];
+          const bw = data.bounds.max[0] - data.bounds.min[0];
+          const bh = data.bounds.max[1] - data.bounds.min[1];
+          const bd = data.bounds.max[2] - data.bounds.min[2];
+          const px = (p[0] + q[0]) / 2 - nx * 0.6 - cx;
+          const pz = (p[1] + q[1]) / 2 - nz * 0.6 - cz;
+          b.mesh(id, data, [px, -slabT - (drop - slabT) / 2, pz], mixHex(wallColor, "#ffffff", rng.float(0, 0.12)), { material: "Slate", rotation: [0, yaw, 0], collide: false, lod: 1, fallback: "box", scale: [(len * 0.95) / bw, (drop * 0.9) / bh, 3.2 / bd] });
+        }
+        // talus: a stone or two at the foot of tall walls (rock prefabs from the library)
+        if (drop >= step * 2 && len >= 8 && rng.chance(0.22) && ctx.prefabs["boulder"] && ctx.prefabs["stone"]) {
+          const t2 = rng.float(0.25, 0.75);
+          const fx = p[0] + ex * t2 + nx * rng.float(2.5, 5);
+          const fz = p[1] + ez * t2 + nz * rng.float(2.5, 5);
+          const fy = outsideLevel * step;
+          if (Number.isNaN(ctx.water.sample(fx, fz))) {
+            const big = rng.chance(0.35);
+            const prefab = big ? "boulder" : "stone";
+            const nv = ctx.prefabs[prefab]!.length;
+            talus.push({ id: `talus_${talus.length}`, prefab, variant: rng.int(0, nv - 1), category: "rock", position: [fx, fy, fz], rotationY: rng.float(0, Math.PI * 2), scale: big ? rng.float(0.6, 1.1) : rng.float(0.7, 1.2), layer: "midground", importance: 2, zone: "ground" });
+          }
         }
       }
     }
@@ -573,6 +602,16 @@ export function buildGround(ctx: GenContext): void {
     variants.push(variant);
     if (regionCount % 40 === 0) progress(ctx, "ground", Math.min(0.9, start / lv.length));
   }
+  // one dark plate far under everything: seams between slabs and walls show earth, never the sky
+  {
+    const fb = new PartListBuilder();
+    const worldW = width * cellSize;
+    const worldD = depth * cellSize;
+    const floorY = minLevel * step - 24;
+    fb.box([0, 0, 0], [worldW + 240, 6, worldD + 240], mixHex(earth, "#000000", 0.55), { material: "Ground", collide: true, castShadow: false, lod: 2 });
+    variants.push(fb.build({ id: `ground_block/${variants.length}`, prefab: "ground_block", category: "prop", sinkDepth: 0, footprintRadius: 1, tags: ["layout", "floating", "ground"] }));
+    placements.push({ id: "ground_floor", prefab: "ground_block", variant: variants.length - 1, category: "prop", position: [origin[0] + worldW / 2 - cellSize / 2, floorY, origin[1] + worldD / 2 - cellSize / 2], rotationY: 0, scale: 1, layer: "background", importance: 10, fixed: true, locked: true, zone: "ground" });
+  }
   ctx.prefabs["ground_block"] = variants;
   // road slabs
   const roadVariants: PrefabVariant[] = [];
@@ -597,6 +636,8 @@ export function buildGround(ctx: GenContext): void {
       if (len < 0.5) continue;
       const yaw = (Math.atan2(-(c[1] - a[1]), c[0] - a[0]) * 180) / Math.PI;
       rb.box([(a[0] + c[0]) / 2 - p0[0], ha - y0 + 0.16, (a[1] + c[1]) / 2 - p0[1]], [len + 1.2, 0.32, path.width], colors[mat] ?? "#8a7a5a", { material: PART_MATERIAL[mat] ?? "Sand", rotation: [0, yaw, 0], collide: true, castShadow: false, lod: n++ % 2 === 0 ? 2 : 1 });
+      // round joint every other point hides the seams at bends
+      if (i % 2 === 0) rb.cylinder([c[0] - p0[0], hc - y0 + 0.15, c[1] - p0[1]], path.width, 0.3, colors[mat] ?? "#8a7a5a", { material: PART_MATERIAL[mat] ?? "Sand", collide: false, castShadow: false, lod: 1 });
     }
     const v = rb.build({ id: `road_strip/${roadVariants.length}`, prefab: "road_strip", category: "path", sinkDepth: 0, footprintRadius: 1, tags: ["layout", "floating", "ground"] });
     if (v.parts.length === 0) continue;
@@ -606,6 +647,7 @@ export function buildGround(ctx: GenContext): void {
   ctx.prefabs["road_strip"] = roadVariants;
   // the ground is spawned first at runtime (everything else snaps onto it)
   ctx.placements.unshift(...placements);
+  ctx.placements.push(...talus);
   // water: fill blocks per surface height (greedy rectangles)
   ctx.terrainOps.push(...waterOps(ctx));
   ctx.terrainMode = "parts";

@@ -1,4 +1,5 @@
 export { PLANK_BRIDGE_LENGTHS, STAIRS_RISES } from "./kits/islands";
+export { buildMeshLibrary, MESH_LIBRARY_IDS, type MeshLibrary, type MeshLibraryId } from "./meshes/library";
 export * from "./builder";
 export * from "./registry";
 export * as vegetation from "./vegetation";
