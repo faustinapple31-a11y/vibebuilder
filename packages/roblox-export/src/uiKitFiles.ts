@@ -43,6 +43,8 @@ function kitEntry(kit: UiKitDef): string {
 \t\t\tfontBody: Enum.Font.${s.fontBody},
 \t\t\tornament: ${JSON.stringify(s.ornament)},
 \t\t\tpress: ${JSON.stringify(s.press)},
+\t\t\tenter: ${JSON.stringify(s.enter)},
+\t\t\ttextScale: ${s.textScale},
 \t\t},
 \t},`;
 }
@@ -56,9 +58,11 @@ export function buildUiKitsTs(): string {
  */
 
 /** Decoration drawn on every panel of the kit (UI parts only, no image assets). */
-export type UiOrnament = "none" | "rivets" | "scanlines" | "brackets" | "filigree" | "stripes" | "glow" | "grain" | "notch";
+export type UiOrnament = "none" | "rivets" | "scanlines" | "brackets" | "filigree" | "stripes" | "glow" | "grain" | "notch" | "stitch" | "chevrons" | "bubbles" | "grid";
 /** Button feedback of the kit. */
 export type UiPress = "squash" | "slide" | "flicker" | "pulse" | "none";
+/** How a screen (kit.Window) appears. */
+export type UiEnter = "pop" | "slide" | "fade" | "none";
 
 export interface UiKitTokens {
 \tpaper: string;
@@ -90,6 +94,9 @@ export interface UiKitShape {
 \tfontBody: Enum.Font;
 \tornament: UiOrnament;
 \tpress: UiPress;
+\tenter: UiEnter;
+\t/** multiplies every text size (decorative fonts need more room) */
+\ttextScale: number;
 }
 
 export interface UiKit {

@@ -22,6 +22,9 @@ describe("UI kit libraries", () => {
       expect(ROBLOX_FONTS, `${kit.id} body font`).toContain(kit.shape.fontBody);
       expect(kit.shape.radius, kit.id).toBeGreaterThanOrEqual(0);
       expect(kit.shape.strokeThickness, kit.id).toBeGreaterThan(0);
+      expect(kit.shape.textScale, kit.id).toBeGreaterThanOrEqual(0.8);
+      expect(kit.shape.textScale, kit.id).toBeLessThanOrEqual(1.25);
+      expect(["pop", "slide", "fade", "none"], `${kit.id} enter`).toContain(kit.shape.enter);
       for (const genre of kit.genres) expect(GENRES.some((g) => g.id === genre), `${kit.id} → ${genre}`).toBe(true);
     }
   });
@@ -59,6 +62,16 @@ describe("UI kit libraries", () => {
       ["parchment quest log, medieval rpg", "parchment_fantasy"],
       ["candy shop simulator, bonbon", "candy_pop"],
       ["modern city roleplay, clean flat app ui", "clean_modern"],
+      ["far west cowboy town, wanted posters", "western_saloon"],
+      ["vaporwave mall aesthetic", "vapor_wave"],
+      ["y2k glossy bubble interface", "y2k_bubble"],
+      ["frozen glacier survival, ui de glace", "frost_ice"],
+      ["pyramide égyptienne, temple du désert", "sand_temple"],
+      ["underwater fishing, ui océan", "deep_sea"],
+      ["détective noir, enquête en noir et blanc", "noir_detective"],
+      ["football stadium league, maillot", "sport_jersey"],
+      ["street skate graffiti city", "graffiti_street"],
+      ["nasa rocket launch mission control", "mission_control"],
     ];
     // "stylized" is the most neutral theme: the keyword must win on its own
     for (const [prompt, expected] of cases) expect(pickUiKit(prompt, "stylized"), prompt).toBe(expected);

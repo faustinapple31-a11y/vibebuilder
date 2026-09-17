@@ -60,10 +60,11 @@ Le `GameSpec` (`design/game.spec.json`) porte le shop, les game passes / develop
 l'audio. Chaque modification régénère `src/shared/{config,catalog,animations,audio,npcs}.ts` ; les systèmes du
 template (`systems/Shop.ts`, `ui/ShopUi.ts`, `systems/Npcs.ts`, `systems/Audio.ts`, `shared/anim/keyframes.ts`)
 les lisent au démarrage. Le shop accepte des packs (`shop.bundles`, achat `bundle:<id>`) et une bannière
-*featured* ; toutes les interfaces sont dessinées par une **librairie UI** (16 design systems livrés dans
+*featured* ; toutes les interfaces sont dessinées par une **librairie UI** (26 design systems livrés dans
 le projet — paper cartoon, candy pop, neon cyber, holo HUD, grim horror, pixel retro, arcade synth, clean
 modern, soft glass, parchment fantasy, stone & rune, military stencil, steampunk brass, wood & leaf, black
-& gold, kawaii pastel). Le prompt la choisit (« je veux une UI retro » → pixel retro, « interface néon » →
+& gold, kawaii pastel, western saloon, vapor wave, y2k bubble, frost & ice, sand temple, deep sea, noir
+detective, sport jersey, graffiti street, mission control). Le prompt la choisit (« je veux une UI retro » → pixel retro, « interface néon » →
 neon cyber), sinon le style du monde décide ; l'onglet *Game → UI library & screens* permet d'en changer en
 un clic. Icônes procédurales, aucun asset à uploader. Les écrans listés par le genre (`ui.screens`) sont livrés
 implémentés : inventaire, quêtes, craft, classement, équipes, état de manche, réglages (volume, minimap,

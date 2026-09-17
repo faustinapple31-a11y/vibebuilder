@@ -183,7 +183,7 @@ les prix unitaires).
 
 ### Librairies UI (`src/ui/kits.generated.ts` + `src/ui/kit.ts`)
 
-Chaque projet embarque les **16 librairies UI** de la taxonomie (voir TAXONOMY.md) dans
+Chaque projet embarque les **26 librairies UI** de la taxonomie (voir TAXONOMY.md) dans
 `src/ui/kits.generated.ts` — généré depuis `packages/core/src/taxonomy/ui-kits.ts` par
 `scripts/sync-template.ts`. `GameConfig.ui.kit` en sélectionne une ; `src/ui/kit.ts` construit le `theme`
 à partir de ses jetons et applique son langage de forme partout :
@@ -195,8 +195,18 @@ Chaque projet embarque les **16 librairies UI** de la taxonomie (voir TAXONOMY.m
 - polices Roblox (`font`, `fontBody`) ;
 - **ornement** dessiné par `ornament()` sur les panneaux assez grands : `rivets` (boulons),
   `scanlines` (lignes CRT), `brackets` (équerres de HUD), `filigree` (losanges dorés), `stripes` (bande
-  de danger), `glow` (halo néon), `grain` (grain sale), `notch` (entaille gravée) ;
-- **retour des boutons** : `squash`, `pulse`, `slide`, `flicker`, `none`.
+  de danger), `glow` (halo néon), `grain` (grain sale), `notch` (entaille gravée), `stitch` (couture
+  pointillée), `chevrons` (chevrons de vitesse), `bubbles` (bulles), `grid` (grille en perspective) ;
+- **retour des boutons** : `squash`, `pulse`, `slide`, `flicker`, `none` ;
+- **ouverture des fenêtres** (`enter`) : `pop`, `slide`, `fade`, `none` ;
+- **échelle de texte** (`textScale`) : les polices décoratives (pixel, horreur, manuscrite) sont
+  agrandies ou réduites pour rester lisibles.
+
+Rien n'est codé en dur dans les écrans : le thème fournit aussi `edge` (contour visible même sur un
+panneau sombre), `track` (fond de barre), `highlight` (valeurs, minuteurs), `good` / `warn` / `bad`
+(vie, faim, ingrédient manquant) et `textOn(fond)` qui choisit la couleur de texte lisible sur un
+dégradé. Un test WCAG (`packages/core/test/uiKits.test.ts`) impose 4,5:1 sur les panneaux et les
+pastilles et 3,5:1 sur les dégradés pour les 26 librairies.
 
 Primitives : `panel`, `button`, `text`, `body`, `badge`, `strike`, `pill`, `progressBar`, `toggle`,
 `slider`, `card`, `sectionHeader`, `gradient`, `shadow`, `tooltip`, `Window`, plus les icônes dessinées

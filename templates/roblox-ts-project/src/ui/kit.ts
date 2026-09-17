@@ -1,6 +1,6 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { DEFAULT_UI_KIT, UI_KITS, type UiKit, type UiOrnament, type UiPress } from "./kits.generated";
+import { DEFAULT_UI_KIT, UI_KITS, type UiEnter, type UiKit, type UiOrnament, type UiPress } from "./kits.generated";
 
 /**
  * UI kit — one of the design systems of `src/ui/kits.generated.ts` (paper cartoon, candy pop, neon
@@ -52,6 +52,10 @@ export interface Theme {
 	panelTransparency: number;
 	ornament: UiOrnament;
 	press: UiPress;
+	/** how a window appears */
+	enter: UiEnter;
+	/** multiplies every text size (decorative fonts need more room) */
+	textScale: number;
 	/** accent colour of the world's style family (GameConfig.ui.accentColor) */
 	accent: Color3;
 	// ---- derived from the library, so nothing in the UI hard-codes a colour
@@ -121,6 +125,8 @@ function makeTheme(): Theme {
 		panelTransparency: s.panelTransparency,
 		ornament: s.ornament,
 		press: s.press,
+		enter: s.enter,
+		textScale: s.textScale,
 		accent: ACCENT,
 		isDark,
 		edge: contrast(ink, paper) >= 1.8 || contrast(ink, paper) >= contrast(hex(t.inkSoft), paper) ? ink : hex(t.inkSoft),
@@ -381,6 +387,100 @@ export function ornament(target: GuiObject, kind: UiOrnament = theme.ornament): 
 		}
 		return;
 	}
+	if (kind === "stitch") {
+		// dashed thread just inside the border (fabric, jersey, taped poster)
+		for (const [w, h, x, y] of [[1, 0, 0, 0], [1, 0, 0, 1], [0, 1, 0, 0], [0, 1, 1, 0]] as [number, number, number, number][]) {
+			const side = new Instance("Frame");
+			side.Size = new UDim2(w, w === 1 ? -20 : 2, h, h === 1 ? -20 : 2);
+			side.Position = new UDim2(x, x === 1 ? -9 : 10, y, y === 1 ? -9 : 10);
+			side.BackgroundTransparency = 1;
+			decor(side, 2);
+			const dashes = w === 1 ? 26 : 18;
+			for (let i = 0; i < dashes; i++) {
+				const dash = new Instance("Frame");
+				dash.Size = w === 1 ? new UDim2(0, 7, 0, 2) : new UDim2(0, 2, 0, 7);
+				dash.Position = w === 1 ? new UDim2(i / dashes, 0, 0, 0) : new UDim2(0, 0, i / dashes, 0);
+				dash.BackgroundColor3 = theme.inkSoft;
+				dash.BackgroundTransparency = 0.2;
+				dash.BorderSizePixel = 0;
+				dash.ZIndex = 2;
+				dash.Parent = side;
+			}
+		}
+		return;
+	}
+	if (kind === "chevrons") {
+		// a row of speed chevrons along the top edge
+		const band = new Instance("Frame");
+		band.Size = new UDim2(1, -24, 0, 12);
+		band.Position = new UDim2(0, 12, 0, 6);
+		band.BackgroundTransparency = 1;
+		band.ClipsDescendants = true;
+		decor(band, 2);
+		for (let i = 0; i < 14; i++) {
+			for (const lean of [-38, 38]) {
+				const bar = new Instance("Frame");
+				bar.Size = new UDim2(0, 4, 0, 11);
+				bar.Position = new UDim2(0, i * 30 + (lean < 0 ? 0 : 7), 0, 0);
+				bar.BackgroundColor3 = theme.primary[0];
+				bar.BackgroundTransparency = 0.35;
+				bar.Rotation = lean;
+				bar.BorderSizePixel = 0;
+				bar.ZIndex = 2;
+				bar.Parent = band;
+			}
+		}
+		return;
+	}
+	if (kind === "bubbles") {
+		// rising bubbles in two corners (underwater, soda)
+		for (const [ax, dir] of [[0, 1], [1, -1]] as [number, number][]) {
+			for (let i = 0; i < 5; i++) {
+				const size = 6 + (i % 3) * 4;
+				const bubble = new Instance("Frame");
+				bubble.Size = new UDim2(0, size, 0, size);
+				bubble.Position = new UDim2(ax, dir * (10 + (i % 2) * 14) - (ax === 1 ? size : 0), 1, -18 - i * 16);
+				bubble.BackgroundColor3 = new Color3(1, 1, 1);
+				bubble.BackgroundTransparency = 0.7;
+				corner(bubble, math.floor(size / 2));
+				stroke(bubble, theme.inkSoft, 1.5, 0.4);
+				decor(bubble, 2);
+			}
+		}
+		return;
+	}
+	if (kind === "grid") {
+		// perspective grid across the lower third (vaporwave, synth)
+		const holder = new Instance("Frame");
+		holder.Size = new UDim2(1, 0, 0.42, 0);
+		holder.Position = new UDim2(0, 0, 0.58, 0);
+		holder.BackgroundTransparency = 1;
+		holder.ClipsDescendants = true;
+		corner(holder, cornerRadiusOf(target));
+		decor(holder, 2);
+		for (let i = 1; i < 8; i++) {
+			const line = new Instance("Frame");
+			line.Size = new UDim2(1, 0, 0, 1);
+			line.Position = new UDim2(0, 0, (i / 8) ** 1.8, 0);
+			line.BackgroundColor3 = theme.primary[0];
+			line.BackgroundTransparency = 0.55;
+			line.BorderSizePixel = 0;
+			line.ZIndex = 2;
+			line.Parent = holder;
+		}
+		for (let i = 0; i <= 8; i++) {
+			const line = new Instance("Frame");
+			line.Size = new UDim2(0, 1, 2, 0);
+			line.Position = new UDim2(i / 8, 0, 0, 0);
+			line.Rotation = (i - 4) * 7;
+			line.BackgroundColor3 = theme.primary[0];
+			line.BackgroundTransparency = 0.6;
+			line.BorderSizePixel = 0;
+			line.ZIndex = 2;
+			line.Parent = holder;
+		}
+		return;
+	}
 	// notch: a carved line under the top edge and a cut corner
 	const notch = new Instance("Frame");
 	notch.Size = new UDim2(1, -28, 0, 2);
@@ -418,7 +518,7 @@ export function text(str: string, size: UDim2, position: UDim2, parent: Instance
 	l.Size = size;
 	l.Position = position;
 	l.Text = str;
-	l.TextSize = opts.size ?? 18;
+	l.TextSize = math.floor((opts.size ?? 18) * theme.textScale);
 	l.TextColor3 = opts.color ?? theme.text;
 	l.Font = opts.font ?? theme.font;
 	l.TextXAlignment = opts.align ?? Enum.TextXAlignment.Left;
@@ -915,16 +1015,31 @@ export class Window {
 		if (this.coins) this.coins.Text = `${math.floor(value)}`;
 	}
 
+	/** Opens / closes with the library's entrance (`pop`, `slide`, `fade` or none). */
 	setOpen(value: boolean): void {
 		if (value === this.open) return;
 		this.open = value;
-		if (value) {
-			this.gui.Enabled = true;
-			this.onOpen?.();
-			this.window.Position = new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2 + 24);
-			TweenService.Create(this.window, new TweenInfo(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position: new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2) }).Play();
-		} else {
+		if (!value) {
 			this.gui.Enabled = false;
+			return;
+		}
+		this.gui.Enabled = true;
+		this.onOpen?.();
+		const home = new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2);
+		this.window.Position = home;
+		if (theme.enter === "pop") {
+			const target = this.scale.Scale;
+			this.scale.Scale = target * 0.86;
+			TweenService.Create(this.scale, new TweenInfo(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: target }).Play();
+		} else if (theme.enter === "slide") {
+			this.window.Position = home.add(new UDim2(0, 0, 0, 28));
+			TweenService.Create(this.window, new TweenInfo(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position: home }).Play();
+		} else if (theme.enter === "fade") {
+			for (const d of this.window.GetDescendants()) {
+				if (d.IsA("TextLabel") || d.IsA("TextButton")) TweenService.Create(d, new TweenInfo(0.18), { TextTransparency: 0 }).Play();
+			}
+			this.window.BackgroundTransparency = 1;
+			TweenService.Create(this.window, new TweenInfo(0.18), { BackgroundTransparency: theme.panelTransparency }).Play();
 		}
 	}
 

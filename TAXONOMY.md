@@ -81,11 +81,12 @@ le template et montés par le client uniquement quand le genre les déclare : `h
 
 ## 3bis. Librairies UI (`gameSpec.ui.kit`)
 
-`packages/core/src/taxonomy/ui-kits.ts` décrit **16 librairies UI** prêtes à l'emploi. Une librairie est
+`packages/core/src/taxonomy/ui-kits.ts` décrit **26 librairies UI** prêtes à l'emploi. Une librairie est
 un design system complet : jetons de couleur (papier, encre, texte, dégradés primary / gold / danger /
 info, pastilles, tuiles), **langage de forme** (rayon des coins, épaisseur du contour, dégradés oui/non,
 ombre portée, biseau des boutons, contour du texte, transparence des panneaux), polices Roblox,
-**ornement** dessiné sur chaque panneau et **retour des boutons**. Tous les écrans (HUD, shop,
+**ornement** dessiné sur chaque panneau, **retour des boutons**, **animation d'ouverture** des fenêtres
+et **échelle de texte** (les polices décoratives ont besoin de plus de place). Tous les écrans (HUD, shop,
 inventaire, quêtes, craft, classement, équipes, manche, réglages, minimap, menu) lisent la librairie
 sélectionnée : changer de look = un champ.
 
@@ -107,6 +108,16 @@ sélectionnée : changer de look = un champ.
 | `wood_nature` | Wood & Leaf | Cozy carved-wood panels with leaf-green buttons and handwritten labels — camps and villages. | notch / squash | mots-clés |
 | `luxury_gold` | Black & Gold | VIP / casino UI: matte black panels, thin gold filigree, restrained serif type. | filigree / slide | mots-clés |
 | `kawaii_pastel` | Kawaii Pastel | Soft pastel bubbles with sticker edges and a cute bounce — anime and cafe games. | none / pulse | mots-clés |
+| `western_saloon` | Western Saloon | Wanted-poster UI: sun-bleached paper, burnt wood frame, stitched edge and a rope-brown palette. | stitch / squash | mots-clés |
+| `vapor_wave` | Vapor Wave | Sunset gradients, chrome type and a perspective grid — 90s mall aesthetic. | grid / pulse | mots-clés |
+| `y2k_bubble` | Y2K Bubble | Early-2000s software: glossy blue bubbles, chrome rims, soda-bubble corners. | bubbles / pulse | mots-clés |
+| `frost_ice` | Frost & Ice | Frozen glass plates with pale blue light and a frosted stitch of ice on the edge. | stitch / slide | mots-clés |
+| `sand_temple` | Sand Temple | Carved sandstone tablets with turquoise inlays and notched corners — deserts and tombs. | notch / squash | mots-clés |
+| `deep_sea` | Deep Sea | Submarine portholes: deep teal glass, bio-luminescent accents and rising bubbles. | bubbles / slide | mots-clés |
+| `noir_detective` | Noir Detective | Black-and-white case file: newsprint paper, hard ink rules, film grain, no colour but one red stamp. | grain / none | mots-clés |
+| `sport_jersey` | Sport Jersey | Stadium scoreboard: jersey stripes, chevrons, bold condensed caps on a deep field green. | chevrons / slide | mots-clés |
+| `graffiti_street` | Graffiti Street | Spray-can street UI: concrete panels, tag-green and hot-pink sprays, taped corners. | stitch / squash | mots-clés |
+| `mission_control` | Mission Control | Space-agency console: off-white panels, orange safety accents, technical mono type and corner brackets. | brackets / slide | mots-clés |
 
 Les librairies sont livrées **dans chaque projet** (`src/ui/kits.generated.ts`, généré depuis cette
 table par `scripts/sync-template.ts`), donc basculer de l'une à l'autre ne demande aucun fichier

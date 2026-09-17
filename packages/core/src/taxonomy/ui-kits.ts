@@ -49,10 +49,21 @@ export type UiOrnament =
   /** speckled noise (horror, grunge) */
   | "grain"
   /** cut corner + a notch line (stone, wood) */
-  | "notch";
+  | "notch"
+  /** dashed stitch just inside the border (fabric, jersey, western) */
+  | "stitch"
+  /** row of chevrons along the top edge (sport, speed) */
+  | "chevrons"
+  /** rising bubbles in the corners (underwater, soda) */
+  | "bubbles"
+  /** perspective grid at the bottom (vaporwave, synth) */
+  | "grid";
 
 /** Button feedback. */
 export type UiPress = "squash" | "slide" | "flicker" | "pulse" | "none";
+
+/** How a screen (kit.Window) appears. */
+export type UiEnter = "pop" | "slide" | "fade" | "none";
 
 export interface UiKitShape {
   radius: number;
@@ -73,6 +84,10 @@ export interface UiKitShape {
   fontBody: string;
   ornament: UiOrnament;
   press: UiPress;
+  /** how a window opens */
+  enter: UiEnter;
+  /** multiplies every text size — decorative fonts (pixel, horror, handwritten) need > 1 */
+  textScale: number;
 }
 
 export interface UiKitDef {
@@ -102,6 +117,8 @@ const base: UiKitShape = {
   fontBody: "GothamBold",
   ornament: "none",
   press: "squash",
+  enter: "pop",
+  textScale: 1,
 };
 
 export const UI_KITS: UiKitDef[] = [
@@ -153,7 +170,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#5a2a4a",
       tileStroke: "#2d1224",
     },
-    shape: { ...base, radius: 24, strokeThickness: 4, font: "LuckiestGuy", fontBody: "Nunito", press: "pulse", shadow: 6 },
+    shape: { ...base, radius: 24, strokeThickness: 4, font: "LuckiestGuy", fontBody: "Nunito", press: "pulse", shadow: 6, enter: "pop" },
   },
   {
     id: "neon_cyber",
@@ -178,7 +195,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#121a2a",
       tileStroke: "#35f0ff",
     },
-    shape: { ...base, radius: 8, strokeThickness: 2.5, gradients: true, shadow: 0, bevel: false, textOutline: 1.5, panelTransparency: 0.08, font: "Michroma", fontBody: "Gotham", ornament: "glow", press: "flicker" },
+    shape: { ...base, radius: 8, strokeThickness: 2.5, gradients: true, shadow: 0, bevel: false, textOutline: 1.5, panelTransparency: 0.08, font: "Michroma", fontBody: "Gotham", ornament: "glow", press: "flicker", enter: "fade", textScale: 0.95 },
   },
   {
     id: "holo_hud",
@@ -203,7 +220,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#0b1a26",
       tileStroke: "#4a90b0",
     },
-    shape: { ...base, radius: 2, strokeThickness: 1.5, gradients: false, shadow: 0, bevel: false, textOutline: 0, panelTransparency: 0.25, font: "Jura", fontBody: "Gotham", ornament: "brackets", press: "slide" },
+    shape: { ...base, radius: 2, strokeThickness: 1.5, gradients: false, shadow: 0, bevel: false, textOutline: 0, panelTransparency: 0.25, font: "Jura", fontBody: "Gotham", ornament: "brackets", press: "slide", enter: "slide" },
   },
   {
     id: "grim_horror",
@@ -228,7 +245,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#201618",
       tileStroke: "#4a1a1a",
     },
-    shape: { ...base, radius: 4, strokeThickness: 2.5, gradients: false, shadow: 4, shadowTransparency: 0.35, bevel: false, textOutline: 1.5, font: "Creepster", fontBody: "SpecialElite", ornament: "grain", press: "none" },
+    shape: { ...base, radius: 4, strokeThickness: 2.5, gradients: false, shadow: 4, shadowTransparency: 0.35, bevel: false, textOutline: 1.5, font: "Creepster", fontBody: "SpecialElite", ornament: "grain", press: "none", enter: "fade", textScale: 1.12 },
   },
   {
     id: "pixel_retro",
@@ -253,7 +270,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1d1d29",
       tileStroke: "#0b0b12",
     },
-    shape: { ...base, radius: 0, strokeThickness: 4, gradients: false, shadow: 6, shadowTransparency: 0.2, bevel: false, textOutline: 0, font: "Arcade", fontBody: "Code", ornament: "none", press: "none" },
+    shape: { ...base, radius: 0, strokeThickness: 4, gradients: false, shadow: 6, shadowTransparency: 0.2, bevel: false, textOutline: 0, font: "Arcade", fontBody: "Code", ornament: "none", press: "none", enter: "none", textScale: 0.88 },
   },
   {
     id: "arcade_synth",
@@ -278,7 +295,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1f1136",
       tileStroke: "#5affe1",
     },
-    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2.5, font: "Arcade", fontBody: "Michroma", ornament: "scanlines", press: "pulse" },
+    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2.5, font: "Arcade", fontBody: "Michroma", ornament: "scanlines", press: "pulse", enter: "slide", textScale: 0.88 },
   },
   {
     id: "clean_modern",
@@ -303,7 +320,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#2b3441",
       tileStroke: "#111827",
     },
-    shape: { ...base, radius: 12, strokeThickness: 1.5, gradients: false, shadow: 4, shadowTransparency: 0.75, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "none", press: "slide" },
+    shape: { ...base, radius: 12, strokeThickness: 1.5, gradients: false, shadow: 4, shadowTransparency: 0.75, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "none", press: "slide", enter: "slide" },
   },
   {
     id: "glass_soft",
@@ -328,7 +345,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#44536e",
       tileStroke: "#26324a",
     },
-    shape: { ...base, radius: 20, strokeThickness: 1.5, gradients: true, shadow: 3, shadowTransparency: 0.8, bevel: false, textOutline: 0, panelTransparency: 0.18, font: "Nunito", fontBody: "Nunito", ornament: "none", press: "slide" },
+    shape: { ...base, radius: 20, strokeThickness: 1.5, gradients: true, shadow: 3, shadowTransparency: 0.8, bevel: false, textOutline: 0, panelTransparency: 0.18, font: "Nunito", fontBody: "Nunito", ornament: "none", press: "slide", enter: "fade", textScale: 1.05 },
   },
   {
     id: "parchment_fantasy",
@@ -353,7 +370,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#5a3f24",
       tileStroke: "#2a1a08",
     },
-    shape: { ...base, radius: 10, strokeThickness: 3.5, font: "Fondamento", fontBody: "Merriweather", ornament: "filigree", press: "squash" },
+    shape: { ...base, radius: 10, strokeThickness: 3.5, font: "Fondamento", fontBody: "Merriweather", ornament: "filigree", press: "squash", textScale: 1.08 },
   },
   {
     id: "stone_rune",
@@ -378,7 +395,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#3a3a3e",
       tileStroke: "#141418",
     },
-    shape: { ...base, radius: 4, strokeThickness: 3.5, gradients: true, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash" },
+    shape: { ...base, radius: 4, strokeThickness: 3.5, gradients: true, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash", enter: "slide" },
   },
   {
     id: "military_stencil",
@@ -403,7 +420,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1f221b",
       tileStroke: "#9aa06a",
     },
-    shape: { ...base, radius: 3, strokeThickness: 3, gradients: false, shadow: 4, shadowTransparency: 0.4, bevel: false, textOutline: 1.5, font: "GothamBlack", fontBody: "Code", ornament: "stripes", press: "none" },
+    shape: { ...base, radius: 3, strokeThickness: 3, gradients: false, shadow: 4, shadowTransparency: 0.4, bevel: false, textOutline: 1.5, font: "GothamBlack", fontBody: "Code", ornament: "stripes", press: "none", enter: "none", textScale: 0.95 },
   },
   {
     id: "steampunk_brass",
@@ -428,7 +445,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#3a2a18",
       tileStroke: "#a88452",
     },
-    shape: { ...base, radius: 8, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, textOutline: 2, font: "Bodoni", fontBody: "Merriweather", ornament: "rivets", press: "squash" },
+    shape: { ...base, radius: 8, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, textOutline: 2, font: "Bodoni", fontBody: "Merriweather", ornament: "rivets", press: "squash", textScale: 1.06 },
   },
   {
     id: "wood_nature",
@@ -453,7 +470,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#4f361b",
       tileStroke: "#221507",
     },
-    shape: { ...base, radius: 12, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "PatrickHand", fontBody: "Nunito", ornament: "notch", press: "squash" },
+    shape: { ...base, radius: 12, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "PatrickHand", fontBody: "Nunito", ornament: "notch", press: "squash", textScale: 1.12 },
   },
   {
     id: "luxury_gold",
@@ -478,7 +495,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1a1a20",
       tileStroke: "#d4af37",
     },
-    shape: { ...base, radius: 6, strokeThickness: 2, gradients: true, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 0, font: "Bodoni", fontBody: "Merriweather", ornament: "filigree", press: "slide" },
+    shape: { ...base, radius: 6, strokeThickness: 2, gradients: true, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 0, font: "Bodoni", fontBody: "Merriweather", ornament: "filigree", press: "slide", enter: "fade", textScale: 1.06 },
   },
   {
     id: "kawaii_pastel",
@@ -503,7 +520,257 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#7a5a8a",
       tileStroke: "#43284f",
     },
-    shape: { ...base, radius: 26, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.6, textOutline: 2, font: "Kalam", fontBody: "Nunito", ornament: "none", press: "pulse" },
+    shape: { ...base, radius: 26, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.6, textOutline: 2, font: "Kalam", fontBody: "Nunito", ornament: "none", press: "pulse", textScale: 1.12 },
+  },
+  {
+    id: "western_saloon",
+    name: "Western Saloon",
+    description: "Wanted-poster UI: sun-bleached paper, burnt wood frame, stitched edge and a rope-brown palette.",
+    keywords: ["western", "far west", "cowboy", "saloon", "desert town", "wanted", "sheriff", "ranch", "gold rush", "bandit"],
+    themes: [],
+    genres: ["adventure", "roleplay", "battle", "tycoon", "survival"],
+    tokens: {
+      paper: "#e8d4ab",
+      paperDark: "#cdb385",
+      ink: "#3a2412",
+      inkSoft: "#8a6236",
+      text: "#fff3d8",
+      textDark: "#3a2412",
+      primary: ["#c98f3e", "#8a5418"],
+      gold: ["#f0c669", "#9c6f14"],
+      danger: ["#c6533a", "#7c2211"],
+      info: ["#8aa38a", "#43613f"],
+      pill: "#3a2412",
+      pillStroke: "#1e1206",
+      tile: "#51371c",
+      tileStroke: "#1e1206",
+    },
+    shape: { ...base, radius: 6, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "Antique", fontBody: "SpecialElite", ornament: "stitch", press: "squash", enter: "slide", textScale: 1.06 },
+  },
+  {
+    id: "vapor_wave",
+    name: "Vapor Wave",
+    description: "Sunset gradients, chrome type and a perspective grid — 90s mall aesthetic.",
+    keywords: ["vaporwave", "vapor", "aesthetic", "sunset grid", "mall", "chrome", "pastel neon", "lofi", "dreamcore"],
+    themes: [],
+    genres: ["rhythm", "hangout", "racing", "minigames", "simulator"],
+    tokens: {
+      paper: "#2a1442",
+      paperDark: "#3a1c58",
+      ink: "#12051f",
+      inkSoft: "#a07ad0",
+      text: "#fff0ff",
+      textDark: "#ffd9f6",
+      primary: ["#ff8ad8", "#8a2fa8"],
+      gold: ["#ffe79a", "#a96d1a"],
+      danger: ["#ff6f8a", "#9a1f45"],
+      info: ["#8ae7ff", "#1f7aa8"],
+      pill: "#180a28",
+      pillStroke: "#ff8ad8",
+      tile: "#24123a",
+      tileStroke: "#8ae7ff",
+    },
+    shape: { ...base, radius: 10, strokeThickness: 2.5, shadow: 4, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Michroma", fontBody: "Gotham", ornament: "grid", press: "pulse", enter: "fade", textScale: 0.95 },
+  },
+  {
+    id: "y2k_bubble",
+    name: "Y2K Bubble",
+    description: "Early-2000s software: glossy blue bubbles, chrome rims, soda-bubble corners.",
+    keywords: ["y2k", "2000s", "bubble", "glossy", "aqua", "chrome", "frutiger", "cd player", "rétro futuriste"],
+    themes: [],
+    genres: ["minigames", "hangout", "clicker", "simulator", "rhythm"],
+    tokens: {
+      paper: "#e6f2ff",
+      paperDark: "#c6dcf5",
+      ink: "#1a3a63",
+      inkSoft: "#6e9ac9",
+      text: "#ffffff",
+      textDark: "#132a47",
+      primary: ["#7ec8ff", "#1f6fc0"],
+      gold: ["#ffe08a", "#b07f14"],
+      danger: ["#ff9a9a", "#c2342f"],
+      info: ["#b9a8ff", "#5a43c8"],
+      pill: "#132a47",
+      pillStroke: "#0a1a2e",
+      tile: "#25456e",
+      tileStroke: "#0a1a2e",
+    },
+    shape: { ...base, radius: 20, strokeThickness: 2.5, shadow: 4, shadowTransparency: 0.6, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "bubbles", press: "pulse", enter: "pop" },
+  },
+  {
+    id: "frost_ice",
+    name: "Frost & Ice",
+    description: "Frozen glass plates with pale blue light and a frosted stitch of ice on the edge.",
+    keywords: ["ice", "glace", "frost", "givre", "frozen", "gelé", "winter", "hiver", "snow", "neige", "arctic", "glacier"],
+    themes: [],
+    genres: ["survival", "adventure", "obby", "racing", "battle_royale"],
+    tokens: {
+      paper: "#dff0fa",
+      paperDark: "#bfdcee",
+      ink: "#123a52",
+      inkSoft: "#6aa4c4",
+      text: "#ffffff",
+      textDark: "#0f2f44",
+      primary: ["#8fdcff", "#1f7fa8"],
+      gold: ["#ffe9a8", "#a8791a"],
+      danger: ["#ff9aa8", "#b02f45"],
+      info: ["#b9d8ff", "#3f5fa8"],
+      pill: "#0f2f44",
+      pillStroke: "#071b28",
+      tile: "#1e4c66",
+      tileStroke: "#071b28",
+    },
+    shape: { ...base, radius: 16, strokeThickness: 2.5, shadow: 3, shadowTransparency: 0.75, bevel: false, textOutline: 0, panelTransparency: 0.12, font: "Nunito", fontBody: "Nunito", ornament: "stitch", press: "slide", enter: "fade", textScale: 1.05 },
+  },
+  {
+    id: "sand_temple",
+    name: "Sand Temple",
+    description: "Carved sandstone tablets with turquoise inlays and notched corners — deserts and tombs.",
+    keywords: ["desert", "désert", "egypt", "égypte", "pyramid", "pyramide", "temple", "tomb", "tombeau", "sand", "sable", "oasis", "pharaoh", "aztec", "maya"],
+    themes: [],
+    genres: ["adventure", "dungeon_crawler", "rpg", "mining", "puzzle"],
+    tokens: {
+      paper: "#d9bc86",
+      paperDark: "#bd9d68",
+      ink: "#3f2c12",
+      inkSoft: "#8a6c3a",
+      text: "#fff6e0",
+      textDark: "#3f2c12",
+      primary: ["#5ec2b0", "#1d7a6c"],
+      gold: ["#f4d071", "#9a7014"],
+      danger: ["#d06a3a", "#8a2c10"],
+      info: ["#8ab8c8", "#3a6a7a"],
+      pill: "#3f2c12",
+      pillStroke: "#231705",
+      tile: "#5a4020",
+      tileStroke: "#231705",
+    },
+    shape: { ...base, radius: 4, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash", enter: "slide", textScale: 1.05 },
+  },
+  {
+    id: "deep_sea",
+    name: "Deep Sea",
+    description: "Submarine portholes: deep teal glass, bio-luminescent accents and rising bubbles.",
+    keywords: ["ocean", "océan", "sea", "mer", "underwater", "sous-marin", "aquarium", "diving", "plongée", "fishing", "pêche", "coral", "corail", "abyss"],
+    themes: [],
+    genres: ["simulator", "adventure", "farming", "survival", "hangout"],
+    tokens: {
+      paper: "#07303c",
+      paperDark: "#0b4050",
+      ink: "#02161d",
+      inkSoft: "#4aa8b8",
+      text: "#e8ffff",
+      textDark: "#aef0ff",
+      primary: ["#4fe0c8", "#12867a"],
+      gold: ["#ffe08a", "#a8761a"],
+      danger: ["#ff8a8a", "#a82f3a"],
+      info: ["#7ec8ff", "#1f6fa8"],
+      pill: "#02161d",
+      pillStroke: "#4aa8b8",
+      tile: "#0a2c38",
+      tileStroke: "#4aa8b8",
+    },
+    shape: { ...base, radius: 18, strokeThickness: 3, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 1.5, panelTransparency: 0.06, font: "Nunito", fontBody: "Gotham", ornament: "bubbles", press: "slide", enter: "fade", textScale: 1.05 },
+  },
+  {
+    id: "noir_detective",
+    name: "Noir Detective",
+    description: "Black-and-white case file: newsprint paper, hard ink rules, film grain, no colour but one red stamp.",
+    keywords: ["noir", "detective", "détective", "mystery", "mystère", "crime", "enquête", "1920", "mafia", "black and white", "journal", "newspaper"],
+    themes: [],
+    genres: ["story", "puzzle", "horror", "roleplay", "dungeon_crawler"],
+    tokens: {
+      paper: "#ded9cf",
+      paperDark: "#bdb7ac",
+      ink: "#14120f",
+      inkSoft: "#6a665e",
+      text: "#f4f1ea",
+      textDark: "#14120f",
+      primary: ["#6e6a62", "#2e2c28"],
+      gold: ["#d8cfae", "#7a6e42"],
+      danger: ["#c8402f", "#7a1c12"],
+      info: ["#8a98a0", "#3c4850"],
+      pill: "#14120f",
+      pillStroke: "#000000",
+      tile: "#2a2723",
+      tileStroke: "#000000",
+    },
+    shape: { ...base, radius: 2, strokeThickness: 3, gradients: false, shadow: 5, shadowTransparency: 0.35, bevel: false, textOutline: 0, font: "SpecialElite", fontBody: "SpecialElite", ornament: "grain", press: "none", enter: "fade", textScale: 1.08 },
+  },
+  {
+    id: "sport_jersey",
+    name: "Sport Jersey",
+    description: "Stadium scoreboard: jersey stripes, chevrons, bold condensed caps on a deep field green.",
+    keywords: ["sport", "football", "soccer", "basket", "stadium", "stade", "jersey", "maillot", "league", "championnat", "esport", "tournament", "tournoi"],
+    themes: [],
+    genres: ["sports", "racing", "battle", "fps", "minigames"],
+    tokens: {
+      paper: "#123a24",
+      paperDark: "#0d2c1b",
+      ink: "#05160c",
+      inkSoft: "#4a8a5f",
+      text: "#f2fff5",
+      textDark: "#d8ffe4",
+      primary: ["#6ee88a", "#17913f"],
+      gold: ["#ffdf6a", "#a87a10"],
+      danger: ["#ff7a6a", "#a82a18"],
+      info: ["#7ec4ff", "#1f6cb0"],
+      pill: "#05160c",
+      pillStroke: "#000000",
+      tile: "#0f2e1d",
+      tileStroke: "#000000",
+    },
+    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2, font: "GothamBlack", fontBody: "GothamBold", ornament: "chevrons", press: "slide", enter: "slide", textScale: 0.98 },
+  },
+  {
+    id: "graffiti_street",
+    name: "Graffiti Street",
+    description: "Spray-can street UI: concrete panels, tag-green and hot-pink sprays, taped corners.",
+    keywords: ["graffiti", "street", "rue", "urban", "urbain", "skate", "hip hop", "spray", "tag", "parkour city", "banlieue", "block"],
+    themes: [],
+    genres: ["parkour", "hangout", "racing", "minigames", "roleplay"],
+    tokens: {
+      paper: "#3a3a3d",
+      paperDark: "#2b2b2e",
+      ink: "#131315",
+      inkSoft: "#7a7a80",
+      text: "#f6fff0",
+      textDark: "#f0f0ea",
+      primary: ["#b8ff4a", "#538e11"],
+      gold: ["#ffd84a", "#a87a10"],
+      danger: ["#ff4fa0", "#a8156a"],
+      info: ["#4ad8ff", "#1478a8"],
+      pill: "#131315",
+      pillStroke: "#000000",
+      tile: "#242427",
+      tileStroke: "#000000",
+    },
+    shape: { ...base, radius: 4, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.4, textOutline: 2.5, font: "PermanentMarker", fontBody: "GothamBold", ornament: "stitch", press: "squash", enter: "pop", textScale: 1.05 },
+  },
+  {
+    id: "mission_control",
+    name: "Mission Control",
+    description: "Space-agency console: off-white panels, orange safety accents, technical mono type and corner brackets.",
+    keywords: ["nasa", "mission", "space agency", "astronaut", "astronaute", "rocket", "fusée", "launch", "orbital", "technical", "engineering", "ingénieur", "lab", "laboratoire"],
+    themes: [],
+    genres: ["tycoon", "strategy", "simulator", "sandbox", "story"],
+    tokens: {
+      paper: "#e9e7e2",
+      paperDark: "#cfccc4",
+      ink: "#1f2226",
+      inkSoft: "#7d8288",
+      text: "#ffffff",
+      textDark: "#1f2226",
+      primary: ["#ff9a4a", "#c25510"],
+      gold: ["#ffd76a", "#9a6f10"],
+      danger: ["#ff6a5a", "#a8231a"],
+      info: ["#6ab4ff", "#1f5fa8"],
+      pill: "#1f2226",
+      pillStroke: "#0d0f12",
+      tile: "#2e3339",
+      tileStroke: "#0d0f12",
+    },
+    shape: { ...base, radius: 3, strokeThickness: 2, gradients: false, shadow: 3, shadowTransparency: 0.7, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Code", ornament: "brackets", press: "slide", enter: "slide", textScale: 0.95 },
   },
 ];
 

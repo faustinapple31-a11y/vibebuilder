@@ -51,9 +51,14 @@ game follows.
   Safe picks: FredokaOne, LuckiestGuy, GothamBlack, Gotham, Michroma, Jura, Arcade, Code, Creepster,
   SpecialElite, Fondamento, Merriweather, Bodoni, Antique, PatrickHand, Kalam, Nunito.
 - **ornament**: `none`, `rivets`, `scanlines`, `brackets`, `filigree`, `stripes`, `glow`, `grain`,
-  `notch` — drawn by `ornament()` in `kit.ts` on panels large enough to carry it. A new ornament means
-  one more branch there (UI parts only: frames, strokes, gradients — never an image asset).
+  `notch`, `stitch`, `chevrons`, `bubbles`, `grid` — drawn by `ornament()` in `kit.ts` on panels large
+  enough to carry it. A new ornament means one more branch there (UI parts only: frames, strokes,
+  gradients — never an image asset) and the union in `packages/roblox-export/src/uiKitFiles.ts`; a
+  test fails if a kit asks for an ornament `kit.ts` does not render.
 - **press**: `squash`, `pulse`, `slide`, `flicker`, `none`.
+- **enter**: how a window opens — `pop`, `slide`, `fade`, `none`.
+- **textScale**: 0.8–1.25, multiplies every text size. Pixel and condensed fonts want < 1, horror /
+  handwritten / serif faces want > 1.
 
 ## Making prompts find it
 

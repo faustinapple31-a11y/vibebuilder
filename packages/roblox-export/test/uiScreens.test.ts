@@ -59,6 +59,25 @@ describe("UI screens of the template", () => {
     for (const k of UI_KITS) expect(TEMPLATE_FILES["src/ui/kits.generated.ts"]!.includes(`\t${k.id}: {`), k.id).toBe(true);
   });
 
+  it("renders every ornament, press and entrance a library asks for", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    const ornaments = new Set(UI_KITS.map((k) => k.shape.ornament));
+    for (const o of ornaments) {
+      if (o === "none") continue;
+      // "notch" is the fall-through branch at the end of ornament()
+      const handled = kit.includes(`kind === "${o}"`) || (o === "notch" && kit.includes("// notch:"));
+      expect(handled, `ornament "${o}" has no branch in kit.ts`).toBe(true);
+    }
+    for (const p of new Set(UI_KITS.map((k) => k.shape.press))) {
+      const handled = kit.includes(`press === "${p}"`) || p === "squash"; // squash is the default tail
+      expect(handled, `press "${p}" has no branch in kit.ts`).toBe(true);
+    }
+    for (const e of new Set(UI_KITS.map((k) => k.shape.enter))) {
+      const handled = kit.includes(`theme.enter === "${e}"`) || e === "none";
+      expect(handled, `entrance "${e}" has no branch in kit.ts`).toBe(true);
+    }
+  });
+
   it("builds every screen on the kit's Window (same open / close / scaling behaviour)", () => {
     for (const [id, file] of Object.entries(SCREEN_FILES)) {
       if (id === "hud" || id === "loading" || id === "round_status" || id === "minimap") continue; // HUD-level overlays, not modals
