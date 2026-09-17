@@ -42,8 +42,11 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       (shared/textures.ts + world/Materials.ts), terrain voxel ops, building snap on the voxel surface.
  *   6 — uploaded texture sets become MaterialVariants at build time (assets/materials + MaterialService
  *       overrides in the Rojo project; world/Materials.ts only re-asserts the overrides), mesh tree crowns.
+ *   7 — UI kit (src/ui/kit.ts): themed panels / buttons / drawn icons shared by the HUD and the shop,
+ *       GameConfig.ui (style + accent), shop bundles and a featured banner (ShopCatalog.bundles /
+ *       .featured, `bundle:<id>` purchases).
  */
-export const TEMPLATE_VERSION = 6;
+export const TEMPLATE_VERSION = 7;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
@@ -72,6 +75,7 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/systems/Shop.ts",
   "src/systems/Npcs.ts",
   "src/systems/Audio.ts",
+  "src/ui/kit.ts",
   "src/ui/Hud.ts",
   "src/ui/ShopUi.ts",
 ];

@@ -59,7 +59,9 @@ Clés : Meshy dans *Settings → Keys* ; le modèle est aussi visible dans le vi
 Le `GameSpec` (`design/game.spec.json`) porte le shop, les game passes / developer products, les animations et
 l'audio. Chaque modification régénère `src/shared/{config,catalog,animations,audio,npcs}.ts` ; les systèmes du
 template (`systems/Shop.ts`, `ui/ShopUi.ts`, `systems/Npcs.ts`, `systems/Audio.ts`, `shared/anim/keyframes.ts`)
-les lisent au démarrage. *Create on Roblox* crée les passes (`game-passes/v1`) et les produits (`developer-products`)
+les lisent au démarrage. Le shop accepte des packs (`shop.bundles`, achat `bundle:<id>`) et une bannière
+*featured* ; le HUD et le shop sont dessinés par le kit UI (`src/ui/kit.ts`, thème depuis `GameConfig.ui`,
+icônes procédurales, aucun asset à uploader). *Create on Roblox* crée les passes (`game-passes/v1`) et les produits (`developer-products`)
 sur l'univers avec la clé Open Cloud et mémorise les ids ; les PNJ sont des rigs R15 animés (catalogue Roblox ou
 keyframes générés, `KeyframeSequenceProvider`) avec un prompt *Talk* ; la musique et les ambiances par zone
 (`World/Zones`) et les SFX (`PlaySfx`) sont câblés côté client. L'onglet *Toolbox* cherche dans le Creator Store

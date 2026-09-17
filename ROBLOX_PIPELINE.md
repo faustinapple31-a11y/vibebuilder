@@ -35,7 +35,7 @@ commandes Rust `studio.rs`, `opencloud.rs`, `process.rs`.
 │   │   ├── TerrainBuilder.ts
 │   │   └── Streaming.ts                 # LOD/cull, StreamingEnabled
 │   ├── systems/                         # PlayerData (owned/inventory/multipliers/buffs), Shop, Npcs, Audio, Survival, Collectibles…
-│   └── ui/                              # Hud (bouton Shop, bulle de dialogue), ShopUi (fenêtre shop), …
+│   └── ui/                              # kit.ts (thème, panneaux, boutons, icônes dessinées), Hud, ShopUi, …
 ├── assets/
 │   ├── world/WorldBake.json             # → ReplicatedStorage.WorldAssets.WorldBake (ModuleScript via Rojo)
 │   └── models/*.rbxmx                   # prefabs individuels (asset browser)
@@ -171,8 +171,22 @@ Sur un serveur live, l'asset doit appartenir au créateur de l'expérience (c'es
 déjà possédé → refus, effets appliqués sur le profil (`multipliers`, `buffs` à durée, `inventory`, coins) et
 répliqués au client (`ShopState`). Les items Robux passent par `MarketplaceService.PromptGamePassPurchase` /
 `PromptProductPurchase` ; `ProcessReceipt` est idempotent (`PurchaseId` mémorisé dans le profil) et
-`UserOwnsGamePassAsync` est re-synchronisé à la connexion. `ui/ShopUi.ts` dessine la fenêtre (sections, tiers
-"Owned", consommables "You have: N", cartes R$) ; touche **B** ou bouton HUD.
+`UserOwnsGamePassAsync` est re-synchronisé à la connexion. `ui/ShopUi.ts` dessine la fenêtre (bannière
+*featured*, packs, sections, tiers "Owned", consommables "You have: N", cartes R$) ; touche **B** ou bouton HUD.
+
+Le `GameSpec` porte aussi des **packs** (`shop.bundles`) et une **bannière featured** (`shop.featured`) :
+`ShopCatalog.bundles` / `.featured` dans `shared/catalog.ts`, achat via l'id `bundle:<id>` (`systems/Shop.ts`
+accorde les items du pack et le marque possédé une seule fois, prix barré et sticker de remise calculés depuis
+les prix unitaires).
+
+### UI kit (`src/ui/kit.ts`)
+
+Le HUD et le shop partagent un kit sans asset externe : un `Theme` dérivé de `GameConfig.ui`
+(`style` — sci-fi, horror, minimal, modern, candy, military, fantasy, retro — et `accentColor`) et des
+primitives (`panel`, `button`, `text`, `body`, `badge`, `strike`, `gradient`, `shadow`, `tooltip`, icônes
+dessinées pour la monnaie / les items / les effets). Look "mobile game" : panneaux crème à contour d'encre
+épais, ombre portée, typo arrondie contournée. Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient),
+donc aucun upload n'est nécessaire et le thème suit le style du monde.
 
 ### PNJ, animations, audio
 

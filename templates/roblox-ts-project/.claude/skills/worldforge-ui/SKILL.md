@@ -10,18 +10,26 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
 
 ## Existing pieces
 
+- `kit` (`src/ui/kit.ts`): the shared look — `theme()` (derived from `GameConfig.ui.style` / `.accentColor`)
+  and primitives `panel`, `button`, `priceButton`, `text`, `body`, `badge`, `strike`, `gradient`, `shadow`,
+  `tooltip`, plus icons drawn from UI parts (`coinIcon`, `itemIcon`, `effectIcon`) — no image assets.
+  **Build new screens from the kit** instead of re-creating Frames: the HUD and the shop already use it, so
+  anything added with it matches them and follows the style automatically.
 - `Hud` (`src/ui/Hud.ts`): `setStats(stats)` (coins, hunger, health…), `setValue(key, label, value)`
   (generic value panel fed by the `HudValue` remote: stage, round timer, wave, backpack…), `setBanner(text)`
   (round / phase banner from `RoundState`), `setHealth(fraction)`, `notify(text)` (toast), `say(name, text)`
   (NPC dialogue), `playSfx(id)`, `setLoading(stage, done, total)` / `hideLoading()` (world build overlay),
   `onShop` callback (B key / shop button). Hunger bar only shows when `survival_stats` is enabled.
-- `ShopUi` (`src/ui/ShopUi.ts`): sections from `src/shared/catalog.ts` (`ShopCatalog`), coin items via
-  `ShopBuy`, gamepasses / dev products via `ShopPromptRobux` (MarketplaceService prompt on the server).
+- `ShopUi` (`src/ui/ShopUi.ts`): featured banner (`ShopCatalog.featured`), one-time packs
+  (`ShopCatalog.bundles`, bought with the id `bundle:<id>`), sections from `src/shared/catalog.ts`
+  (`ShopCatalog`), coin items via `ShopBuy`, gamepasses / dev products via `ShopPromptRobux`
+  (MarketplaceService prompt on the server).
 - Client hotkeys and effects live in `src/client/main.client.ts`; the weather layer in `src/client/Weather.ts`.
 
 ## Theme
 
-Read `worlds/main/style.bible.json`: `ui.theme` is one of `stylized, minimal, fantasy, sci-fi, cartoon, horror,
+`kit.theme()` already resolves the palette from `GameConfig.ui` (generated from the GameSpec); use it and only
+read the StyleBible directly for what the kit does not carry. `worlds/main/style.bible.json`: `ui.theme` is one of `stylized, minimal, fantasy, sci-fi, cartoon, horror,
 modern, retro, military, candy`; `ui.accent` is the accent color; `palette.glow` / `palette.primary` /
 `palette.secondary` give the rest. Map the theme to shape language:
 
