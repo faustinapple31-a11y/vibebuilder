@@ -7,6 +7,7 @@ import { base64ToF32, type MeshData,
   type WorldSpec,
 } from "@worldforge/core";
 import { TEMPLATE_FILES } from "./template-files.generated";
+import { applyMeshAssetIds, meshToFbx, uniqueMeshes, type MeshAssetManifest } from "./mesh-assets";
 
 export interface ProjectFile {
   /** Path relative to the project root, POSIX separators. */
@@ -135,6 +136,8 @@ export interface ExportWorldOptions {
   projectSlug: string;
   /** MaterialService `<Material>Name` overrides of the uploaded texture sets (see @worldforge/textures materialOverrides). */
   materialOverrides?: Record<string, string>;
+  /** Mesh asset ids (design/meshes.manifest.json) stamped into the bake's meshes before export. */
+  meshAssets?: MeshAssetManifest | null;
 }
 
 /**
@@ -144,21 +147,18 @@ export interface ExportWorldOptions {
  * - default.project.json with Lighting/Workspace properties matching the bake
  */
 export function exportWorldFiles(opts: ExportWorldOptions): ProjectFile[] {
-  const { bake, spec, style } = opts;
+  const { spec, style } = opts;
+  const bake = applyMeshAssetIds(opts.bake, opts.meshAssets ?? null);
   const json = serializeBake(bake);
   const files: ProjectFile[] = [];
   files.push({ path: "assets/world/WorldBake.json", content: JSON.stringify(json) });
   files.push({ path: `worlds/${spec.id}/world.spec.json`, content: JSON.stringify(spec, null, 2) + "\n" });
   files.push({ path: `worlds/${spec.id}/style.bible.json`, content: JSON.stringify(style, null, 2) + "\n" });
   files.push({ path: "default.project.json", content: JSON.stringify(buildRojoProject(opts.projectSlug, bake, opts.materialOverrides), null, 2) + "\n" });
-  // procedural meshes as .obj (Studio import / Open Cloud upload → MeshPart asset ids)
-  for (const variants of Object.values(bake.prefabs)) {
-    for (const v of variants) {
-      if (!v.meshes) continue;
-      for (const [key, data] of Object.entries(v.meshes)) {
-        files.push({ path: `assets/meshes/${v.id.replace(/[^a-z0-9_]+/gi, "_")}_${key}.obj`, content: meshToObj(data, `${v.id}/${key}`) });
-      }
-    }
+  // distinct procedural meshes as .obj (Studio import) and .fbx (Open Cloud "Model" upload → MeshId, see mesh-assets.ts)
+  for (const m of uniqueMeshes(bake)) {
+    files.push({ path: `assets/meshes/${m.key}_${m.hash}.obj`, content: meshToObj(m.data, `${m.key}_${m.hash}`) });
+    files.push({ path: `assets/meshes/${m.key}_${m.hash}.fbx`, content: meshToFbx(m.data, `${m.key}_${m.hash}`) });
   }
   return files;
 }

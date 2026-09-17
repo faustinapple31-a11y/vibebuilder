@@ -88,7 +88,7 @@ produit un projet Roblox complet à partir de n'importe quel prompt.
 
 Érosion hydraulique (ravines réelles), grottes creusées derrière les landmarks `cave` (tunnel + salle aux
 cristaux et au coffre), surplombs rocheux, arches naturelles, lacs de lave, rochers et falaises en vrais
-meshes 3D low-poly (EditableMesh côté Roblox, .obj exportés), textures PBR procédurales et tuilables
+meshes 3D low-poly (EditableMesh côté Roblox, ou vrais assets mesh une fois publiés via Open Cloud + Studio), textures PBR procédurales et tuilables
 générées depuis la palette du style (aperçu dans l'app, shader texturé dans le viewer, upload Open Cloud
 → MaterialVariants sur le terrain et les bâtiments).
 

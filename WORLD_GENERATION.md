@@ -292,10 +292,15 @@ un bruit 3D, ombrage plat, forme selon le style (`rock.variation`, `geometry`), 
 **bibliothèque de 6 meshes** par bake (`meshes/library.ts` : rock_a, pebble_a, cliff_a/b, canopy_a/b — les couronnes des arbres ronds, bouleaux et buissons sont des grappes de blobs) est
 réutilisée par tous les rochers avec échelle non uniforme, rotation et couleur propres — un client Roblox
 ne peut tenir qu'une poignée d'`EditableMesh` en mémoire. Les parts de forme `mesh` portent la clé,
-`PrefabVariant.meshes` les triangles (base64) ; le viewer les affiche, l'export écrit `assets/meshes/*.obj`.
-Runtime : le serveur construit des `MeshPart` (EditableMesh `FixedSize` → `CreateMeshPartAsync`, collision
-Hull, UV planaires) et publie les triangles ; les clients reconstruisent les mêmes meshes localement et les
-appliquent (`ApplyMesh`) car un EditableMesh créé côté serveur ne se rend pas sur les clients.
+`PrefabVariant.meshes` les triangles (base64) ; le viewer les affiche, l'export écrit `assets/meshes/<clé>_<hash>.obj`
+et `.fbx` (un par mesh distinct). Runtime sans upload : le serveur construit des `MeshPart` (EditableMesh
+`FixedSize` → `CreateMeshPartAsync`, collision Hull, UV planaires) et publie les triangles ; les clients
+reconstruisent les mêmes meshes localement et les appliquent (`ApplyMesh`) car un EditableMesh créé côté
+serveur ne se rend pas sur les clients. **Publication** (Assets → « Procedural meshes » → Publish) : chaque
+FBX est uploadé en asset « Model » Open Cloud, Studio résout le `MeshId` du modèle
+(`design/meshes.manifest.json`, `packages/roblox-export/src/mesh-assets.ts`), l'export tamponne
+`MeshData.assetId` et le runtime crée alors les parts avec `CreateMeshPartAsync(rbxassetid)` — réplication
+normale, plus de budget client ni de reconstruction.
 
 ### 6e. Textures PBR procédurales
 

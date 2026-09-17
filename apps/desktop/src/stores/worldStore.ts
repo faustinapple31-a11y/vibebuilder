@@ -20,6 +20,7 @@ import {
 import type { GenLayer } from "@worldforge/world-gen";
 import { exportWorldFiles } from "@worldforge/roblox-export";
 import { materialOverrides } from "@worldforge/textures";
+import { loadMeshManifest } from "@/lib/proceduralMeshes";
 import { applyFixes } from "@worldforge/quality";
 import { versionsRepo, type WorldVersionRow } from "@/lib/db";
 import { readJsonFile } from "@/lib/files";
@@ -65,6 +66,8 @@ interface WorldState {
   setStyle: (style: StyleBible) => void;
   setLocks: (locks: Partial<WorldLocks>) => void;
   generate: (opts?: { layers?: GenLayer[]; newSeed?: boolean; label?: string; specOverride?: WorldSpec }) => Promise<WorldBake | null>;
+  /** Rewrite the world files of the current bake (mesh asset ids / material overrides changed). */
+  reexport: () => Promise<void>;
   applyReportFixes: () => Promise<void>;
   restoreVersion: (id: string) => Promise<void>;
   deleteVersion: (id: string) => Promise<void>;
@@ -191,6 +194,14 @@ export const useWorld = create<WorldState>((set, get) => ({
     set({ spec: { ...spec, locks: { ...spec.locks, ...locks } } });
   },
 
+  async reexport() {
+    const cur = useProjects.getState().current;
+    const { bake, spec, style } = get();
+    if (!cur || !bake || !spec || !style) return;
+    const files = exportWorldFiles({ bake, spec, style, projectSlug: slugify(cur.meta.name), materialOverrides: materialOverrides(get().textures?.manifest ?? null), meshAssets: await loadMeshManifest(cur.path) });
+    await fs.writeFiles(cur.path, files.map((f) => [f.path, f.content]));
+  },
+
   async generate(opts = {}) {
     const cur = useProjects.getState().current;
     const spec = opts.specOverride ?? get().spec;
@@ -212,7 +223,7 @@ export const useWorld = create<WorldState>((set, get) => ({
       );
       // persist to the project
       const slug = slugify(cur.meta.name);
-      const files = exportWorldFiles({ bake, spec: specToUse, style, projectSlug: slug, materialOverrides: materialOverrides(get().textures?.manifest ?? null) });
+      const files = exportWorldFiles({ bake, spec: specToUse, style, projectSlug: slug, materialOverrides: materialOverrides(get().textures?.manifest ?? null), meshAssets: await loadMeshManifest(cur.path) });
       await fs.writeFiles(cur.path, files.map((f) => [f.path, f.content]));
       await fs.writeText(path.join(cur.path, "qa", "report.json"), JSON.stringify(report, null, 2));
       // version

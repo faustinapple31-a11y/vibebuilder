@@ -69,10 +69,12 @@ material by hand, edit the manifest entry (`studsPerTile`) or replace the PNG an
 ## Procedural meshes
 
 Rocks / cliffs are triangle meshes shipped in the bake (`PrefabVariant.meshes`, parts of shape `mesh`)
-and exported as `assets/meshes/*.obj`. At runtime the server builds them with EditableMesh
-(`shared/world/meshFactory.ts`) and every client rebuilds + `ApplyMesh`es them (`client/MeshRender.ts`).
-Keep the number of distinct meshes per world small (≤ 6 — client memory budget); variety comes from
-scale / rotation / colour. Uploaded mesh asset ids (`MeshData.assetId`) are used instead when present.
+and exported as `assets/meshes/<key>_<hash>.obj` / `.fbx`. Without upload the server builds them with
+EditableMesh (`shared/world/meshFactory.ts`) and every client rebuilds + `ApplyMesh`es them
+(`client/MeshRender.ts`) — keep distinct meshes ≤ 6 (client memory budget); variety comes from scale /
+rotation / colour. Once published from the WorldForge app (Assets → Procedural meshes: FBX → Open Cloud
+Model → MeshId resolved in Studio, `design/meshes.manifest.json`), `MeshData.assetId` is set and the
+server spawns real mesh assets (`CreateMeshPartAsync(rbxassetid)`), replicated like any MeshPart.
 
 ## Checklist
 

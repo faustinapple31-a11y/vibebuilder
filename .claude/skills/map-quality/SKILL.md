@@ -62,7 +62,9 @@ ids, `zones`, `lighting`, `stats`) is the quickest way to count things.
 - Rock prefabs use the 6-mesh library (`packages/prefabs/src/meshes/library.ts`); `PrefabContext.meshes`
   carries it. Runtime + viewer + `.obj` export read `PrefabVariant.meshes`. Server EditableMeshes do not
   render on clients: `client/MeshRender.ts` rebuilds them from `ReplicatedStorage.WorldAssets.Meshes`.
-  Roblox client budget ≈ 6–8 EditableMeshes → never add per-variant geometry.
+  Roblox client budget ≈ 6–8 EditableMeshes → never add per-variant geometry (unless the meshes are
+  published: `mesh-assets.ts` FBX → Open Cloud Model → MeshId via Studio → `MeshData.assetId`, then the
+  runtime uses real mesh assets and the budget no longer applies).
 - Textures: `packages/textures` (tileable noise, 14 programs, PNG encoder); the app generates / uploads
   sets, the template's `Materials.ts` applies MaterialVariants, the viewer's `terrainMaterial.ts` splats
   grass / ground / rock / sand-or-snow by the `weights` attribute of `terrainGeometry`.

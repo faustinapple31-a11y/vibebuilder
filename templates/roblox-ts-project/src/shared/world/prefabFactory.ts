@@ -26,7 +26,9 @@ function makePart(p: PartData, variant?: PrefabVariantData): BasePart {
 	const template = meshData && p.mesh !== undefined ? meshTemplate(p.mesh, meshData) : undefined;
 	if (template) {
 		part = template.Clone();
-		part.SetAttribute("WfMesh", p.mesh!); // the client rebuilds this mesh locally (see MeshRender)
+		// EditableMesh templates do not render on clients: tag them so MeshRender rebuilds the mesh locally.
+		// Templates made from an uploaded mesh asset replicate as-is.
+		if ((template as MeshPart).MeshId === "") part.SetAttribute("WfMesh", p.mesh!);
 	} else if (p.shape === "mesh") {
 		// mesh unavailable on this client: the primitive stand-in keeps the silhouette
 		const basic = new Instance("Part");
