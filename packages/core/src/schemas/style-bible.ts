@@ -97,7 +97,7 @@ export const StyleBibleSchema = z.object({
       settlement: z.string().default("village"),
     })
     .prefault({}),
-  ui: z.object({ theme: z.enum(UI_THEMES).default("stylized"), accent: Hex.default("#7b4f8f") }).prefault({}),
+  ui: z.object({ theme: z.enum(UI_THEMES).default("stylized"), accent: Hex.default("#7b4f8f"), welcomeText: z.string().max(40).optional(), welcomeSubtitle: z.string().max(40).optional() }).prefault({}),
   /** Environment dressing: weather particles, clouds, snow line, terrain recoloring, settlement walls. */
   environment: z
     .object({

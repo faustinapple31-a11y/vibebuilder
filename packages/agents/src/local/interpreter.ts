@@ -116,11 +116,19 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "cratere", "crater", "volcan", "volcano", "meteor") || fam.id === "space_station") features.push({ type: "crater", center: [0.65, 0.4], radius: 0.15 });
   // ocean: an island (prompt, battle-royale layout, tropical / pirate families) or a coast (beach, harbor, lighthouse…)
   const dry = fam.id === "space_station" || fam.id === "underwater" || fam.id === "desert" || fam.id === "wasteland";
-  const island = !dry && (has(t, "ile ", "ile,", "ile.", "island", "lagon", "lagoon", "archipel", "atoll") || genre.layout === "island" || fam.id === "tropical" || fam.id === "pirate");
-  const coast = !dry && !island && (has(t, "littoral", "coast", "plage", "beach", "port", "harbor", "harbour", "docks", "phare", "lighthouse", "bord de mer", "rivage", "seaside", "ocean") || famType === "harbor");
-  if (island) features.push({ type: "island", center: [0.5, 0.5], radius: has(t, "grande ile", "big island", "large island") ? 0.44 : 0.36, ruggedness: 0.55 }), tag("island");
+  // archipelago: several stylized mesa islands joined by bridges (floating / flying islands, island hopping, "des îles")
+  const archipelago = !dry && has(t, "archipel", "archipelago", "iles ", "iles,", "iles.", "islands", "ile flottante", "iles flottantes", "floating island", "sky island", "island hopping", "plateaux flottants", "ilots", "islets");
+  const island = !dry && !archipelago && (has(t, "ile ", "ile,", "ile.", "island", "lagon", "lagoon", "atoll") || genre.layout === "island" || fam.id === "tropical" || fam.id === "pirate");
+  const coast = !dry && !island && !archipelago && (has(t, "littoral", "coast", "plage", "beach", "port", "harbor", "harbour", "docks", "phare", "lighthouse", "bord de mer", "rivage", "seaside", "ocean") || famType === "harbor");
+  if (archipelago) {
+    // mesas replace the relief: no mountain band, no hills
+    features.length = 0;
+    const many = has(t, "beaucoup", "many", "plein", "lots");
+    features.push({ type: "archipelago", islands: many ? 7 : 5, terraces: has(t, "plat", "flat") ? 1 : 3, cliffHeight: has(t, "haut", "high", "tall") ? 0.8 : 0.5, mainRadius: 0.22, ruggedness: 0.35 });
+    tag("archipelago");
+  } else if (island) features.push({ type: "island", center: [0.5, 0.5], radius: has(t, "grande ile", "big island", "large island") ? 0.44 : 0.36, ruggedness: 0.55 }), tag("island");
   else if (coast) features.push({ type: "coast", edges: ["south"], reach: 0.22, ruggedness: 0.5 }), tag("coast");
-  const relief = flat ? 0.25 : mountains ? 0.75 : 0.6;
+  const relief = archipelago ? 0.4 : flat ? 0.25 : mountains ? 0.75 : 0.6;
 
   // ---- water
   const rivers: WorldSpecInput["rivers"] = [];
@@ -198,7 +206,16 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "cerisier", "sakura", "cherry")) pushSp("cherry_tree");
   if (has(t, "bambou", "bamboo")) pushSp("bamboo");
   if (has(t, "cactus")) pushSp("cactus");
-  const density = has(t, "dense", "epais", "thick", "luxuriant", "lush") ? 0.85 : has(t, "clairsem", "sparse", "vide", "empty", "aride") ? 0.3 : Math.min(0.85, 0.25 + fam.vegetationDensity * 0.75);
+  let density = has(t, "dense", "epais", "thick", "luxuriant", "lush") ? 0.85 : has(t, "clairsem", "sparse", "vide", "empty", "aride") ? 0.3 : Math.min(0.85, 0.25 + fam.vegetationDensity * 0.75);
+  if (archipelago) {
+    // mesa islands read as open lawns with a few palms: sparse, no forest biome
+    density = Math.min(density, 0.22);
+    for (const b of biomes) b.vegetation = "sparse";
+    for (let i = biomes.length - 1; i >= 0; i--) if (["forest", "jungle", "dark_forest", "pine_forest"].includes(biomes[i]!.id)) biomes.splice(i, 1);
+    if (biomes.length === 0) biomes.push({ id: "meadow", weight: 0.6, vegetation: "sparse" });
+    species.length = 0;
+    pushSp("palm", "bush", "flower", "grass");
+  }
   const giantMushrooms = has(t, "champignons geants", "giant mushroom", "champignon geant") ? 0.7 : species.includes("giant_mushroom") ? Math.max(0.3, fam.mushrooms ?? 0) : 0;
 
   // ---- props: the family's kits + prompt extras

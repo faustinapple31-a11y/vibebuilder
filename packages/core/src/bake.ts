@@ -212,6 +212,12 @@ export interface TerrainData {
   biomeIds: BiomeId[];
   /** Voxel ops (caves, overhangs, arches, craters) applied after the columns. */
   ops: TerrainOp[];
+  /**
+   * "voxels" (default): the heightmap becomes smooth terrain. "parts": the ground is built from parts /
+   * meshes carried by the bake (island blocks…) — the runtime only pours the sea; the heightmap stays the
+   * placement reference.
+   */
+  mode?: "voxels" | "parts";
 }
 
 export interface WorldBake {
@@ -344,6 +350,7 @@ export interface WorldBakeJSON {
     minHeight: number;
     maxHeight: number;
     ops?: TerrainOp[];
+    mode?: "voxels" | "parts";
   };
   prefabs: Record<string, PrefabVariant[]>;
   /** Flat float32 buffer: [prefabIndex, variant, x, y, z, rotY, scale, upX, upZ] per placement (PLACEMENT_STRIDE floats). */
@@ -400,6 +407,7 @@ export function serializeBake(bake: WorldBake): WorldBakeJSON {
       minHeight: minH,
       maxHeight: maxH,
       ops: bake.terrain.ops ?? [],
+      ...(bake.terrain.mode ? { mode: bake.terrain.mode } : {}),
     },
     prefabs: bake.prefabs,
     placementsB64: f32ToBase64(buf),
@@ -465,6 +473,7 @@ export function deserializeBake(json: WorldBakeJSON): WorldBake {
       biomes: base64ToBytes(json.terrain.biomesB64),
       biomeIds: json.terrain.biomeIds,
       ops: json.terrain.ops ?? [],
+      ...(json.terrain.mode ? { mode: json.terrain.mode } : {}),
     },
     prefabs: json.prefabs,
     placements,

@@ -1,5 +1,5 @@
 import { Workspace } from "@rbxts/services";
-import { base64ToBuffer, readF32, readU8 } from "shared/world/decode";
+import { base64ToBuffer, f32Count, readF32, readU8 } from "shared/world/decode";
 import { TERRAIN_MATERIALS, type TerrainOpData, type WorldBakeData } from "shared/world/types";
 
 /**
@@ -44,6 +44,27 @@ export function makeHeightSampler(data: WorldBakeData["terrain"]): (x: number, z
 export function buildTerrain(data: WorldBakeData["terrain"], onProgress?: (done: number, total: number) => void): TerrainBuildResult {
 	const terrain = Workspace.Terrain;
 	const t0 = os.clock();
+	if (data.mode === "parts") {
+		// the ground is parts (island blocks): pour only the sea — a sand floor and water up to the highest water cell
+		const water = base64ToBuffer(data.waterB64);
+		let sea = -math.huge;
+		for (let i = 0; i < f32Count(water); i++) {
+			const w = readF32(water, i);
+			if (w === w && w > sea) sea = w;
+		}
+		if (sea > -math.huge) {
+			const cx = data.origin[0] + (data.width * data.cellSize) / 2;
+			const cz = data.origin[1] + (data.depth * data.cellSize) / 2;
+			const sx = data.width * data.cellSize + 400;
+			const sz = data.depth * data.cellSize + 400;
+			const floor = sea - 44;
+			terrain.FillBlock(new CFrame(cx, floor - 4, cz), new Vector3(sx, 8, sz), Enum.Material.Sand);
+			terrain.FillBlock(new CFrame(cx, (floor + sea) / 2, cz), new Vector3(sx, sea - floor, sz), Enum.Material.Water);
+		}
+		applyTerrainOps(data.ops ?? []);
+		if (onProgress) onProgress(1, 1);
+		return { chunks: 0, seconds: os.clock() - t0 };
+	}
 	const heights = base64ToBuffer(data.heightsB64);
 	const materials = base64ToBuffer(data.materialsB64);
 	const water = base64ToBuffer(data.waterB64);

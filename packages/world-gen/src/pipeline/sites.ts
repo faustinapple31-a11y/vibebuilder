@@ -114,6 +114,9 @@ function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["
  */
 export function flattenArea(ctx: GenContext, center: Vec2, radius: number, strength = 0.8, targetHeight?: number, plateau = 0.55): number {
   const h = ctx.heights;
+  // parts-built ground (island blocks): the plateaus are already flat and the slabs are the ground truth —
+  // never bend the heightmap, the placement simply sits at the local plateau height
+  if (ctx.terrainMode === "parts") return h.sample(center[0], center[1]);
   const [ccx, ccz] = h.toCell(center[0], center[1]);
   const rc = Math.ceil(radius / ctx.cellSize) + 1;
   let sum = 0;

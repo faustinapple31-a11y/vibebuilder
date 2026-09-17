@@ -8,6 +8,7 @@ import type {
   RobloxLightingSettings,
   StyleBible,
   TerrainOp,
+  TerrainMaterial,
   Vec2,
   Vec3,
   WorldBake,
@@ -16,6 +17,7 @@ import type {
 } from "@worldforge/core";
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
+import type { Island } from "./pipeline/archipelago";
 
 export type GenLayer = "terrain" | "water" | "roads" | "landmarks" | "buildings" | "vegetation" | "props" | "lighting";
 export const GEN_LAYERS: GenLayer[] = ["terrain", "water", "roads", "landmarks", "buildings", "vegetation", "props", "lighting"];
@@ -81,6 +83,13 @@ export interface GenContext {
   ocean?: Grid;
   /** Signed shoreline distance (fraction of the feature size, negative inland) for the ocean features. */
   shore?: Grid;
+  /** Archipelago: terrace level per cell (0 = island base, -1 = sea) and the island layout. */
+  plateau?: Grid;
+  islands?: Island[];
+  /** Cliff faces material when a feature wants something other than bedded rock (mesas: brown earth). */
+  cliffMaterial?: TerrainMaterial;
+  /** "parts" when the ground is built from part prefabs (island blocks) instead of voxels. */
+  terrainMode?: "voxels" | "parts";
   /** 3D voxel ops (caves, overhangs, arches, craters) the runtime applies after the heightmap columns. */
   terrainOps: TerrainOp[];
 
@@ -106,7 +115,7 @@ export interface GenContext {
 
 /** Ocean surface height when the spec has an island / coast feature, -Infinity otherwise. */
 export function seaLevelOf(spec: WorldSpec): number {
-  const hasOcean = spec.terrain.features.some((f) => f.type === "island" || f.type === "coast");
+  const hasOcean = spec.terrain.features.some((f) => f.type === "island" || f.type === "coast" || f.type === "archipelago");
   if (!hasOcean) return -Infinity;
   return spec.terrain.seaLevel ?? spec.terrain.baseHeight - 6;
 }

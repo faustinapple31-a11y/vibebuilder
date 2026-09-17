@@ -1,3 +1,4 @@
+export { PLANK_BRIDGE_LENGTHS, STAIRS_RISES, islandBlock, type IslandBlockSpec } from "./kits/islands";
 export * from "./builder";
 export * from "./registry";
 export * as vegetation from "./vegetation";

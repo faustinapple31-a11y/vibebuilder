@@ -89,19 +89,22 @@ export function generateBiomes(ctx: GenContext): void {
       else if ((b.id === "meadow" || b.id === "highlands") && patch > 0.55) mat = "LeafyGrass"; // lush tufts
       const sandy = b.id === "desert" || b.id === "beach";
       const hAbs = ctx.heights.data[i]!;
-      const seaShore = Number.isFinite(sea) && hAbs < sea + 5 && wd < 16;
+      const seaShore = Number.isFinite(sea) && hAbs < sea + 5 && wd < 16 && !ctx.cliffMaterial;
       if (!Number.isNaN(ctx.water.data[i]!)) mat = "Water";
       else if (seaShore) mat = s > 0.7 ? "Rock" : beachMat; // beach ring around the ocean
-      else if (s > 0.62) {
+      else if (s > 0.4 && ctx.cliffMaterial) {
+        // mesa walls: brown earth with darker bands (stylized islands)
+        mat = Math.floor((hAbs + detail * 4) / 7) % 3 === 1 ? "Mud" : ctx.cliffMaterial;
+      } else if (s > 0.62) {
         // cliff faces read as bedded rock: material bands by height (wobbled by noise), darker on the steepest faces
         const band = Math.floor((hAbs + detail * 6) / 9) % 3;
         mat = s > 0.85 && detail > 0.25 ? "Basalt" : band === 0 ? "Rock" : band === 1 ? "Slate" : arctic ? "Rock" : "Limestone";
         if (mat === "Limestone" && (ctx.style.id === "alien_planet" || ctx.style.kits.biomes.includes("volcanic"))) mat = "Basalt";
       }
-      else if (s > 0.45 && detail > 0.3) mat = "Ground"; // scree / bare slope
+      else if (s > 0.45 && detail > 0.3 && !ctx.cliffMaterial) mat = "Ground"; // scree / bare slope
       else if (wd < 3) mat = sandy ? "Sand" : detail > 0.1 ? "Sand" : "Mud"; // sandy banks with mud
       else if (wd < 9 && detail > -0.2) mat = sandy ? "Sand" : "Ground";
-      else if (h > snowLine && b.id !== "desert") mat = detail > 0 || h > snowLine + 0.05 ? "Snow" : "Rock"; // snow line (style-driven)
+      else if (h > snowLine && b.id !== "desert" && !ctx.cliffMaterial) mat = detail > 0 || h > snowLine + 0.05 ? "Snow" : "Rock"; // snow line (style-driven)
       ctx.materials[i] = TERRAIN_MATERIAL_INDEX[mat];
     }
   }

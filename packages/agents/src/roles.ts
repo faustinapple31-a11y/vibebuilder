@@ -87,6 +87,7 @@ apartment blocks/skyscrapers/shops), base, harbor, farmstead. Landmarks include 
 colosseum, torii_gate, lighthouse, pirate_ship, rocket, ufo, dome_base, crystal_spire, ferris_wheel, stadium, fountain, obelisk, waterfall_cliff,
 gas_station, church, barn, plus the classic giant_tree/ruins/tower/castle/statue/windmill/temple/portal/well/mountain_peak/volcano/campfire/bridge.
 Terrain features: mountains, hills, valley, plateau, cliffs, crater, island (land inside radius, ocean + beaches around — pirate / tropical / battle royale),
+archipelago (stylized mesa islands built from parts: flat lawn slabs, stepped cliff walls, plank bridges, stairs, compass spawn plaza — "floating islands", island hopping, showcase maps),
 coast (ocean along an edge — harbors, lighthouses, beaches). The generator dresses settlements by itself: ring walls with gates when the style has a wall kit,
 crop fields (farm prop set / farmland biome / farmstead), a pier with boats on any shore-side settlement or harbor, a graveyard behind a church, paved grounds
 with lights around focal landmarks, lane markings on asphalt streets, style weather (rain, snow, petals, ash, fireflies…), clouds and palette-tinted terrain.

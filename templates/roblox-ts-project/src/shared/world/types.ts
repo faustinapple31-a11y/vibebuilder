@@ -31,6 +31,7 @@ export interface PartData {
 	collide?: boolean;
 	light?: PartLight;
 	effect?: PartEffect;
+	billboard?: { text: string; subtitle?: string; color?: string; width?: number; height?: number; offsetY?: number };
 	name?: string;
 	/** Mesh key in `PrefabVariantData.meshes` (shape "mesh"); `size` is the scaled mesh bounds. */
 	mesh?: string;
@@ -141,6 +142,8 @@ export interface WorldBakeData {
 		maxHeight: number;
 		/** 3D voxel ops applied after the columns: caves (carve), overhangs / arches / lava (fill). */
 		ops?: TerrainOpData[];
+		/** "parts": the ground is made of part prefabs (island blocks); only the sea is poured as terrain. */
+		mode?: "voxels" | "parts";
 	};
 	prefabs: { [prefab: string]: PrefabVariantData[] };
 	placementsB64: string;

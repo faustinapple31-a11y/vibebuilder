@@ -68,6 +68,12 @@ export function placeRocksAndProps(ctx: GenContext): void {
     d += smoothstep(0.15, 0.5, s) * 0.35;
     if (wd < 18) d += 0.25;
     d *= 0.6 + style.rock.clusterChance * 0.6;
+    if (ctx.islands) {
+      // mesa lawns: a few small stones, never on the walls
+      if (s > 0.3 || rng.next() > d * 0.35) continue;
+      add(rng.chance(0.6) ? "stone" : "boulder", x, z, { scale: rng.float(0.5, 0.9), importance: 3 });
+      continue;
+    }
     if (s > 0.8) {
       if (rng.chance(0.55)) add("cliff_block", x, z, { scale: rng.float(0.8, 1.6), importance: 5 });
       continue;

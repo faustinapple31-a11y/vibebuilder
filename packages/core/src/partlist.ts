@@ -129,6 +129,19 @@ export interface PartEffect {
   size?: number;
 }
 
+/** Floating text over a part (BillboardGui at runtime): welcome signs, zone titles. */
+export interface PartBillboard {
+  text: string;
+  subtitle?: string;
+  /** hex */
+  color?: string;
+  /** studs: width of the label */
+  width?: number;
+  height?: number;
+  /** studs above the part centre */
+  offsetY?: number;
+}
+
 export interface Part {
   shape: PartShape;
   /** Center position relative to prefab origin (studs). */
@@ -146,6 +159,7 @@ export interface Part {
   collide?: boolean;
   light?: PartLight;
   effect?: PartEffect;
+  billboard?: PartBillboard;
   name?: string;
   /** Mesh key in `PrefabVariant.meshes` for shape "mesh"; `size` is the mesh bounds size (scaled). */
   mesh?: string;

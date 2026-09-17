@@ -52,6 +52,21 @@ export const TerrainFeatureSchema = z.discriminatedUnion("type", [
     /** Coastline irregularity 0..1 (bays and headlands). */
     ruggedness: z.number().min(0).max(1).default(0.5),
   }),
+  /**
+   * Stylized mesa islands: flat plateaus stacked in terraces with sheer cliffs straight into the sea, a main
+   * island near the centre and satellites at bridge distance (the stage connects them with plank bridges).
+   */
+  z.object({
+    type: z.literal("archipelago"),
+    islands: z.number().int().min(1).max(9).default(5),
+    /** Stacked plateaus on the main island (satellites get fewer). */
+    terraces: z.number().int().min(1).max(4).default(3),
+    /** Height of one terrace step, 0..1 → 14..32 studs. */
+    cliffHeight: z.number().min(0).max(1).default(0.5),
+    /** Main island radius as a fraction of the world size. */
+    mainRadius: z.number().min(0.12).max(0.34).default(0.22),
+    ruggedness: z.number().min(0).max(1).default(0.35),
+  }),
   /** Ocean along the listed edges: the land drops under the sea level within `reach` of the edge. */
   z.object({
     type: z.literal("coast"),

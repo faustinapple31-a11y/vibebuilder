@@ -12,6 +12,7 @@ import * as tp from "./kits/props-themed";
 import * as kv from "./kits/vegetation-kits";
 import * as kl from "./kits/landmarks-kits";
 import * as kw from "./kits/dressing";
+import * as ki from "./kits/islands";
 import { buildMeshLibrary } from "./meshes/library";
 
 export type PrefabBuilder = (ctx: PrefabContext, variant: number) => PrefabVariant;
@@ -58,6 +59,9 @@ export const PREFAB_DEFINITIONS: PrefabDefinition[] = [
   def("watchtower", "building", arch.watchtower, 4, 20, ["tower"]),
   def("well", "building", arch.well, 4, 9, ["village"]),
   def("bridge", "building", arch.bridge, 4, 30, ["bridge"]),
+  def("plank_bridge", "building", ki.plankBridge, 7, 60, ["bridge", "floating"]),
+  def("stairs", "building", ki.stairs, 7, 20, ["floating", "stairs"]),
+  def("spawn_plaza", "prop", ki.spawnPlaza, 2, 30, ["layout", "spawn"]),
   def("fence", "prop", arch.fence, 8, 4, ["village"]),
   def("stone_path_slab", "path", arch.stonePathSlab, 10, 3, ["path"]),
   // props

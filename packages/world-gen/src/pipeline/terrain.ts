@@ -1,6 +1,7 @@
 import { Rng, clamp, deriveSeed, lerp, smoothstep, smootherstep, type TerrainFeature } from "@worldforge/core";
 import { Simplex2D } from "../noise";
 import { Grid } from "../grid";
+import { applyArchipelago, type Archipelago } from "./archipelago";
 import { normToWorld, progress, seaLevelOf, type GenContext } from "../context";
 
 /**
@@ -37,11 +38,12 @@ export function generateTerrain(ctx: GenContext): void {
   progress(ctx, "terrain:features", 0.3);
   ctx.ocean = undefined;
   ctx.shore = undefined;
-  for (const f of t.features) if (f.type !== "island" && f.type !== "coast") applyFeature(ctx, f, ridge, amplitude);
+  const archipelago = t.features.find((f): f is Archipelago => f.type === "archipelago");
+  for (const f of t.features) if (f.type !== "island" && f.type !== "coast" && f.type !== "archipelago") applyFeature(ctx, f, ridge, amplitude);
 
   // border rise so the world reads as a contained valley (background silhouettes) — not over the ocean
   const borderReach = Math.min(worldW, worldD) * 0.09;
-  const oceanFeatures = t.features.filter((f) => f.type === "island" || f.type === "coast");
+  const oceanFeatures = archipelago ? [] : t.features.filter((f) => f.type === "island" || f.type === "coast");
   const ocean = oceanFeatures.length ? computeOceanMask(ctx, oceanFeatures, ridge) : undefined;
   h.map((x, z, v, i) => {
     const wx = origin[0] + x * cellSize;
@@ -95,6 +97,9 @@ export function generateTerrain(ctx: GenContext): void {
       return m > 0.5 ? Math.min(v, sea - 2 - (m - 0.5) * 24) : v;
     });
   }
+
+  // mesa islands replace the whole relief: flat terraces, sheer cliffs, sea floor (no erosion / detail on them)
+  if (archipelago) applyArchipelago(ctx, archipelago, ridge);
 
   // guard: never flat
   if (h.std() < 8) {

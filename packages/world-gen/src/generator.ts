@@ -202,7 +202,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
 
   // ---- 3D relief: caves behind cave landmarks, overhangs, arches, lava (voxel ops + fixed interior props)
   if (regenerate.has("landmarks") || regenerate.has("terrain") || !compatiblePrevious) {
-    placeRelief(ctx);
+    if (!ctx.islands) placeRelief(ctx);
   } else {
     ctx.terrainOps = compatiblePrevious.terrain.ops.map((o) => ({ ...o, position: [...o.position] as [number, number, number] }));
     for (const p of compatiblePrevious.placements) if (p.fixed) ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
@@ -294,6 +294,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       biomes: ctx.biomes,
       biomeIds: ctx.biomeIds,
       ops: ctx.terrainOps,
+      ...(ctx.terrainMode ? { mode: ctx.terrainMode } : {}),
     },
     prefabs: ctx.prefabs,
     placements: ctx.placements,
@@ -409,8 +410,9 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   for (const l of spec.landmarks) ids.add(LANDMARK_PREFAB[l.type].prefab);
   // settlement dressing: walls & gates (when the style has a wall kit), fields, piers, road markings
   if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
-  for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post"]) ids.add(id);
+  for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post", "spawn_plaza"]) ids.add(id);
   if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
+  if (spec.terrain.features.some((f) => f.type === "archipelago")) for (const id of ["plank_bridge", "stairs"]) ids.add(id);
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
 }
 

@@ -302,6 +302,19 @@ FBX est uploadé en asset « Model » Open Cloud, Studio résout le `MeshId` du 
 `MeshData.assetId` et le runtime crée alors les parts avec `CreateMeshPartAsync(rbxassetid)` — réplication
 normale, plus de budget client ni de reconstruction.
 
+### 6f. Archipel « mesa » (sol en parts)
+
+Feature de terrain `archipelago` (`pipeline/archipelago.ts`) : une île principale près du centre et des
+satellites à distance de pont, chacune un empilement de plateaux plats (terrasses) aux parois verticales.
+Le sol de ces mondes n'est **pas** du terrain voxel : chaque plateau est un prefab `island_block` unique
+(dalle de pelouse en paires de wedges — `PartListBuilder.triangleSlab` — sur des bandes de murs bruns en
+retrait, lèvre verte), placé fixe ; la bake porte `terrain.mode = "parts"` et le runtime ne coule que la mer
+(bloc d'eau + fond de sable). La heightmap reste la référence de placement (plateaux plats). Ensuite
+`pipeline/islands.ts` relie les îles par un arbre couvrant de `plank_bridge` (7 longueurs, inclinés si les
+plateaux diffèrent), pose un `stairs` par terrasse et des chemins de sable des atterrissages vers les
+routes ; `flattenArea` est neutralisée, le spawn exige un plateau entier et reçoit une `spawn_plaza`
+(rose des vents + panneau flottant `PartBillboard`). Végétation clairsemée (palmiers), pas de relief 3D.
+
 ### 6e. Textures PBR procédurales
 
 `packages/textures` : bruit tuilable (réseau périodique, cellules de Worley), 14 programmes (herbe,

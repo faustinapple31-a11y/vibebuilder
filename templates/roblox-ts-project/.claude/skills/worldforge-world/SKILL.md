@@ -1,6 +1,6 @@
 ---
 name: worldforge-world
-description: "Edit the generated Roblox map of a WorldForge project through worlds/main/world.spec.json (WorldSpec) and worlds/main/style.bible.json (StyleBible): terrain features (mountains, hills, valley, plateau, cliffs, crater, island, coast), biomes, rivers/lakes, landmarks, settlements (walls, kits, interiors), roads, vegetation, props, lighting/mood, weather, clouds, gameplay layout archetypes. Use when asked to change the world, the map, the terrain, the village/town, the atmosphere, add an island / beach / harbor / walls / fields, or when a QA report proposes a spec_patch. Never edit assets/world/WorldBake.json."
+description: "Edit the generated Roblox map of a WorldForge project through worlds/main/world.spec.json (WorldSpec) and worlds/main/style.bible.json (StyleBible): terrain features (mountains, hills, valley, plateau, cliffs, crater, island, coast, archipelago = part-built mesa islands with bridges), biomes, rivers/lakes, landmarks, settlements (walls, kits, interiors), roads, vegetation, props, lighting/mood, weather, clouds, gameplay layout archetypes. Use when asked to change the world, the map, the terrain, the village/town, the atmosphere, add an island / beach / harbor / walls / fields, or when a QA report proposes a spec_patch. Never edit assets/world/WorldBake.json."
 ---
 
 # WorldForge — world editing
@@ -34,7 +34,11 @@ or the app does it when the spec file changes). **Never edit WorldBake.json.**
       { "type": "cliffs", "intensity": 0.7 },
       { "type": "crater", "center": [0.65,0.4], "radius": 0.15 },
       { "type": "island", "center": [0.5,0.5], "radius": 0.36, "ruggedness": 0.55 },   // land inside, ocean + beaches outside
-      { "type": "coast", "edges": ["south"], "reach": 0.22, "ruggedness": 0.5 }        // ocean along an edge
+      { "type": "coast", "edges": ["south"], "reach": 0.22, "ruggedness": 0.5 },       // ocean along an edge
+      { "type": "archipelago", "islands": 5, "terraces": 3, "cliffHeight": 0.5, "mainRadius": 0.22, "ruggedness": 0.35 }
+      // stylized mesa islands built from PARTS (flat lawn slabs, stepped brown cliff walls) instead of voxel
+      // terrain: plank bridges join the islands, stairs climb the terraces, a compass plaza marks the spawn.
+      // Replaces the other relief features; the runtime pours only the sea (terrain.mode = "parts").
     ],
     "seaLevel": 34                                                 // optional; default baseHeight - 6 (island / coast only)
   },

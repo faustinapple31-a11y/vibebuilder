@@ -75,7 +75,42 @@ function makePart(p: PartData, variant?: PrefabVariantData): BasePart {
 		light.Parent = part;
 	}
 	if (p.effect) makeEffect(p.effect).Parent = part;
+	if (p.billboard) makeBillboard(p.billboard).Parent = part;
 	return part;
+}
+
+/** Floating title (+ subtitle) above a part, always facing the camera, readable from ~150 studs. */
+function makeBillboard(b: NonNullable<PartData["billboard"]>): BillboardGui {
+	const gui = new Instance("BillboardGui");
+	gui.Name = "Label";
+	gui.Size = new UDim2(b.width ?? 24, 0, b.height ?? 6, 0);
+	gui.StudsOffset = new Vector3(0, b.offsetY ?? 4, 0);
+	gui.AlwaysOnTop = false;
+	gui.MaxDistance = 220;
+	gui.LightInfluence = 0;
+	const title = new Instance("TextLabel");
+	title.BackgroundTransparency = 1;
+	title.Size = new UDim2(1, 0, b.subtitle !== undefined ? 0.68 : 1, 0);
+	title.Font = Enum.Font.FredokaOne;
+	title.Text = b.text;
+	title.TextScaled = true;
+	title.TextColor3 = hexToColor3(b.color ?? "#ffd23f");
+	title.TextStrokeTransparency = 0;
+	title.TextStrokeColor3 = new Color3(0.15, 0.08, 0.02);
+	title.Parent = gui;
+	if (b.subtitle !== undefined) {
+		const sub = new Instance("TextLabel");
+		sub.BackgroundTransparency = 1;
+		sub.Position = new UDim2(0, 0, 0.68, 0);
+		sub.Size = new UDim2(1, 0, 0.32, 0);
+		sub.Font = Enum.Font.FredokaOne;
+		sub.Text = b.subtitle;
+		sub.TextScaled = true;
+		sub.TextColor3 = new Color3(1, 1, 1);
+		sub.TextStrokeTransparency = 0.2;
+		sub.Parent = gui;
+	}
+	return gui;
 }
 
 const InsertService = game.GetService("InsertService");

@@ -3,6 +3,7 @@ import { Rng } from "@worldforge/core";
 import { astar } from "../pathfinding";
 import { distanceToPolylinesGrid } from "../grid";
 import { edgeToWorld, progress, type GenContext } from "../context";
+import { connectIslands } from "./islands";
 
 /**
  * Stage 9: roads. A* over a coarse grid with slope-aware cost (cliffs are impassable),
@@ -12,6 +13,36 @@ import { edgeToWorld, progress, type GenContext } from "../context";
 export function generateRoads(ctx: GenContext): void {
   const { spec } = ctx;
   const rng = new Rng(deriveSeed(ctx.seed, "roads"));
+  const reuse = !ctx.regenerate.has("roads") && ctx.previous;
+  let idx = 0;
+  for (const road of spec.roads) {
+    progress(ctx, `roads:${road.id}`, idx++ / Math.max(1, spec.roads.length));
+    const prev = reuse ? ctx.previous!.paths.find((p) => p.kind === "road" && p.id === road.id) : undefined;
+    if (prev) {
+      ctx.paths.push({ ...prev, points: prev.points.map((p) => [p[0], p[1]] as Vec2) });
+      carveRoad(ctx, prev.points, road.width, road.type);
+      placeBridges(ctx, road.id, prev.points, road.width);
+      continue;
+    }
+    const nodes = road.connects.map((n) => resolveNode(ctx, n)).filter((n): n is Vec2 => !!n);
+    if (nodes.length < 2) continue;
+    const smooth = routeRoad(ctx, rng, nodes);
+    if (!smooth) continue;
+    ctx.paths.push({ id: road.id, kind: "road", type: road.type, points: smooth, width: road.width });
+    carveRoad(ctx, smooth, road.width, road.type);
+    placeBridges(ctx, road.id, smooth, road.width);
+  }
+  if (ctx.islands) connectIslands(ctx, rng);
+  const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
+  ctx.roadDistance = distanceToPolylinesGrid(ctx.heights, roads, 300);
+  progress(ctx, "roads:done", 1);
+}
+
+/**
+ * A* route through the given world points (coarse grid, slope-aware, water expensive, landmark footprints
+ * avoided), smoothed and wobbled; null when no leg is reachable.
+ */
+export function routeRoad(ctx: GenContext, rng: Rng, nodes: Vec2[], opts: { waterCost?: number } = {}): Vec2[] | null {
   const coarse = 2; // cells per node
   const cw = Math.floor(ctx.width / coarse);
   const cd = Math.floor(ctx.depth / coarse);
@@ -28,20 +59,8 @@ export function generateRoads(ctx: GenContext): void {
     return false;
   };
 
-  const reuse = !ctx.regenerate.has("roads") && ctx.previous;
-  let idx = 0;
-  for (const road of spec.roads) {
-    progress(ctx, `roads:${road.id}`, idx++ / Math.max(1, spec.roads.length));
-    const prev = reuse ? ctx.previous!.paths.find((p) => p.kind === "road" && p.id === road.id) : undefined;
-    if (prev) {
-      ctx.paths.push({ ...prev, points: prev.points.map((p) => [p[0], p[1]] as Vec2) });
-      carveRoad(ctx, prev.points, road.width, road.type);
-      placeBridges(ctx, road.id, prev.points, road.width);
-      continue;
-    }
-    const nodes = road.connects.map((n) => resolveNode(ctx, n)).filter((n): n is Vec2 => !!n);
-    if (nodes.length < 2) continue;
-    const full: Vec2[] = [];
+  const full: Vec2[] = [];
+  {
     for (let i = 1; i < nodes.length; i++) {
       const a = nodes[i - 1]!;
       const b = nodes[i]!;
@@ -63,7 +82,7 @@ export function generateRoads(ctx: GenContext): void {
           const nearGoal = Math.hypot(x1 - goal[0], z1 - goal[1]) < 3;
           if (isGoalLandmark && !nearGoal && blocked(x1, z1)) return Infinity;
           let c = run * (1 + slope * slope * 14);
-          if (nodeWater(x1, z1)) c *= 7;
+          if (nodeWater(x1, z1)) c *= opts.waterCost ?? 7;
           return c;
         },
         heuristicWeight: 1.05,
@@ -73,22 +92,17 @@ export function generateRoads(ctx: GenContext): void {
       if (full.length > 0) seg.shift();
       full.push(...seg);
     }
-    if (full.length < 2) continue;
-    const smooth = resamplePolyline(chaikin(full, 2), ctx.cellSize);
-    // jitter slightly with a low-frequency wobble for organic feel (not on bridges)
-    const wobble = 0.8 + ctx.style.randomness * 1.4;
-    for (let i = 1; i < smooth.length - 1; i++) {
-      const p = smooth[i]!;
-      const w = Math.sin(i * 0.31 + rng.next() * 0.2) * wobble;
-      smooth[i] = [p[0] + w, p[1] + Math.cos(i * 0.27) * wobble];
-    }
-    ctx.paths.push({ id: road.id, kind: "road", type: road.type, points: smooth, width: road.width });
-    carveRoad(ctx, smooth, road.width, road.type);
-    placeBridges(ctx, road.id, smooth, road.width);
   }
-  const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
-  ctx.roadDistance = distanceToPolylinesGrid(h, roads, 300);
-  progress(ctx, "roads:done", 1);
+  if (full.length < 2) return null;
+  const smooth = resamplePolyline(chaikin(full, 2), ctx.cellSize);
+  // jitter slightly with a low-frequency wobble for organic feel (not on bridges)
+  const wobble = 0.8 + ctx.style.randomness * 1.4;
+  for (let i = 1; i < smooth.length - 1; i++) {
+    const p = smooth[i]!;
+    const w = Math.sin(i * 0.31 + rng.next() * 0.2) * wobble;
+    smooth[i] = [p[0] + w, p[1] + Math.cos(i * 0.27) * wobble];
+  }
+  return smooth;
 }
 
 function clampI(v: number, a: number, b: number): number {

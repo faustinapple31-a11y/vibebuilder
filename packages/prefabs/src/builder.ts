@@ -10,8 +10,11 @@ import {
   matrixToEulerXYZ,
   rotY,
   type Part,
+  type Mat3,
+  type Vec2,
   type PartEffect,
   type PartLight,
+  type PartBillboard,
   type PrefabCategory,
   type PrefabVariant,
   type RobloxMaterial,
@@ -36,9 +39,19 @@ export interface PartOptions {
   collide?: boolean;
   light?: PartLight;
   effect?: PartEffect;
+  billboard?: PartBillboard;
   name?: string;
   lod?: 0 | 1 | 2;
 }
+
+export const v2 = {
+  sub: (a: Vec2, b: Vec2): Vec2 => [a[0] - b[0], a[1] - b[1]],
+  len: (a: Vec2): number => Math.hypot(a[0], a[1]),
+  norm: (a: Vec2): Vec2 => {
+    const l = Math.hypot(a[0], a[1]) || 1;
+    return [a[0] / l, a[1] / l];
+  },
+};
 
 export const v3 = {
   add: (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
@@ -93,6 +106,49 @@ export class PartListBuilder {
   /** Y-up cylinder: size = [diameter, height, diameter]. */
   cylinder(position: Vec3, diameter: number, height: number, color: string, opts: PartOptions = {}): this {
     return this.add({ shape: "cylinder", position, size: [diameter, height, diameter], color, rotation: opts.rotation ?? [0, 0, 0], material: opts.material ?? "SmoothPlastic", ...strip(opts) });
+  }
+
+  /**
+   * Flat triangular slab (any triangle, horizontal) built from two WedgeParts: the vertex with the largest
+   * angle is dropped onto the opposite edge, giving two right triangles; a wedge laid on its side (extrusion
+   * axis vertical) is exactly a right-triangle prism. `y` is the slab centre height.
+   */
+  triangleSlab(a: Vec2, b: Vec2, c: Vec2, y: number, thickness: number, color: string, opts: PartOptions = {}): this {
+    const pts: Vec2[] = [a, b, c];
+    const angleAt = (k: number) => {
+      const p = pts[k]!;
+      const u = v2.norm(v2.sub(pts[(k + 1) % 3]!, p));
+      const w = v2.norm(v2.sub(pts[(k + 2) % 3]!, p));
+      return Math.acos(Math.max(-1, Math.min(1, u[0] * w[0] + u[1] * w[1])));
+    };
+    let k = 0;
+    for (let i = 1; i < 3; i++) if (angleAt(i) > angleAt(k)) k = i;
+    const P = pts[k]!;
+    const Q = pts[(k + 1) % 3]!;
+    const R = pts[(k + 2) % 3]!;
+    // foot of the altitude from P on QR
+    const qr = v2.sub(R, Q);
+    const len2 = qr[0] * qr[0] + qr[1] * qr[1];
+    if (len2 < 1e-6) return this;
+    const t = Math.max(0, Math.min(1, ((P[0] - Q[0]) * qr[0] + (P[1] - Q[1]) * qr[1]) / len2));
+    const F: Vec2 = [Q[0] + qr[0] * t, Q[1] + qr[1] * t];
+    const rightTriangle = (D: Vec2, A: Vec2, Bp: Vec2) => {
+      // legs D→A (local +Y) and D→B (local −Z); the wedge extrusion (local X) ends up vertical
+      const la = v2.len(v2.sub(A, D));
+      const lb = v2.len(v2.sub(Bp, D));
+      if (la < 0.05 || lb < 0.05) return;
+      const ua = v2.norm(v2.sub(A, D));
+      const ub = v2.norm(v2.sub(Bp, D));
+      const Y: Vec3 = [ua[0], 0, ua[1]];
+      const Z: Vec3 = [-ub[0], 0, -ub[1]];
+      const X: Vec3 = [Y[1] * Z[2] - Y[2] * Z[1], Y[2] * Z[0] - Y[0] * Z[2], Y[0] * Z[1] - Y[1] * Z[0]];
+      const m: Mat3 = [X[0], Y[0], Z[0], X[1], Y[1], Z[1], X[2], Y[2], Z[2]];
+      const centre: Vec2 = [D[0] + ua[0] * (la / 2) + ub[0] * (lb / 2), D[1] + ua[1] * (la / 2) + ub[1] * (lb / 2)];
+      this.wedge([centre[0], y, centre[1]], [thickness, la, lb], color, { ...opts, rotation: matrixToEulerXYZ(m) });
+    };
+    rightTriangle(F, P, Q);
+    rightTriangle(F, P, R);
+    return this;
   }
 
   /** Wedge: vertical face at +Z, slope descends toward -Z. */

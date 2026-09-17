@@ -35,6 +35,16 @@ export function chooseSpawn(ctx: GenContext): void {
       if (isWaterAt(ctx, x, z)) continue;
       const s = slopeAtWorld(ctx, x, z);
       if (s > 0.3) continue;
+      // mesa islands: the whole plaza (radius 30) must sit on one plateau level
+      if (ctx.plateau) {
+        const level = Math.round(ctx.plateau.sample(x, z));
+        let flat = level >= 0;
+        for (let k = 0; k < 8 && flat; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          if (Math.round(ctx.plateau.sample(x + Math.cos(a) * 26, z + Math.sin(a) * 26)) !== level) flat = false;
+        }
+        if (!flat) continue;
+      }
       const y = ctx.heights.sample(x, z) + 5;
       const seesVillage = hasLineOfSight(ctx, [x, y, z], [site.center[0], site.baseHeight + 8, site.center[1]]);
       const seesLandmark = focal ? hasLineOfSight(ctx, [x, y, z], [focal.position[0], focal.position[1] + 40, focal.position[2]]) : false;
@@ -57,4 +67,20 @@ export function chooseSpawn(ctx: GenContext): void {
   ctx.spawn = { position: [pos[0], y, pos[1]], lookAt };
   ctx.zones.push({ id: "spawn", kind: "spawn", polygon: circlePoly(pos, 30, 12), center: pos, radius: 30 });
   ctx.occupants.push({ position: [pos[0], y, pos[1]], radius: 24, kind: "keep" });
+  // the arrival plaza (compass rose + welcome sign), facing the look target
+  if (ctx.prefabs["spawn_plaza"]) {
+    ctx.placements.push({
+      id: "spawn_plaza",
+      prefab: "spawn_plaza",
+      variant: 0,
+      category: "prop",
+      position: [pos[0], y, pos[1]],
+      rotationY: Math.atan2(-(lookAt[2] - pos[1]), lookAt[0] - pos[0]),
+      scale: 1,
+      layer: "foreground",
+      importance: 10,
+      locked: true,
+      zone: "spawn",
+    });
+  }
 }

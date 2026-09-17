@@ -115,7 +115,7 @@ export function placeVegetation(ctx: GenContext): void {
   const clearings = new Worley2D(deriveSeed(ctx.seed, "veg-clearings"));
   // the spec's species plus the style kit's species (a "candy" or "alien" style always gets its flora)
   const allowed = new Set<VegetationSpecies>([...spec.vegetation.species, ...(VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []).map(([sp]) => sp)]);
-  const globalDensity = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9);
+  const globalDensity = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9) * (ctx.islands ? 0.45 : 1);
   const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
   for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
   const lockedPrev = ctx.previous?.placements.filter((p) => p.locked && p.category === "vegetation") ?? [];
