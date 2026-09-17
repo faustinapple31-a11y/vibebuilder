@@ -315,6 +315,11 @@ Les routes deviennent des rubans de parts (`road_strip`), les passages d'un nive
 `stairs` (coût A* : un seul step autorisé), `flattenArea` pose un pad au niveau le plus proche, l'eau
 devient des blocs `fill` Water (rectangles gloutons) ; `terrain.mode = "parts"` dans la bake, le runtime
 n'écrit que ces blocs et snappe les objets sur le dossier `World.Ground`. Le viewer affiche les mêmes parts.
+Détails : chaque arête du contour connaît le niveau de la cellule d'en face (les murs sont exacts, même sur
+les bandes fines) ; les berges sont relevées au-dessus de l'eau ; les hauteurs sont échantillonnées au plus
+proche (jamais interpolées à travers une marche) ; une plaque sombre sous le monde cache les coutures ;
+pierres d'éboulis au pied des grands murs, plaques de mesh « falaise » sur les murs rocheux, joints ronds
+sur les rubans de route, pads de sites au niveau dominant du disque.
 
 ### 6f. Archipel « mesa » (sol en parts)
 
