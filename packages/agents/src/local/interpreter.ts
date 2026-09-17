@@ -9,6 +9,7 @@ import {
   hashString,
   matchGenre,
   matchStyleFamily,
+  pickUiKit,
   type GameSpec,
   type GenreDef,
   type StyleFamilyDef,
@@ -357,7 +358,8 @@ export function interpretGame(prompt: string, spec: WorldSpec, genreIn?: GenreDe
   if (hints.includes("quests")) ids.add("quests"), ids.add("npcs");
   if (hints.includes("vehicles")) ids.add("vehicles");
   const systems: GameSpec["systems"] = [...ids].map((id) => ({ id: id as never, description: SYSTEM_DESCRIPTIONS[id] ?? id, params: {} }));
-  const ui: GameSpec["ui"] = { screens: genre.screens as never, style: fam.ui as never, accentColor: fam.uiAccent };
+  // a prompt can ask for a UI library directly ("UI rétro", "interface néon") — otherwise the style decides
+  const ui: GameSpec["ui"] = { screens: genre.screens as never, style: fam.ui as never, accentColor: fam.uiAccent, kit: pickUiKit(prompt, fam.ui, genre.id) };
   const base = defaultGameContent();
   const currencyName = genre.currency.charAt(0).toUpperCase() + genre.currency.slice(1);
   const enemies = genre.enemies || ids.has("enemies");

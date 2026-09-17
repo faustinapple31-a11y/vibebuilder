@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { GENRES } from "@worldforge/core";
 import { GameSpecSchema } from "@worldforge/core";
 import { TEMPLATE_FILES } from "../src/template-files.generated";
+import { buildUiKitsTs } from "../src/uiKitFiles";
+import { UI_KITS } from "@worldforge/core";
 
 /**
  * Every screen a genre declares (GameSpec `ui.screens`) must exist in the template and be mounted by
@@ -44,6 +46,17 @@ describe("UI screens of the template", () => {
         expect(client.includes(`enabled("${id}")`), `${genre.id}: "${id}" is never mounted by main.client.ts`).toBe(true);
       }
     }
+  });
+
+  it("ships the UI kit library in sync with the taxonomy (run scripts/sync-template.ts)", () => {
+    expect(TEMPLATE_FILES["src/ui/kits.generated.ts"]).toBe(buildUiKitsTs());
+  });
+
+  it("lets the client resolve the selected kit and falls back when it is unknown", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    expect(kit.includes("UI_KITS[UI.kit ?? DEFAULT_UI_KIT] ?? UI_KITS[DEFAULT_UI_KIT]")).toBe(true);
+    // every kit of the taxonomy reaches the project
+    for (const k of UI_KITS) expect(TEMPLATE_FILES["src/ui/kits.generated.ts"]!.includes(`\t${k.id}: {`), k.id).toBe(true);
   });
 
   it("builds every screen on the kit's Window (same open / close / scaling behaviour)", () => {

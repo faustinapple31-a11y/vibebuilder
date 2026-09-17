@@ -79,6 +79,52 @@ le template et montés par le client uniquement quand le genre les déclare : `h
 `round_status` et `teams` suivent les systèmes `rounds` / `teams`, `minimap` les genres à grande carte ;
 `settings` et `menu` sont universels.
 
+## 3bis. Librairies UI (`gameSpec.ui.kit`)
+
+`packages/core/src/taxonomy/ui-kits.ts` décrit **16 librairies UI** prêtes à l'emploi. Une librairie est
+un design system complet : jetons de couleur (papier, encre, texte, dégradés primary / gold / danger /
+info, pastilles, tuiles), **langage de forme** (rayon des coins, épaisseur du contour, dégradés oui/non,
+ombre portée, biseau des boutons, contour du texte, transparence des panneaux), polices Roblox,
+**ornement** dessiné sur chaque panneau et **retour des boutons**. Tous les écrans (HUD, shop,
+inventaire, quêtes, craft, classement, équipes, manche, réglages, minimap, menu) lisent la librairie
+sélectionnée : changer de look = un champ.
+
+| id | nom | look | ornement / press | défaut pour |
+|---|---|---|---|---|
+| `paper_cartoon` | Paper Cartoon | The mobile-game look: cream paper panels, thick ink outline, drop shadow, rounded bold type. | none / squash | cartoon, stylized |
+| `candy_pop` | Candy Pop | Bubbly sweet-shop UI: very round pink panels, fat outlines, bouncing buttons. | none / pulse | candy |
+| `neon_cyber` | Neon Cyber | Dark glass panels with neon outlines, glow and flickering buttons — cyberpunk / night city. | glow / flicker | sci-fi |
+| `holo_hud` | Holo HUD | Angular hologram HUD: translucent frames, corner brackets, hairline strokes, no gradients. | brackets / slide | sci-fi |
+| `grim_horror` | Grim Horror | Near-black panels, dried-blood accents, speckled grain and no animation — horror and backrooms. | grain / none | horror |
+| `pixel_retro` | Pixel Retro | 8-bit console UI: square corners, hard 4px borders, hard offset shadow, pixel type, no gradients. | none / none | retro |
+| `arcade_synth` | Arcade Synth | 80s arcade cabinet: magenta / cyan gradients, CRT scanlines, chrome outlined type. | scanlines / pulse | retro |
+| `clean_modern` | Clean Modern | Flat app UI: white cards, thin accent line, soft shadow, no outline on the type. | none / slide | modern, minimal |
+| `glass_soft` | Soft Glass | Frosted translucent panels, hairline strokes, very round corners — calm and minimal. | none / slide | minimal |
+| `parchment_fantasy` | Parchment & Gold | Quest-log fantasy UI: parchment panels, gold filigree edges, serif type. | filigree / squash | fantasy |
+| `stone_rune` | Stone & Rune | Carved stone slabs with notched corners and rune-blue accents — dungeons and dwarven halls. | notch / squash | fantasy |
+| `military_stencil` | Military Stencil | Field-manual UI: olive panels, stencil caps, hazard stripes, sharp corners. | stripes / none | military |
+| `steampunk_brass` | Steampunk Brass | Riveted brass plates on leather, copper gradients, victorian serif type. | rivets / squash | mots-clés |
+| `wood_nature` | Wood & Leaf | Cozy carved-wood panels with leaf-green buttons and handwritten labels — camps and villages. | notch / squash | mots-clés |
+| `luxury_gold` | Black & Gold | VIP / casino UI: matte black panels, thin gold filigree, restrained serif type. | filigree / slide | mots-clés |
+| `kawaii_pastel` | Kawaii Pastel | Soft pastel bubbles with sticker edges and a cute bounce — anime and cafe games. | none / pulse | mots-clés |
+
+Les librairies sont livrées **dans chaque projet** (`src/ui/kits.generated.ts`, généré depuis cette
+table par `scripts/sync-template.ts`), donc basculer de l'une à l'autre ne demande aucun fichier
+supplémentaire — juste `GameConfig.ui.kit` (sélecteur dans l'onglet *Game → UI library & screens* de
+l'app, ou champ `ui.kit` du GameSpec).
+
+**Choix automatique** — `pickUiKit(prompt, theme, genre)` :
+
+1. un mot-clé explicite dans le prompt gagne (« je veux un **UI retro** », « interface **néon
+   cyberpunk** », « ui **luxe or** », « **kawaii pastel** ») — mots-clés anglais *et* français, le plus
+   long l'emporte, avec un bonus si le genre ou le thème correspond ;
+2. sinon le genre départage les librairies du thème de la famille de style ;
+3. sinon le défaut du thème (`UI_THEME_DEFAULT_KIT`) — chaque `ui` de famille de style a le sien, donc
+   **tout style × tout genre** tombe toujours sur une librairie complète (test
+   `packages/core/test/uiKits.test.ts`).
+
+Ajouter une librairie : skill `add-ui-kit`.
+
 ## 4. Archétypes de layout (`worldSpec.layout.archetype`)
 
 Posés sur le terrain par `packages/world-gen/src/pipeline/layout.ts`, ils créent des structures

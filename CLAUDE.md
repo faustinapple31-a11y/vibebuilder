@@ -37,7 +37,7 @@ templates/roblox-ts-project   the project every generated game starts from (sync
 
 ## Skills (`.claude/skills/`)
 
-`add-style`, `add-genre`, `add-prefab`, `map-quality`, `studio-verify`, `release`. Generated projects carry
+`add-style`, `add-genre`, `add-prefab`, `add-ui-kit`, `map-quality`, `studio-verify`, `release`. Generated projects carry
 their own skills (`templates/roblox-ts-project/.claude/skills/`): `worldforge-world`, `worldforge-gameplay`,
 `worldforge-ui`, `worldforge-assets`, `worldforge-qa`, `worldforge-publish`, `roblox-ts-pitfalls`.
 

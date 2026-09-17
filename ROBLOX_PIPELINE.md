@@ -35,7 +35,8 @@ commandes Rust `studio.rs`, `opencloud.rs`, `process.rs`.
 │   │   ├── TerrainBuilder.ts
 │   │   └── Streaming.ts                 # LOD/cull, StreamingEnabled
 │   ├── systems/                         # PlayerData (owned/inventory/multipliers/buffs), Shop, Npcs, Audio, Survival, Collectibles…
-│   └── ui/                              # kit.ts (thème, Window, boutons, icônes), Hud, ShopUi, Inventory,
+│   └── ui/                              # kits.generated.ts (16 librairies), kit.ts (thème, Window, boutons,
+│                                        # icônes, ornements), Hud, ShopUi, Inventory,
 │                                        # Quests, Crafting, Leaderboard, Teams, RoundStatus, Settings, Minimap, Menu
 ├── assets/
 │   ├── world/WorldBake.json             # → ReplicatedStorage.WorldAssets.WorldBake (ModuleScript via Rojo)
@@ -180,14 +181,32 @@ Le `GameSpec` porte aussi des **packs** (`shop.bundles`) et une **bannière feat
 accorde les items du pack et le marque possédé une seule fois, prix barré et sticker de remise calculés depuis
 les prix unitaires).
 
-### UI kit (`src/ui/kit.ts`)
+### Librairies UI (`src/ui/kits.generated.ts` + `src/ui/kit.ts`)
 
-Le HUD et le shop partagent un kit sans asset externe : un `Theme` dérivé de `GameConfig.ui`
-(`style` — sci-fi, horror, minimal, modern, candy, military, fantasy, retro — et `accentColor`) et des
-primitives (`panel`, `button`, `text`, `body`, `badge`, `strike`, `gradient`, `shadow`, `tooltip`, icônes
-dessinées pour la monnaie / les items / les effets). Look "mobile game" : panneaux crème à contour d'encre
-épais, ombre portée, typo arrondie contournée. Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient),
-donc aucun upload n'est nécessaire et le thème suit le style du monde.
+Chaque projet embarque les **16 librairies UI** de la taxonomie (voir TAXONOMY.md) dans
+`src/ui/kits.generated.ts` — généré depuis `packages/core/src/taxonomy/ui-kits.ts` par
+`scripts/sync-template.ts`. `GameConfig.ui.kit` en sélectionne une ; `src/ui/kit.ts` construit le `theme`
+à partir de ses jetons et applique son langage de forme partout :
+
+- couleurs : `paper` / `paperDark` / `ink` / `inkSoft` / `text` / `textDark`, dégradés `primary`, `gold`,
+  `danger`, `info`, pastilles `pill`, tuiles `tile` ;
+- formes : `radius`, `strokeThickness`, `gradients`, `shadowOffset`, `bevel`, `textOutline`,
+  `panelTransparency` — un kit plat (pixel, militaire, HUD holo) n'a ni dégradé, ni biseau, ni ombre ;
+- polices Roblox (`font`, `fontBody`) ;
+- **ornement** dessiné par `ornament()` sur les panneaux assez grands : `rivets` (boulons),
+  `scanlines` (lignes CRT), `brackets` (équerres de HUD), `filigree` (losanges dorés), `stripes` (bande
+  de danger), `glow` (halo néon), `grain` (grain sale), `notch` (entaille gravée) ;
+- **retour des boutons** : `squash`, `pulse`, `slide`, `flicker`, `none`.
+
+Primitives : `panel`, `button`, `text`, `body`, `badge`, `strike`, `pill`, `progressBar`, `toggle`,
+`slider`, `card`, `sectionHeader`, `gradient`, `shadow`, `tooltip`, `Window`, plus les icônes dessinées
+(monnaie, Robux, potion, trèfle, dé, nourriture, éclair, couronne, `resourceIcon` pour un item
+quelconque). Tout est en parts d'UI Roblox (Frame / UIStroke / UIGradient) : **aucun asset à uploader**,
+et l'accent de la famille de style (`GameConfig.ui.accentColor`) colore les stickers promo.
+
+Le prompt choisit la librairie (« je veux une UI retro » → `pixel_retro`, « interface néon cyberpunk » →
+`neon_cyber`) ; sinon le style du monde décide. Dans l'app : onglet *Game → UI library & screens*
+(sélecteur avec aperçu des couleurs, accent, et les écrans à monter).
 
 `kit.Window` est la coquille commune de tous les écrans (fond assombri, panneau mis à l'échelle sur petit
 écran, titre, pastille de monnaie, croix rouge, corps défilant) : `ShopUi` et tous les écrans ci-dessous

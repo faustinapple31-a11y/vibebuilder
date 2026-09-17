@@ -6,6 +6,7 @@ import type { GenreDef, StyleFamilyDef } from "./types";
 export * from "./types";
 export * from "./genres";
 export * from "./kits";
+export * from "./ui-kits";
 
 export const STYLE_FAMILIES: StyleFamilyDef[] = [...STYLE_FAMILIES_A, ...STYLE_FAMILIES_B];
 export const STYLE_FAMILY_INDEX: Record<string, StyleFamilyDef> = Object.fromEntries(STYLE_FAMILIES.map((s) => [s.id, s]));

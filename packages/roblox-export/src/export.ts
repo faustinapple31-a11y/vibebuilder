@@ -46,7 +46,9 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       GameConfig.ui (style + accent), shop bundles and a featured banner (ShopCatalog.bundles /
  *       .featured, `bundle:<id>` purchases); the screens of GameConfig.ui.screens (inventory, quests,
  *       crafting, leaderboard, teams, round status, settings, minimap, menu) with the ProfileState
- *       remote that feeds them and persisted client settings (`setting_*`).
+ *       remote that feeds them and persisted client settings (`setting_*`); the UI kit libraries
+ *       (`src/ui/kits.generated.ts` — every design system of the taxonomy, selected by
+ *       `GameConfig.ui.kit`).
  */
 export const TEMPLATE_VERSION = 7;
 
@@ -78,6 +80,7 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/systems/Npcs.ts",
   "src/systems/Audio.ts",
   "src/ui/kit.ts",
+  "src/ui/kits.generated.ts",
   "src/ui/Hud.ts",
   "src/ui/ShopUi.ts",
   "src/ui/Inventory.ts",

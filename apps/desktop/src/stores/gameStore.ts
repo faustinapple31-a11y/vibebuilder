@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GameSpecSchema, type GameSpec, type ShopItem } from "@worldforge/core";
+import { GameSpecSchema, pickUiKit, type GameSpec, type ShopItem } from "@worldforge/core";
 import { buildConfigTs } from "@worldforge/agents";
 import { buildGameFiles, defaultGameContent } from "@worldforge/roblox-export";
 import { readJsonFile, writeJsonFile } from "@/lib/files";
@@ -53,6 +53,8 @@ export const useGame = create<GameState>((set, get) => ({
     try {
       const raw = await readJsonFile<unknown>(path.join(cur.path, "design", "game.spec.json"));
       const parsed = raw ? GameSpecSchema.safeParse(raw) : null;
+      // projects saved before the UI kit libraries existed: pick the one their style / genre implies
+      const hadKit = typeof (raw as { ui?: { kit?: unknown } } | null)?.ui?.kit === "string";
       let game: GameSpec;
       if (parsed?.success) {
         game = parsed.data;
@@ -60,6 +62,10 @@ export const useGame = create<GameState>((set, get) => ({
         if (game.shop.items.length === 0 && game.monetization.gamepasses.length === 0) {
           const d = defaultGameContent();
           game = { ...game, shop: d.shop, monetization: d.monetization, animations: game.animations.emotes.length ? game.animations : d.animations, npcs: game.npcs.length ? game.npcs : d.npcs };
+          await regenerate(cur.path, game);
+        }
+        if (!hadKit) {
+          game = { ...game, ui: { ...game.ui, kit: pickUiKit(game.description, game.ui.style, game.genre) } };
           await regenerate(cur.path, game);
         }
       } else {

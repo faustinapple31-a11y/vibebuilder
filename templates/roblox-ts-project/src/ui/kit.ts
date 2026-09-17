@@ -1,13 +1,21 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
+import { DEFAULT_UI_KIT, UI_KITS, type UiKit, type UiOrnament, type UiPress } from "./kits.generated";
 
 /**
- * UI kit — the look of mobile-game shops and HUDs: cream paper panels with a thick dark ink outline and a
- * drop shadow, rounded bold type with an outline, vertical gradients on banners and buttons with a darker
- * bevel, pill prices with a coin / Robux icon, rotated promo badges, tooltips. Everything is Instances
- * (no asset ids needed: icons are drawn with frames), themed from GameConfig.ui.
+ * UI kit — one of the design systems of `src/ui/kits.generated.ts` (paper cartoon, candy pop, neon
+ * cyber, holo HUD, grim horror, pixel retro, arcade synth, clean modern, soft glass, parchment
+ * fantasy, stone & rune, military stencil, steampunk brass, wood & leaf, black & gold, kawaii
+ * pastel…). `GameConfig.ui.kit` picks the library; everything here — panels, buttons, text, pills,
+ * badges, bars, icons, tooltips — reads its tokens (colours, fonts) and its shape language (corner
+ * radius, outline weight, gradients, shadow, bevel, text outline, panel transparency), draws the
+ * kit's ornament on every panel (rivets, scanlines, brackets, filigree, stripes, glow, grain, notch)
+ * and uses its button feedback. Switching library = one field, no other change.
  */
 export interface Theme {
+	/** id / display name of the library in use */
+	kit: string;
+	kitName: string;
 	paper: Color3;
 	paperDark: Color3;
 	ink: Color3;
@@ -29,11 +37,28 @@ export interface Theme {
 	font: Enum.Font;
 	fontBody: Enum.Font;
 	radius: number;
+	/** outline weight of panels and tiles */
+	strokeThickness: number;
+	/** vertical gradients on panels, buttons and bars */
+	gradients: boolean;
+	/** drop shadow offset (0 = flat kit) */
+	shadowOffset: number;
+	shadowTransparency: number;
+	/** darker band at the bottom of buttons */
+	bevel: boolean;
+	/** text outline thickness (0 = flat type) */
+	textOutline: number;
+	/** panel background transparency (glass kits) */
+	panelTransparency: number;
+	ornament: UiOrnament;
+	press: UiPress;
+	/** accent colour of the world's style family (GameConfig.ui.accentColor) */
+	accent: Color3;
 }
 
 const hex = (h: string) => Color3.fromHex(h);
-const UI_STYLE = (GameConfig as { ui?: { style?: string; accentColor?: string } }).ui?.style ?? "stylized";
-const ACCENT = hex((GameConfig as { ui?: { accentColor?: string } }).ui?.accentColor ?? "#7ed957");
+const UI = GameConfig.ui as { kit?: string; style?: string; accentColor?: string };
+const ACCENT = hex(UI.accentColor ?? "#7ed957");
 
 function lighten(c: Color3, k: number): Color3 {
 	return c.Lerp(new Color3(1, 1, 1), k);
@@ -42,45 +67,44 @@ function darken(c: Color3, k: number): Color3 {
 	return c.Lerp(new Color3(0, 0, 0), k);
 }
 
+/** The kit library the game uses (falls back to the default when the id is unknown). */
+export const kitDef: UiKit = UI_KITS[UI.kit ?? DEFAULT_UI_KIT] ?? UI_KITS[DEFAULT_UI_KIT]!;
+
 function makeTheme(): Theme {
-	const base: Theme = {
-		paper: hex("#f6efdc"),
-		paperDark: hex("#e6d8b6"),
-		ink: hex("#3b2a1a"),
-		inkSoft: hex("#6a5140"),
-		text: hex("#ffffff"),
-		textDark: hex("#3b2a1a"),
-		primary: [hex("#8ff05a"), hex("#2f9a2c")],
-		gold: [hex("#ffd965"), hex("#d4901f")],
-		danger: [hex("#ff6b5e"), hex("#c8332b")],
-		info: [hex("#7fd0ff"), hex("#2f7fd0")],
-		pill: hex("#2b4a2e"),
-		pillStroke: hex("#173018"),
-		tile: hex("#3d3229"),
-		tileStroke: hex("#1e1710"),
-		font: Enum.Font.FredokaOne,
-		fontBody: Enum.Font.GothamBold,
-		radius: 14,
+	const t = kitDef.tokens;
+	const s = kitDef.shape;
+	const pair = (v: [string, string]): [Color3, Color3] => [hex(v[0]), hex(v[1])];
+	return {
+		kit: kitDef.id,
+		kitName: kitDef.name,
+		paper: hex(t.paper),
+		paperDark: hex(t.paperDark),
+		ink: hex(t.ink),
+		inkSoft: hex(t.inkSoft),
+		text: hex(t.text),
+		textDark: hex(t.textDark),
+		primary: pair(t.primary),
+		gold: pair(t.gold),
+		danger: pair(t.danger),
+		info: pair(t.info),
+		pill: hex(t.pill),
+		pillStroke: hex(t.pillStroke),
+		tile: hex(t.tile),
+		tileStroke: hex(t.tileStroke),
+		font: s.font,
+		fontBody: s.fontBody,
+		radius: s.radius,
+		strokeThickness: s.strokeThickness,
+		gradients: s.gradients,
+		shadowOffset: s.shadow,
+		shadowTransparency: s.shadowTransparency,
+		bevel: s.bevel,
+		textOutline: s.textOutline,
+		panelTransparency: s.panelTransparency,
+		ornament: s.ornament,
+		press: s.press,
+		accent: ACCENT,
 	};
-	switch (UI_STYLE) {
-		case "sci-fi":
-			return { ...base, paper: hex("#141a2a"), paperDark: hex("#0d1220"), ink: hex("#5ad7ff"), inkSoft: hex("#2e6f8a"), textDark: hex("#dff6ff"), primary: [hex("#6ff0ff"), hex("#1f7fd6")], gold: [hex("#ffd965"), hex("#e07a1f")], pill: hex("#0e2a3a"), pillStroke: hex("#5ad7ff"), tile: hex("#1b2338"), tileStroke: hex("#5ad7ff"), font: Enum.Font.GothamBlack, radius: 8 };
-		case "horror":
-			return { ...base, paper: hex("#1b1416"), paperDark: hex("#120d0f"), ink: hex("#6b1d1d"), inkSoft: hex("#8a3a3a"), textDark: hex("#e9dcd6"), primary: [hex("#c0392b"), hex("#5a1010")], gold: [hex("#d9a441"), hex("#7a4d0f")], pill: hex("#2a0f0f"), pillStroke: hex("#6b1d1d"), tile: hex("#241a1c"), tileStroke: hex("#6b1d1d"), font: Enum.Font.Creepster, radius: 6 };
-		case "minimal":
-		case "modern":
-			return { ...base, paper: hex("#ffffff"), paperDark: hex("#eef1f5"), ink: hex("#1f2937"), inkSoft: hex("#6b7280"), textDark: hex("#1f2937"), primary: [lighten(ACCENT, 0.25), darken(ACCENT, 0.2)], gold: [hex("#fbbf24"), hex("#d97706")], pill: hex("#1f2937"), pillStroke: hex("#111827"), tile: hex("#2b3441"), tileStroke: hex("#111827"), font: Enum.Font.GothamBlack, fontBody: Enum.Font.Gotham, radius: 12 };
-		case "candy":
-			return { ...base, paper: hex("#fff1f8"), paperDark: hex("#ffd6ea"), ink: hex("#7a2a5a"), inkSoft: hex("#b05a8a"), textDark: hex("#7a2a5a"), primary: [hex("#ff9ad5"), hex("#e0489a")], gold: [hex("#ffe27a"), hex("#f0a020")], pill: hex("#7a2a5a"), pillStroke: hex("#4d1538"), tile: hex("#5a2a4a"), tileStroke: hex("#2d1224") };
-		case "military":
-			return { ...base, paper: hex("#2b2f26"), paperDark: hex("#1f221b"), ink: hex("#9aa06a"), inkSoft: hex("#6f7450"), textDark: hex("#e8e6d6"), primary: [hex("#9dbf5a"), hex("#4d6b23")], gold: [hex("#e8c25a"), hex("#a8781a")], pill: hex("#1f2a16"), pillStroke: hex("#9aa06a"), tile: hex("#1f221b"), tileStroke: hex("#9aa06a"), font: Enum.Font.GothamBlack, radius: 6 };
-		case "fantasy":
-			return { ...base, paper: hex("#f3e7c9"), paperDark: hex("#dcc89a"), ink: hex("#4a2f14"), primary: [hex("#a8e063"), hex("#3f8f2c")], gold: [hex("#ffd36a"), hex("#c98a1c")] };
-		case "retro":
-			return { ...base, paper: hex("#f7e8b0"), paperDark: hex("#e2c986"), ink: hex("#2b2b2b"), primary: [hex("#7ee787"), hex("#2f9e44")], font: Enum.Font.Arcade, fontBody: Enum.Font.Arcade, radius: 4 };
-		default:
-			return base;
-	}
 }
 
 export const theme = makeTheme();
@@ -94,7 +118,7 @@ export function corner(parent: GuiObject, radius = theme.radius): UICorner {
 	return c;
 }
 
-export function stroke(parent: GuiObject, color: Color3, thickness = 3, transparency = 0): UIStroke {
+export function stroke(parent: GuiObject, color: Color3, thickness = theme.strokeThickness, transparency = 0): UIStroke {
 	const s = new Instance("UIStroke");
 	s.Color = color;
 	s.Thickness = thickness;
@@ -125,7 +149,7 @@ export function padding(parent: GuiObject, all: number, left = all, right = all)
 }
 
 /** Drop shadow: a dark rounded frame behind `target` (same size, offset). Returns the shadow. */
-export function shadow(target: GuiObject, offset = 5, transparency = 0.55): Frame {
+export function shadow(target: GuiObject, offset = theme.shadowOffset, transparency = theme.shadowTransparency): Frame {
 	const s = new Instance("Frame");
 	s.Name = "Shadow";
 	s.Size = target.Size;
@@ -154,6 +178,8 @@ function cornerRadiusOf(g: GuiObject): number {
 
 export interface PanelOptions {
 	color?: Color3;
+	/** false to skip the library's ornament (small pills, tiles) */
+	ornament?: boolean;
 	strokeColor?: Color3;
 	strokeThickness?: number;
 	radius?: number;
@@ -162,20 +188,164 @@ export interface PanelOptions {
 	zIndex?: number;
 }
 
-/** Paper panel: rounded, outlined, shadowed. */
+/**
+ * Panel of the kit: its paper colour and transparency, its outline weight, its gradient (when the
+ * library uses gradients), its drop shadow (when it has one) and its ornament.
+ */
 export function panel(size: UDim2, position: UDim2, parent: Instance, opts: PanelOptions = {}): Frame {
 	const f = new Instance("Frame");
 	f.Size = size;
 	f.Position = position;
-	f.BackgroundColor3 = opts.color ?? theme.paper;
-	f.BackgroundTransparency = opts.transparency ?? 0;
+	const color = opts.color ?? theme.paper;
+	f.BackgroundColor3 = color;
+	f.BackgroundTransparency = opts.transparency ?? theme.panelTransparency;
 	f.BorderSizePixel = 0;
 	f.ZIndex = opts.zIndex ?? 2;
 	corner(f, opts.radius ?? theme.radius);
-	stroke(f, opts.strokeColor ?? theme.ink, opts.strokeThickness ?? 3);
+	stroke(f, opts.strokeColor ?? theme.ink, opts.strokeThickness ?? theme.strokeThickness);
+	if (theme.gradients && opts.color === undefined) gradient(f, lighten(color, 0.06), darken(color, 0.08));
 	f.Parent = parent;
-	if (opts.shadow !== false) shadow(f);
+	if (opts.shadow !== false && theme.shadowOffset > 0) shadow(f);
+	// ornaments only on real panels: they would swallow a 40×26 count badge
+	const roomy = (size.X.Offset >= 240 || size.X.Scale >= 0.6) && (size.Y.Offset >= 90 || size.Y.Scale >= 0.4);
+	if (opts.ornament ?? roomy) ornament(f);
 	return f;
+}
+
+/**
+ * Draws the library's ornament inside a panel: bolts, CRT scanlines, corner brackets, filigree
+ * diamonds, a hazard band, a neon outer glow, grain speckles or a carved notch. Decorative children
+ * stay at ZIndex 1–2 so the panel's content (3+) always draws over them.
+ */
+export function ornament(target: GuiObject, kind: UiOrnament = theme.ornament): void {
+	if (kind === "none") return;
+	const decor = (child: GuiObject, z = 1) => {
+		child.BorderSizePixel = 0;
+		child.ZIndex = z;
+		child.Parent = target;
+	};
+	if (kind === "rivets") {
+		for (const [ax, ay] of [[0, 0], [1, 0], [0, 1], [1, 1]] as [number, number][]) {
+			const bolt = new Instance("Frame");
+			bolt.Size = new UDim2(0, 10, 0, 10);
+			bolt.Position = new UDim2(ax, ax === 0 ? 9 : -19, ay, ay === 0 ? 9 : -19);
+			bolt.BackgroundColor3 = lighten(theme.inkSoft, 0.25);
+			corner(bolt, 5);
+			stroke(bolt, theme.ink, 1.5);
+			decor(bolt, 2);
+		}
+		return;
+	}
+	if (kind === "scanlines") {
+		const lines = new Instance("Frame");
+		lines.Size = new UDim2(1, 0, 1, 0);
+		lines.BackgroundTransparency = 1;
+		lines.ClipsDescendants = true;
+		corner(lines, cornerRadiusOf(target));
+		decor(lines, 2);
+		// proportional so the lines cover the panel whatever its height
+		for (let i = 0; i < 48; i++) {
+			const line = new Instance("Frame");
+			line.Size = new UDim2(1, 0, 0, 1);
+			line.Position = new UDim2(0, 0, i / 48, 0);
+			line.BackgroundColor3 = new Color3(1, 1, 1);
+			line.BackgroundTransparency = 0.88;
+			line.BorderSizePixel = 0;
+			line.ZIndex = 2;
+			line.Parent = lines;
+		}
+		return;
+	}
+	if (kind === "brackets") {
+		for (const [ax, ay] of [[0, 0], [1, 0], [0, 1], [1, 1]] as [number, number][]) {
+			const h = new Instance("Frame");
+			h.Size = new UDim2(0, 22, 0, 3);
+			h.Position = new UDim2(ax, ax === 0 ? 6 : -28, ay, ay === 0 ? 6 : -9);
+			h.BackgroundColor3 = theme.ink;
+			decor(h, 2);
+			const v = new Instance("Frame");
+			v.Size = new UDim2(0, 3, 0, 22);
+			v.Position = new UDim2(ax, ax === 0 ? 6 : -9, ay, ay === 0 ? 6 : -28);
+			v.BackgroundColor3 = theme.ink;
+			decor(v, 2);
+		}
+		return;
+	}
+	if (kind === "filigree") {
+		for (const y of [0, 1]) {
+			for (let i = 0; i < 3; i++) {
+				const gem = new Instance("Frame");
+				gem.Size = new UDim2(0, 8, 0, 8);
+				gem.Position = new UDim2(0.5, -60 + i * 60 - 4, y, y === 0 ? 5 : -13);
+				gem.BackgroundColor3 = theme.gold[0];
+				gem.Rotation = 45;
+				stroke(gem, theme.ink, 1.5);
+				decor(gem, 2);
+			}
+		}
+		return;
+	}
+	if (kind === "stripes") {
+		const band = new Instance("Frame");
+		band.Size = new UDim2(1, 0, 0, 10);
+		band.Position = new UDim2(0, 0, 0, 0);
+		band.BackgroundTransparency = 1;
+		band.ClipsDescendants = true;
+		decor(band, 2);
+		for (let i = 0; i < 24; i++) {
+			const bar = new Instance("Frame");
+			bar.Size = new UDim2(0, 12, 1, 8);
+			bar.Position = new UDim2(0, i * 26 - 6, 0, -4);
+			bar.BackgroundColor3 = i % 2 === 0 ? theme.gold[1] : theme.ink;
+			bar.Rotation = 24;
+			bar.BorderSizePixel = 0;
+			bar.ZIndex = 2;
+			bar.Parent = band;
+		}
+		return;
+	}
+	if (kind === "glow") {
+		const glow = new Instance("UIStroke");
+		glow.Color = theme.ink;
+		glow.Thickness = theme.strokeThickness + 4;
+		glow.Transparency = 0.72;
+		glow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+		glow.LineJoinMode = Enum.LineJoinMode.Round;
+		glow.Parent = target;
+		return;
+	}
+	if (kind === "grain") {
+		const holder = new Instance("Frame");
+		holder.Size = new UDim2(1, 0, 1, 0);
+		holder.BackgroundTransparency = 1;
+		holder.ClipsDescendants = true;
+		corner(holder, cornerRadiusOf(target));
+		decor(holder, 2);
+		for (let i = 0; i < 26; i++) {
+			const speck = new Instance("Frame");
+			speck.Size = new UDim2(0, 2, 0, 2);
+			speck.Position = new UDim2(math.random(), 0, math.random(), 0);
+			speck.BackgroundColor3 = i % 3 === 0 ? theme.ink : new Color3(1, 1, 1);
+			speck.BackgroundTransparency = 0.72;
+			speck.BorderSizePixel = 0;
+			speck.ZIndex = 2;
+			speck.Parent = holder;
+		}
+		return;
+	}
+	// notch: a carved line under the top edge and a cut corner
+	const notch = new Instance("Frame");
+	notch.Size = new UDim2(1, -28, 0, 2);
+	notch.Position = new UDim2(0, 14, 0, 8);
+	notch.BackgroundColor3 = theme.ink;
+	notch.BackgroundTransparency = 0.45;
+	decor(notch, 2);
+	const cut = new Instance("Frame");
+	cut.Size = new UDim2(0, 16, 0, 16);
+	cut.Position = new UDim2(1, -12, 0, -4);
+	cut.BackgroundColor3 = theme.ink;
+	cut.Rotation = 45;
+	decor(cut, 2);
 }
 
 export interface TextOptions {
@@ -209,7 +379,7 @@ export function text(str: string, size: UDim2, position: UDim2, parent: Instance
 	l.RichText = opts.rich ?? false;
 	l.TextScaled = opts.scaled ?? false;
 	l.ZIndex = opts.zIndex ?? 3;
-	const o = opts.outline ?? (opts.color === undefined || opts.color === theme.text ? 2.5 : 0);
+	const o = opts.outline ?? (opts.color === undefined || opts.color === theme.text ? theme.textOutline : 0);
 	if (o > 0) {
 		const s = new Instance("UIStroke");
 		s.Color = opts.outlineColor ?? theme.ink;
@@ -236,39 +406,42 @@ export interface ButtonOptions {
 	textColor?: Color3;
 }
 
-/** Chunky gradient button with a bevel band, outline, outlined label and a press animation. */
+/** Button of the kit: gradient or flat fill, optional bevel band and highlight, outlined label, press feedback. */
 export function button(str: string, size: UDim2, position: UDim2, parent: Instance, opts: ButtonOptions = {}): TextButton {
 	const [top, bottom] = opts.colors ?? theme.primary;
 	const b = new Instance("TextButton");
 	b.Size = size;
 	b.Position = position;
-	b.BackgroundColor3 = new Color3(1, 1, 1);
+	b.BackgroundColor3 = theme.gradients ? new Color3(1, 1, 1) : bottom;
 	b.BorderSizePixel = 0;
 	b.Text = "";
 	b.AutoButtonColor = false;
 	b.ZIndex = opts.zIndex ?? 3;
-	corner(b, opts.radius ?? 12);
-	gradient(b, top, bottom);
-	stroke(b, theme.ink, 3);
-	// bevel: darker band at the bottom
-	const bevel = new Instance("Frame");
-	bevel.Size = new UDim2(1, 0, 0, 6);
-	bevel.Position = new UDim2(0, 0, 1, -6);
-	bevel.BackgroundColor3 = darken(bottom, 0.25);
-	bevel.BorderSizePixel = 0;
-	bevel.ZIndex = b.ZIndex;
-	corner(bevel, opts.radius ?? 12);
-	bevel.Parent = b;
-	// highlight line at the top
-	const hi = new Instance("Frame");
-	hi.Size = new UDim2(1, -16, 0, 3);
-	hi.Position = new UDim2(0, 8, 0, 4);
-	hi.BackgroundColor3 = new Color3(1, 1, 1);
-	hi.BackgroundTransparency = 0.55;
-	hi.BorderSizePixel = 0;
-	hi.ZIndex = b.ZIndex + 1;
-	corner(hi, 2);
-	hi.Parent = b;
+	const radius = opts.radius ?? math.max(2, theme.radius - 2);
+	corner(b, radius);
+	if (theme.gradients) gradient(b, top, bottom);
+	stroke(b, theme.ink, theme.strokeThickness);
+	if (theme.bevel) {
+		// bevel: darker band at the bottom
+		const bevel = new Instance("Frame");
+		bevel.Size = new UDim2(1, 0, 0, 6);
+		bevel.Position = new UDim2(0, 0, 1, -6);
+		bevel.BackgroundColor3 = darken(bottom, 0.25);
+		bevel.BorderSizePixel = 0;
+		bevel.ZIndex = b.ZIndex;
+		corner(bevel, radius);
+		bevel.Parent = b;
+		// highlight line at the top
+		const hi = new Instance("Frame");
+		hi.Size = new UDim2(1, -16, 0, 3);
+		hi.Position = new UDim2(0, 8, 0, 4);
+		hi.BackgroundColor3 = new Color3(1, 1, 1);
+		hi.BackgroundTransparency = 0.55;
+		hi.BorderSizePixel = 0;
+		hi.ZIndex = b.ZIndex + 1;
+		corner(hi, 2);
+		hi.Parent = b;
+	}
 	const label = text(str, new UDim2(1, -12, 1, -6), new UDim2(0, 6, 0, -1), b, { size: opts.size ?? 20, align: Enum.TextXAlignment.Center, color: opts.textColor ?? theme.text, zIndex: b.ZIndex + 2 });
 	label.Name = "Label";
 	if (opts.icon) {
@@ -280,19 +453,53 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 		label.Position = new UDim2(0, 30, 0, -1);
 		label.Size = new UDim2(1, -36, 1, -6);
 	}
-	shadow(b, 4, 0.5);
+	if (theme.shadowOffset > 0) shadow(b, math.max(3, theme.shadowOffset - 1), math.min(0.85, theme.shadowTransparency + 0.1));
 	pressAnimation(b);
 	return b;
 }
 
-/** Squash on press, spring back on release (also on hover: slight grow). */
-export function pressAnimation(b: GuiButton): void {
+/**
+ * Button feedback of the library: `squash` (bouncy mobile-game), `pulse` (bigger overshoot, candy /
+ * kawaii), `slide` (flat kits: a short lift and a brightness dip), `flicker` (neon blink) or `none`
+ * (a single brightness step — horror, military, pixel consoles).
+ */
+export function pressAnimation(b: GuiButton, press: UiPress = theme.press): void {
+	if (press === "none") {
+		const dim = (v: number) => TweenService.Create(b, new TweenInfo(0.08), { BackgroundTransparency: v }).Play();
+		b.MouseButton1Down.Connect(() => dim(0.25));
+		b.MouseButton1Up.Connect(() => dim(0));
+		b.MouseLeave.Connect(() => dim(0));
+		return;
+	}
+	if (press === "flicker") {
+		const blink = () => {
+			task.spawn(() => {
+				for (const t of [0.55, 0, 0.35, 0]) {
+					b.BackgroundTransparency = t;
+					task.wait(0.04);
+				}
+			});
+		};
+		b.MouseButton1Down.Connect(blink);
+		b.MouseEnter.Connect(blink);
+		return;
+	}
+	if (press === "slide") {
+		const base = b.Position;
+		const to = (offset: number) => TweenService.Create(b, new TweenInfo(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position: base.add(new UDim2(0, 0, 0, offset)) }).Play();
+		b.MouseButton1Down.Connect(() => to(2));
+		b.MouseButton1Up.Connect(() => to(0));
+		b.MouseEnter.Connect(() => to(-2));
+		b.MouseLeave.Connect(() => to(0));
+		return;
+	}
 	const scale = new Instance("UIScale");
 	scale.Parent = b;
+	const big = press === "pulse" ? 1.09 : 1.04;
 	const to = (v: number, t = 0.08) => TweenService.Create(scale, new TweenInfo(t, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: v }).Play();
-	b.MouseButton1Down.Connect(() => to(0.93));
-	b.MouseButton1Up.Connect(() => to(1.04, 0.12));
-	b.MouseEnter.Connect(() => to(1.04));
+	b.MouseButton1Down.Connect(() => to(press === "pulse" ? 0.88 : 0.93));
+	b.MouseButton1Up.Connect(() => to(big, 0.12));
+	b.MouseEnter.Connect(() => to(big));
 	b.MouseLeave.Connect(() => to(1));
 }
 
@@ -304,8 +511,8 @@ export function pill(value: string, size: UDim2, position: UDim2, parent: Instan
 	f.BackgroundColor3 = opts.color ?? theme.pill;
 	f.BorderSizePixel = 0;
 	f.ZIndex = opts.zIndex ?? 4;
-	corner(f, 10);
-	stroke(f, opts.strokeColor ?? theme.pillStroke, 2.5);
+	corner(f, math.max(2, math.min(12, theme.radius)));
+	stroke(f, opts.strokeColor ?? theme.pillStroke, math.max(1.5, theme.strokeThickness - 0.5));
 	f.Parent = parent;
 	let left = 10;
 	if (icon !== "none") {
@@ -320,7 +527,7 @@ export function pill(value: string, size: UDim2, position: UDim2, parent: Instan
 }
 
 /** Rotated promo sticker ("-97%", "NEW", "x2"). */
-export function badge(str: string, position: UDim2, parent: Instance, color: Color3 = hex("#ff4f7a"), rotation = -10, size = 22): TextLabel {
+export function badge(str: string, position: UDim2, parent: Instance, color: Color3 = theme.accent, rotation = -10, size = 22): TextLabel {
 	const l = text(str, new UDim2(0, str.size() * size * 0.65 + 16, 0, size + 8), position, parent, { size, align: Enum.TextXAlignment.Center, color, outline: 3, zIndex: 8 });
 	l.Rotation = rotation;
 	return l;

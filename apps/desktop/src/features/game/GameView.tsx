@@ -1,7 +1,7 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { CloudUpload, Coins, Crown, ExternalLink, Music, PersonStanding, Play, Plus, ShoppingBag, Trash2, Upload, Volume2, Wand2 } from "lucide-react";
+import { CloudUpload, Coins, Crown, ExternalLink, LayoutDashboard, Music, PersonStanding, Play, Plus, ShoppingBag, Trash2, Upload, Volume2, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AnimSpec, GameSpec, ShopEffect, ShopItem } from "@worldforge/core";
+import { UI_KITS, UI_SCREENS, type AnimSpec, type GameSpec, type ShopEffect, type ShopItem, type UiScreen } from "@worldforge/core";
 import { creatorDashboardUrls } from "@worldforge/roblox-cloud";
 import { Button, Input, Label, Select, Slider, Switch, Textarea } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { useProjects } from "@/stores/projectStore";
 import { cloudClient, useRoblox } from "@/stores/robloxStore";
 import { useSettings } from "@/stores/settingsStore";
 
-type Section = "shop" | "monetization" | "animations" | "audio";
+type Section = "interface" | "shop" | "monetization" | "animations" | "audio";
 
 /**
  * Game tab: everything the generated experience sells, plays and sounds like.
@@ -25,13 +25,14 @@ export function GameView() {
   const game = useGame((s) => s.game);
   const load = useGame((s) => s.load);
   const error = useGame((s) => s.error);
-  const [section, setSection] = useState<Section>("shop");
+  const [section, setSection] = useState<Section>("interface");
   useEffect(() => {
     void load();
   }, [load]);
   if (!game) return <div className="p-6 text-sm text-muted">{error ?? "Loading game spec…"}</div>;
   const nav: { id: Section; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: "shop", label: "Interfaces & shop", icon: <ShoppingBag size={14} />, count: game.shop.items.length },
+    { id: "interface", label: "UI library & screens", icon: <LayoutDashboard size={14} />, count: game.ui.screens.length },
+    { id: "shop", label: "Shop", icon: <ShoppingBag size={14} />, count: game.shop.items.length },
     { id: "monetization", label: "Gamepasses & products", icon: <Crown size={14} />, count: game.monetization.gamepasses.length + game.monetization.developerProducts.length },
     { id: "animations", label: "Animations", icon: <PersonStanding size={14} />, count: game.animations.emotes.length + game.animations.custom.length },
     { id: "audio", label: "Music & sounds", icon: <Music size={14} />, count: (game.audio.ambientMusic ? 1 : 0) + game.audio.zoneAmbience.length },
@@ -51,10 +52,97 @@ export function GameView() {
         </div>
       </aside>
       <div className="panel min-h-0 overflow-auto p-4">
+        {section === "interface" && <InterfacePanel game={game} />}
         {section === "shop" && <ShopEditor game={game} />}
         {section === "monetization" && <MonetizationPanel game={game} />}
         {section === "animations" && <AnimationsPanel game={game} />}
         {section === "audio" && <AudioPanel game={game} />}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- interface (UI kit + screens)
+const SCREEN_LABELS: Record<UiScreen, string> = {
+  hud: "HUD (currency, banners, health)",
+  loading: "Loading screen",
+  shop: "Shop window",
+  gamepass_shop: "Robux section of the shop",
+  inventory: "Inventory / backpack",
+  quests: "Quests",
+  crafting: "Crafting",
+  leaderboard: "Leaderboard",
+  teams: "Teams",
+  round_status: "Round status panel",
+  settings: "Settings (volumes, minimap)",
+  minimap: "Minimap",
+  menu: "Pause menu",
+};
+
+/**
+ * UI library picker: every kit of the taxonomy is a complete design system shipped in the project
+ * (src/ui/kits.generated.ts) — selecting one rewrites GameConfig.ui.kit and every screen follows.
+ * The screen list decides what the client mounts (each has a HUD button and a hotkey).
+ */
+function InterfacePanel({ game }: { game: GameSpec }) {
+  const update = useGame((s) => s.update);
+  const toggleScreen = (id: UiScreen) => {
+    const on = game.ui.screens.includes(id);
+    const screens = on ? game.ui.screens.filter((s) => s !== id) : [...game.ui.screens, id];
+    void update({ ui: { ...game.ui, screens: screens.length ? screens : ["hud"] } });
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="text-sm font-semibold">UI library</div>
+        <div className="text-[11px] text-faint">
+          Colours, fonts, corner radius, outlines, gradients, shadows, panel ornaments and button feedback of every screen. A prompt like “je veux une UI retro” picks one automatically; all of them ship in the project, so switching is instant.
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+        {UI_KITS.map((kit) => {
+          const selected = game.ui.kit === kit.id;
+          return (
+            <button
+              key={kit.id}
+              onClick={() => void update({ ui: { ...game.ui, kit: kit.id } })}
+              className={cn("flex flex-col gap-2 rounded-md border p-2 text-left transition", selected ? "border-brand bg-brand-soft" : "border-line hover:bg-panel-2")}
+            >
+              <div className="flex h-12 items-stretch gap-0 overflow-hidden rounded" style={{ border: `2px solid ${kit.tokens.ink}` }}>
+                <div className="flex-1" style={{ background: kit.tokens.paper }} />
+                <div className="flex-1" style={{ background: `linear-gradient(${kit.tokens.primary[0]}, ${kit.tokens.primary[1]})` }} />
+                <div className="w-4" style={{ background: kit.tokens.gold[0] }} />
+                <div className="w-4" style={{ background: kit.tokens.pill }} />
+              </div>
+              <div className="text-xs font-semibold" style={selected ? undefined : { color: undefined }}>
+                {kit.name}
+              </div>
+              <div className="text-[10px] leading-snug text-faint">{kit.description}</div>
+              <div className="text-[10px] text-faint">
+                {kit.shape.ornament !== "none" ? `${kit.shape.ornament} · ` : ""}
+                {kit.shape.font} · r{kit.shape.radius}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3">
+        <Label className="w-28">Accent colour</Label>
+        <input type="color" value={game.ui.accentColor} onChange={(e) => void update({ ui: { ...game.ui, accentColor: e.target.value } })} className="h-8 w-16 rounded border border-line bg-panel-2" />
+        <span className="text-[11px] text-faint">Promo badges and highlights of the world&apos;s style ({game.ui.style}).</span>
+      </div>
+      <div>
+        <div className="text-sm font-semibold">Screens</div>
+        <div className="text-[11px] text-faint">Each enabled screen is mounted by src/client/main.client.ts with a HUD button (mobile) and a hotkey.</div>
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        {UI_SCREENS.map((id) => (
+          <label key={id} className="flex items-center gap-2 rounded-md border border-line px-2 py-1.5 text-xs">
+            <Switch checked={game.ui.screens.includes(id)} onChange={() => toggleScreen(id)} />
+            <span className="flex-1">{SCREEN_LABELS[id]}</span>
+            <span className="text-[10px] text-faint">{id}</span>
+          </label>
+        ))}
       </div>
     </div>
   );

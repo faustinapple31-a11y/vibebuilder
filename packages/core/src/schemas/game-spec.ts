@@ -1,8 +1,13 @@
 import { z } from "zod";
+import { UI_KIT_IDS } from "../taxonomy/ui-kits";
 
 /**
  * GameSpec — output of the Design Agent. Describes the game, not the world.
  */
+
+/** Screens the client can mount (one implementation each in the template's src/ui). */
+export const UI_SCREENS = ["hud", "inventory", "shop", "settings", "quests", "gamepass_shop", "loading", "menu", "leaderboard", "crafting", "teams", "round_status", "minimap"] as const;
+export type UiScreen = (typeof UI_SCREENS)[number];
 
 export const GAME_GENRES = [
   "survival",
@@ -213,9 +218,11 @@ export const GameSpecSchema = z.object({
     .default([]),
   ui: z
     .object({
-      screens: z.array(z.enum(["hud", "inventory", "shop", "settings", "quests", "gamepass_shop", "loading", "menu", "leaderboard", "crafting", "teams", "round_status", "minimap"])).default(["hud"]),
+      screens: z.array(z.enum(UI_SCREENS)).default(["hud"]),
       style: z.enum(["stylized", "minimal", "fantasy", "sci-fi", "cartoon", "horror", "modern", "retro", "military", "candy"]).default("stylized"),
       accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#b48cff"),
+      /** UI kit library that draws every screen (ids of packages/core/src/taxonomy/ui-kits.ts). */
+      kit: z.enum(UI_KIT_IDS as [string, ...string[]]).default("paper_cartoon"),
     })
     .prefault({}),
   monetization: z
