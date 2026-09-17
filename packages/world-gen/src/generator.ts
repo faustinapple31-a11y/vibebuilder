@@ -421,7 +421,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
   for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post", "spawn_plaza"]) ids.add(id);
   if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
-  if (spec.terrain.features.some((f) => f.type === "archipelago")) ids.add("plank_bridge");
+  ids.add("plank_bridge");
   ids.add("stairs");
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
 }

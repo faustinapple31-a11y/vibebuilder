@@ -81,7 +81,7 @@ export function stairs(ctx: PrefabContext, variant: number): PrefabVariant {
       b.box([i * tread + tread, top / 2 + 0.6, (sz * (w + 0.8)) / 2], [tread * 2 + 0.1, top + 1.2, 0.8], jitterHex(stone, 0, 0, -0.08), { material: style.materials.stoneWall, collide: true, lod: 1 });
     }
   }
-  return b.build({ id: `stairs/${variant}`, prefab: "stairs", category: "building", sinkDepth: 0.4, footprintRadius: (steps * tread) / 2, tags: ["floating", "stairs"] });
+  return b.build({ id: `stairs/${variant}`, prefab: "stairs", category: "path", sinkDepth: 0.4, footprintRadius: (steps * tread) / 2, tags: ["floating", "stairs"] });
 }
 
 /**

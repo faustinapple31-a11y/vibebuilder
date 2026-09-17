@@ -100,7 +100,7 @@ export function connectIslands(ctx: GenContext, rng: Rng): void {
         id: `island_stairs_${s++}`,
         prefab: "stairs",
         variant,
-        category: "building",
+        category: "path",
         position,
         rotationY: Math.atan2(-spot.dir[1], spot.dir[0]),
         scale,

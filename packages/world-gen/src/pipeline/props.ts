@@ -74,6 +74,7 @@ export function placeRocksAndProps(ctx: GenContext): void {
       add(rng.chance(0.6) ? "stone" : "boulder", x, z, { scale: rng.float(0.5, 0.9), importance: 3 });
       continue;
     }
+    if (ctx.terrainMode === "parts" && s > 0.3) continue; // terrace edges: the walls are the cliffs
     if (s > 0.8) {
       if (rng.chance(0.55)) add("cliff_block", x, z, { scale: rng.float(0.8, 1.6), importance: 5 });
       continue;

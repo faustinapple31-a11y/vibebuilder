@@ -5,7 +5,7 @@ import { distanceToPolylinesGrid } from "../grid";
 import { edgeToWorld, progress, type GenContext } from "../context";
 import { connectIslands } from "./islands";
 import { GROUND_STEP } from "./ground";
-import { STAIRS_RISES } from "@worldforge/prefabs";
+import { PLANK_BRIDGE_LENGTHS, STAIRS_RISES } from "@worldforge/prefabs";
 
 /**
  * Stage 9: roads. A* over a coarse grid with slope-aware cost (cliffs are impassable),
@@ -243,19 +243,35 @@ export function placeStairs(ctx: GenContext, roadId: string, pts: Vec2[]): void 
     const dz = high[1] - low[1];
     const len = Math.hypot(dx, dz) || 1;
     const dir: Vec2 = [dx / len, dz / len];
+    const lowH = Math.min(ha, hb);
+    // where does the ground actually step up along the segment?
+    let edgeT = len / 2;
+    for (let t = 0.5; t < len; t += 0.5) {
+      if (h.sample(low[0] + dir[0] * t, low[1] + dir[1] * t) > lowH + 0.5) {
+        edgeT = t;
+        break;
+      }
+    }
     let variant = STAIRS_RISES.findIndex((r) => r >= rise - 0.5);
     if (variant < 0) variant = STAIRS_RISES.length - 1;
     const scale = rise / STAIRS_RISES[variant]!;
     const run = Math.round(STAIRS_RISES[variant]! / 2) * 2.5 * scale;
-    // the terrace edge lies between the two samples: the top step lands just past it
-    const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    const foot: Vec2 = [mid[0] - dir[0] * (run - 1.5), mid[1] - dir[1] * (run - 1.5)];
-    const lowH = Math.min(ha, hb);
+    const edge: Vec2 = [low[0] + dir[0] * edgeT, low[1] + dir[1] * edgeT];
+    const foot: Vec2 = [edge[0] - dir[0] * (run - 1), edge[1] - dir[1] * (run - 1)];
+    // the whole run must rest on the lower plateau (dry, same level)
+    let grounded = true;
+    for (let t = 0; t <= run - 1 && grounded; t += 2) {
+      const px = foot[0] + dir[0] * t;
+      const pz = foot[1] + dir[1] * t;
+      if (!Number.isNaN(ctx.water.sample(px, pz)) || Math.abs(h.sample(px, pz) - lowH) > 0.5) grounded = false;
+    }
+    if (!grounded) continue;
+    const mid = edge;
     ctx.placements.push({
       id: `stairs_${roadId}_${n++}`,
       prefab: "stairs",
       variant,
-      category: "building",
+      category: "path",
       position: [foot[0], lowH, foot[1]],
       rotationY: Math.atan2(-dir[1], dir[0]),
       scale,
@@ -293,9 +309,37 @@ function placeBridges(ctx: GenContext, roadId: string, pts: Vec2[], width: numbe
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]) + 6;
     if (len < 8) continue;
     const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    const bankH = Math.max(ctx.heights.sample(a[0], a[1]), ctx.heights.sample(b[0], b[1]));
+    const ha = ctx.heights.sample(a[0], a[1]);
+    const hb = ctx.heights.sample(b[0], b[1]);
+    const bankH = Math.max(ha, hb);
     const angle = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
-    const scale = Math.max(0.8, len / 28);
+    if (len > 34 && ctx.prefabs["plank_bridge"]) {
+      // long crossing: a plank bridge of the right length, tilted when the banks differ in height
+      let variant = PLANK_BRIDGE_LENGTHS.findIndex((l) => l >= len * 0.93);
+      if (variant < 0) variant = PLANK_BRIDGE_LENGTHS.length - 1;
+      const scale = len / PLANK_BRIDGE_LENGTHS[variant]!;
+      const dx = (b[0] - a[0]) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1);
+      const dz = (b[1] - a[1]) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1);
+      const pitch = Math.atan2(hb - ha, len);
+      const position: Vec3 = [mid[0], (ha + hb) / 2 + 0.2, mid[1]];
+      ctx.placements.push({
+        id: `bridge_${roadId}_${n++}`,
+        prefab: "plank_bridge",
+        variant,
+        category: "building",
+        position,
+        rotationY: angle,
+        scale,
+        up: [-dx * Math.sin(pitch), Math.cos(pitch), -dz * Math.sin(pitch)],
+        layer: "midground",
+        importance: 9,
+        fixed: true,
+        zone: roadId,
+      });
+      ctx.occupants.push({ position, radius: (len / 2) * 1.1, kind: "building" });
+      continue;
+    }
+    const scale = Math.max(0.8, Math.min(1.3, len / 28));
     const position: Vec3 = [mid[0], bankH, mid[1]];
     ctx.placements.push({
       id: `bridge_${roadId}_${n++}`,

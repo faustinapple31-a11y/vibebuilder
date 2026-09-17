@@ -108,6 +108,7 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
       const b = road.points[i]!;
       const dh = Math.abs(sampleHeight(bake.terrain, a[0], a[1]) - sampleHeight(bake.terrain, b[0], b[1]));
       const run = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      if (bake.terrain.mode === "parts" && dh <= 8.5) continue; // one terrace step = stairs
       if (Math.atan2(dh, run) > 0.65) steep++;
     }
     if (steep > road.points.length * 0.08) {

@@ -245,6 +245,8 @@ export interface WorldBake {
 export function sampleHeight(t: TerrainData, x: number, z: number): number {
   const fx = (x - t.origin[0]) / t.cellSize;
   const fz = (z - t.origin[1]) / t.cellSize;
+  // parts-built terraces: a point sits on exactly one slab (no interpolation across a step)
+  if (t.mode === "parts") return t.heights[Math.max(0, Math.min(t.depth - 1, Math.round(fz))) * t.width + Math.max(0, Math.min(t.width - 1, Math.round(fx)))]!;
   const x0 = Math.max(0, Math.min(t.width - 1, Math.floor(fx)));
   const z0 = Math.max(0, Math.min(t.depth - 1, Math.floor(fz)));
   const x1 = Math.min(t.width - 1, x0 + 1);

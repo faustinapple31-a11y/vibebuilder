@@ -26,9 +26,11 @@ export function makeHeightSampler(data: WorldBakeData["terrain"]): (x: number, z
 	const heights = base64ToBuffer(data.heightsB64);
 	const { width, depth, cellSize } = data;
 	const [ox, oz] = data.origin;
+	const nearest = data.mode === "parts"; // terraces: a point sits on exactly one slab
 	return (x: number, z: number) => {
 		const fx = math.clamp((x - ox) / cellSize, 0, width - 1.001);
 		const fz = math.clamp((z - oz) / cellSize, 0, depth - 1.001);
+		if (nearest) return readF32(heights, math.clamp(math.round(fz), 0, depth - 1) * width + math.clamp(math.round(fx), 0, width - 1));
 		const x0 = math.floor(fx);
 		const z0 = math.floor(fz);
 		const tx = fx - x0;

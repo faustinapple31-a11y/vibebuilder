@@ -37,9 +37,13 @@ export class Grid {
     return [this.origin[0] + cx * this.cellSize, this.origin[1] + cz * this.cellSize];
   }
 
-  /** Bilinear sample at world coordinates. */
+  /** Nearest-cell sampling instead of bilinear (parts-built terraces: a point is on exactly one slab). */
+  nearest = false;
+
+  /** Bilinear sample at world coordinates (nearest cell when `nearest` is set). */
   sample(wx: number, wz: number): number {
     const [fx, fz] = this.toCell(wx, wz);
+    if (this.nearest) return this.data[clamp(Math.round(fz), 0, this.depth - 1) * this.width + clamp(Math.round(fx), 0, this.width - 1)]!;
     const x0 = clamp(Math.floor(fx), 0, this.width - 1);
     const z0 = clamp(Math.floor(fz), 0, this.depth - 1);
     const x1 = Math.min(this.width - 1, x0 + 1);

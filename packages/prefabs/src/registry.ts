@@ -60,7 +60,7 @@ export const PREFAB_DEFINITIONS: PrefabDefinition[] = [
   def("well", "building", arch.well, 4, 9, ["village"]),
   def("bridge", "building", arch.bridge, 4, 30, ["bridge"]),
   def("plank_bridge", "building", ki.plankBridge, 7, 60, ["bridge", "floating"]),
-  def("stairs", "building", ki.stairs, 7, 20, ["floating", "stairs"]),
+  def("stairs", "path", ki.stairs, 7, 20, ["floating", "stairs"]),
   def("spawn_plaza", "prop", ki.spawnPlaza, 2, 30, ["layout", "spawn"]),
   def("fence", "prop", arch.fence, 8, 4, ["village"]),
   def("stone_path_slab", "path", arch.stonePathSlab, 10, 3, ["path"]),
