@@ -40,7 +40,8 @@ or the app does it when the spec file changes). **Never edit WorldBake.json.**
       // terrain: plank bridges join the islands, stairs climb the terraces, a compass plaza marks the spawn.
       // Replaces the other relief features; the runtime pours only the sea (terrain.mode = "parts").
     ],
-    "seaLevel": 34                                                 // optional; default baseHeight - 6 (island / coast only)
+    "seaLevel": 34,                                                // optional; default baseHeight - 6 (island / coast only)
+    "groundMode": "parts"                                          // "parts" (default: terraces of part slabs + cliff walls) | "voxels" (smooth terrain)
   },
   "biomes": [ { "id": "forest", "weight": 0.6, "vegetation": "dense", "elevation": [0.1,0.65], "moisture": [0.35,0.85] } ],
   "rivers": [ { "id": "river_1", "from": "north", "to": "south-east", "width": 16, "depth": 6, "meander": 0.65 } ],

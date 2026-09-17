@@ -1,4 +1,4 @@
-import { jitterHex, mixHex, type PrefabVariant, type Vec2, type Vec3 } from "@worldforge/core";
+import { jitterHex, mixHex, type PrefabVariant, type Vec3 } from "@worldforge/core";
 import { PartListBuilder, jitter, type PrefabContext } from "../builder";
 
 /**
@@ -7,7 +7,7 @@ import { PartListBuilder, jitter, type PrefabContext } from "../builder";
  * stage picks from (then scales by a few percent) — never random.
  */
 export const PLANK_BRIDGE_LENGTHS = [24, 36, 48, 64, 80, 100, 124] as const;
-export const STAIRS_RISES = [10, 14, 18, 22, 26, 30, 34] as const;
+export const STAIRS_RISES = [8, 16, 24, 32, 40, 48, 56] as const;
 
 function woodColor(ctx: PrefabContext, dark = 0): string {
   return jitterHex(ctx.style.palette.wood, jitter(ctx.rng, 4), jitter(ctx.rng, 0.04), -dark + jitter(ctx.rng, 0.04));
@@ -118,81 +118,4 @@ export function spawnPlaza(ctx: PrefabContext, variant: number): PrefabVariant {
   // welcome sign: floating title over the hub (billboard), anchored on a tiny invisible part
   b.box([0, 9, 0], [1, 1, 1], "#ffffff", { transparency: 1, collide: false, castShadow: false, lod: 2, billboard: { text: style.ui.welcomeText ?? "BIENVENUE !", subtitle: style.ui.welcomeSubtitle, color: "#ffd23f", width: 34, height: 9, offsetY: 0 } });
   return b.build({ id: `spawn_plaza/${variant}`, prefab: "spawn_plaza", category: "prop", sinkDepth: 0.6, footprintRadius: r, tags: ["layout", "spawn"] });
-}
-
-export interface IslandBlockSpec {
-  /** outline around the origin (x, z), counter-clockwise, world studs relative to the pivot */
-  outline: Vec2[];
-  /** slab top = pivot height (0); walls go down to `bottom` (negative) */
-  bottom: number;
-  /** wobble / band count style */
-  bands?: number;
-}
-
-/**
- * A mesa block: flat lawn slab (two wedges per fan triangle) over stepped brown cliff walls (one box per
- * outline edge per band, each band inset a little more), plus a green lip. Built per island by the
- * generator (unique outline), pivot = centre of the slab top.
- */
-export function islandBlock(ctx: PrefabContext, id: string, spec: IslandBlockSpec): PrefabVariant {
-  const { rng, style } = ctx;
-  const b = new PartListBuilder();
-  const n = spec.outline.length;
-  const lawn = jitterHex(mixHex(style.palette.foliageAlt, "#62d64a", 0.55), jitter(rng, 3), 0, 0);
-  const earth = mixHex(style.palette.ground, "#7a4a2a", 0.5);
-  const slabT = 2.2;
-  // centroid for the fan
-  let cx = 0;
-  let cz = 0;
-  for (const p of spec.outline) {
-    cx += p[0];
-    cz += p[1];
-  }
-  cx /= n;
-  cz /= n;
-  for (let i = 0; i < n; i++) {
-    const p = spec.outline[i]!;
-    const q = spec.outline[(i + 1) % n]!;
-    b.triangleSlab([cx, cz], p, q, -slabT / 2, slabT, lawn, { material: "Grass", collide: true, castShadow: true, lod: 2 });
-  }
-  // walls: stepped bands, each one inset a little more (the photo's chunky mesa look), darker lower
-  const bands = spec.bands ?? 3;
-  const height = -spec.bottom;
-  for (let k = 0; k < bands; k++) {
-    const inset = 0.6 + k * 1.1;
-    const y0 = -slabT - (height - slabT) * (k / bands);
-    const y1 = -slabT - (height - slabT) * ((k + 1) / bands);
-    const col = jitterHex(earth, jitter(rng, 3), 0.02, -0.06 * k + jitter(rng, 0.03));
-    for (let i = 0; i < n; i++) {
-      const p = spec.outline[i]!;
-      const q = spec.outline[(i + 1) % n]!;
-      const ex = q[0] - p[0];
-      const ez = q[1] - p[1];
-      const len = Math.hypot(ex, ez);
-      if (len < 0.1) continue;
-      // inward normal (outline is counter-clockwise seen from above: left of the edge direction)
-      const nx = -ez / len;
-      const nz = ex / len;
-      const inward = (nx * (cx - p[0]) + nz * (cz - p[1])) > 0 ? 1 : -1;
-      const t = 3;
-      const mx = (p[0] + q[0]) / 2 + nx * inward * (inset + t / 2);
-      const mz = (p[1] + q[1]) / 2 + nz * inward * (inset + t / 2);
-      const yaw = (Math.atan2(-ez, ex) * 180) / Math.PI;
-      b.box([mx, (y0 + y1) / 2, mz], [len + t * 0.9, y0 - y1 + 0.05, t], col, { material: "Ground", rotation: [0, yaw, 0], collide: true, lod: k === 0 ? 2 : 1 });
-    }
-  }
-  // green lip under the slab edge (overhang shadow line)
-  for (let i = 0; i < n; i++) {
-    const p = spec.outline[i]!;
-    const q = spec.outline[(i + 1) % n]!;
-    const ex = q[0] - p[0];
-    const ez = q[1] - p[1];
-    const len = Math.hypot(ex, ez);
-    const nx = -ez / len;
-    const nz = ex / len;
-    const inward = (nx * (cx - p[0]) + nz * (cz - p[1])) > 0 ? 1 : -1;
-    const yaw = (Math.atan2(-ez, ex) * 180) / Math.PI;
-    b.box([(p[0] + q[0]) / 2 + nx * inward * 0.9, -slabT / 2, (p[1] + q[1]) / 2 + nz * inward * 0.9], [len + 1.6, slabT, 1.8], jitterHex(lawn, 0, 0, -0.12), { material: "Grass", rotation: [0, yaw, 0], collide: true, lod: 2 });
-  }
-  return b.build({ id, prefab: "island_block", category: "prop", sinkDepth: 0, footprintRadius: 1, tags: ["layout", "floating", "island"] });
 }

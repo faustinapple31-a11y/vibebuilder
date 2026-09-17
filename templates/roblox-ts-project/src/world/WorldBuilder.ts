@@ -180,7 +180,8 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 		// every model keeps the generator's intent (sink, tilt, base contact) relative to the *rendered* ground.
 		const snapParams = new RaycastParams();
 		snapParams.FilterType = Enum.RaycastFilterType.Include;
-		snapParams.FilterDescendantsInstances = [Workspace.Terrain];
+		// parts-built ground (terrace slabs, road strips) is spawned first and counts as ground for the snap
+		snapParams.FilterDescendantsInstances = [Workspace.Terrain, folderFor("ground")];
 		snapParams.IgnoreWater = true;
 		const buf = base64ToBuffer(bake.placementsB64);
 		const total = bake.placementCount;
@@ -237,7 +238,7 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 			}
 			cf = cf.mul(CFrame.Angles(0, rotY, 0));
 			const simple = meta?.layer === "background";
-			const model = cache.spawn(variant, cf, scale, simple, folderFor(meta?.category ?? variant.category));
+			const model = cache.spawn(variant, cf, scale, simple, folderFor(variant.tags !== undefined && variant.tags.includes("ground") ? "ground" : (meta?.category ?? variant.category)));
 			model.Name = meta?.id ?? variant.id;
 			if (meta?.zone !== undefined) model.SetAttribute("Zone", meta.zone);
 			if (meta?.biome !== undefined) model.SetAttribute("Biome", meta.biome);

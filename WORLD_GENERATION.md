@@ -302,14 +302,25 @@ FBX est uploadé en asset « Model » Open Cloud, Studio résout le `MeshId` du 
 `MeshData.assetId` et le runtime crée alors les parts avec `CreateMeshPartAsync(rbxassetid)` — réplication
 normale, plus de budget client ni de reconstruction.
 
+### 6g. Sol en parts pour tous les mondes (`pipeline/ground.ts`)
+
+Le sol de **tous** les mondes est construit en parts (pas de terrain voxel, sauf `terrain.groundMode: "voxels"`
+dans la spec) : la heightmap est quantifiée en terrasses de `GROUND_STEP` (8 studs) — filtre majoritaire
+5×5, régions < 24 cellules fusionnées, fond marin aplati — puis chaque plateau connexe devient un prefab
+`ground_block` : dalle plate (contours par marching squares, simplifiés + arrondis, triangulés par ear
+clipping avec trous → paires de wedges via `PartListBuilder.triangleSlab`) posée sur des bandes de murs
+(1 à 3 boîtes par arête là où le niveau voisin est plus bas), lèvre verte sur les grandes pelouses. Couleur
+et matériau = matériau de terrain dominant de la région (`lighting.terrainColors`), murs terre / pierre.
+Les routes deviennent des rubans de parts (`road_strip`), les passages d'un niveau à l'autre reçoivent un
+`stairs` (coût A* : un seul step autorisé), `flattenArea` pose un pad au niveau le plus proche, l'eau
+devient des blocs `fill` Water (rectangles gloutons) ; `terrain.mode = "parts"` dans la bake, le runtime
+n'écrit que ces blocs et snappe les objets sur le dossier `World.Ground`. Le viewer affiche les mêmes parts.
+
 ### 6f. Archipel « mesa » (sol en parts)
 
 Feature de terrain `archipelago` (`pipeline/archipelago.ts`) : une île principale près du centre et des
 satellites à distance de pont, chacune un empilement de plateaux plats (terrasses) aux parois verticales.
-Le sol de ces mondes n'est **pas** du terrain voxel : chaque plateau est un prefab `island_block` unique
-(dalle de pelouse en paires de wedges — `PartListBuilder.triangleSlab` — sur des bandes de murs bruns en
-retrait, lèvre verte), placé fixe ; la bake porte `terrain.mode = "parts"` et le runtime ne coule que la mer
-(bloc d'eau + fond de sable). La heightmap reste la référence de placement (plateaux plats). Ensuite
+Les blocs sont ceux du sol en parts générique (6g) ; la heightmap reste la référence de placement. Ensuite
 `pipeline/islands.ts` relie les îles par un arbre couvrant de `plank_bridge` (7 longueurs, inclinés si les
 plateaux diffèrent), pose un `stairs` par terrasse et des chemins de sable des atterrissages vers les
 routes ; `flattenArea` est neutralisée, le spawn exige un plateau entier et reçoit une `spawn_plaza`

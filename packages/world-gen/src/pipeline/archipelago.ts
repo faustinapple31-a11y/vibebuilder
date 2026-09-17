@@ -1,5 +1,4 @@
-import { Rng, deriveSeed, lerp, smoothstep, type MeshData, type PrefabVariant, type TerrainFeature, type Vec2 } from "@worldforge/core";
-import { islandBlock } from "@worldforge/prefabs";
+import { Rng, deriveSeed, lerp, smoothstep, type TerrainFeature, type Vec2 } from "@worldforge/core";
 import { Simplex2D } from "../noise";
 import { Grid } from "../grid";
 import { normToWorld, seaLevelOf, type GenContext } from "../context";
@@ -158,8 +157,6 @@ export function applyArchipelago(ctx: GenContext, f: Archipelago, ridge: Simplex
     isl.outline = outline(isl.center, isl.radius, f.ruggedness, ridge);
     for (const t of isl.terraces) t.outline = outline(t.center, t.radius, f.ruggedness * 0.8, ridge);
   }
-  buildIslandBlocks(ctx, islands, sea);
-  ctx.terrainMode = "parts";
 }
 
 /** The wobbled rim as a counter-clockwise polygon (N points, root of the signed distance along each ray). */
@@ -184,38 +181,4 @@ function outline(center: Vec2, radius: number, wobble: number, noise: Simplex2D,
     pts.push([center[0] + dx * lo, center[1] + dz * lo]);
   }
   return pts;
-}
-
-/** One `island_block` prefab variant per island base / terrace, placed at its centre (fixed, layout). */
-function buildIslandBlocks(ctx: GenContext, islands: Island[], sea: number): void {
-  const variants: PrefabVariant[] = [];
-  const prng = new Rng(deriveSeed(ctx.seed, "island-blocks"));
-  const pctx = { rng: prng, style: ctx.style, meshes: {} as Record<string, MeshData> };
-  const add = (id: string, center: Vec2, top: number, bottom: number, rim: Vec2[]) => {
-    const variant = variants.length;
-    const local = rim.map((p): Vec2 => [p[0] - center[0], p[1] - center[1]]);
-    variants.push(islandBlock(pctx, `island_block/${variant}`, { outline: local, bottom: bottom - top }));
-    ctx.placements.push({
-      id,
-      prefab: "island_block",
-      variant,
-      category: "prop",
-      position: [center[0], top, center[1]],
-      rotationY: 0,
-      scale: 1,
-      layer: "midground",
-      importance: 10,
-      fixed: true,
-      locked: true,
-      zone: "islands",
-    });
-  };
-  for (const isl of islands) {
-    add(`${isl.id}_base`, isl.center, isl.height, sea - 10, isl.outline!);
-    for (const t of isl.terraces) {
-      const below = t.level === 1 ? isl.height : isl.terraces[t.level - 2]!.height;
-      add(`${isl.id}_t${t.level}`, t.center, t.height, below - 1, t.outline!);
-    }
-  }
-  ctx.prefabs["island_block"] = variants;
 }

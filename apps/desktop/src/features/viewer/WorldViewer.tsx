@@ -73,7 +73,6 @@ function Scene({ bake }: { bake: WorldBake }) {
       <ambientLight intensity={night ? 0.35 : 0.15} color={ambient} />
       <directionalLight position={sun} color={sunColor} intensity={night ? 1.0 : Math.min(2.2, L.brightness * 0.9 + 0.6)} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-600} shadow-camera-right={600} shadow-camera-top={600} shadow-camera-bottom={-600} shadow-camera-far={2500} shadow-bias={-0.0004} />
       {layers.terrain && bake.terrain.mode !== "parts" && <Terrain bake={bake} wireframe={wireframe} biomeColors={biomeColors} sun={sun} sunColor={sunColor} ambient={ambient} />}
-      {layers.terrain && bake.terrain.mode === "parts" && <SeaFloor bake={bake} />}
       {layers.water && <Water bake={bake} />}
       <Placements bake={bake} />
       {layers.paths && <Paths bake={bake} />}
@@ -118,22 +117,6 @@ function Terrain({ bake, wireframe, biomeColors, sun, sunColor, ambient }: { bak
   return (
     <mesh geometry={geo} receiveShadow castShadow onClick={(e) => { e.stopPropagation(); select(null); }} material={textured ?? undefined}>
       {!textured && <meshStandardMaterial vertexColors roughness={0.95} metalness={0} wireframe={wireframe} flatShading />}
-    </mesh>
-  );
-}
-
-/** Parts-mode worlds (island blocks): no voxel ground, just a sand floor under the sea. */
-function SeaFloor({ bake }: { bake: WorldBake }) {
-  const t = bake.terrain;
-  let sea = -Infinity;
-  for (let i = 0; i < t.water.length; i++) if (!Number.isNaN(t.water[i]!) && t.water[i]! > sea) sea = t.water[i]!;
-  if (sea === -Infinity) return null;
-  const w = t.width * t.cellSize + 400;
-  const d = t.depth * t.cellSize + 400;
-  return (
-    <mesh position={[t.origin[0] + (t.width * t.cellSize) / 2, sea - 44, t.origin[1] + (t.depth * t.cellSize) / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[w, d]} />
-      <meshStandardMaterial color="#d9c48c" roughness={1} />
     </mesh>
   );
 }

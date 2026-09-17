@@ -54,8 +54,9 @@ export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): Ba
     kept.push(...arr.slice(0, max));
     trimmed[cat] = arr.length - max;
   }
-  // parts cap
-  let parts = kept.reduce((s, p) => s + partsOf(p), 0);
+  // parts cap (the parts-built ground is structural: it never counts against the budget of the rest)
+  const isGround = (p: Placement) => p.prefab === "ground_block" || p.prefab === "road_strip";
+  let parts = kept.reduce((s, p) => s + (isGround(p) ? 0 : partsOf(p)), 0);
   if (parts > budget.maxParts) {
     kept.sort((a, b) => (b.locked || essential(b) ? 1 : 0) - (a.locked || essential(a) ? 1 : 0) || b.importance - a.importance);
     while (parts > budget.maxParts && kept.length > 0 && !essential(kept[kept.length - 1]!)) {

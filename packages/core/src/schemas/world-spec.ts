@@ -386,6 +386,8 @@ export const WorldSpecSchema = z.object({
       roughness: z.number().min(0).max(1).default(0.4),
       erosion: z.number().min(0).max(1).default(0.5),
       features: z.array(TerrainFeatureSchema).default([]),
+      /** "parts" (default): the ground is terraces of part slabs + cliff walls; "voxels": Roblox smooth terrain. */
+      groundMode: z.enum(["parts", "voxels"]).default("parts"),
       /** Ocean surface height (studs) for island / coast features; default baseHeight - 6. */
       seaLevel: z.number().min(-50).max(200).optional(),
     })

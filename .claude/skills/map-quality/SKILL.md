@@ -57,6 +57,15 @@ ids, `zones`, `lighting`, `stats`) is the quickest way to count things.
 | night unreadable | `lighting.ts` night clamps (ambient mix, exposure +1.45) |
 | Studio hangs | > ~45 k parts or `Future` lighting with hundreds of lights — check `stats.partsEstimate`, `maxLights` |
 
+## Ground (parts, not voxels)
+
+- `pipeline/ground.ts`: heights are quantized to `GROUND_STEP` terraces (`quantizeHeights` after terrain
+  and after water), every plateau region becomes a `ground_block` prefab (slab + walls), roads become
+  `road_strip`, water becomes fill ops; `terrain.mode = "parts"`. Objects sit exactly on the slab tops
+  (heights = slabs). Roads may only change one level per step (stairs are placed by `placeStairs`);
+  `flattenArea` snaps pads to a level. Budget: keep ground parts ≈ 20–30k (region count × contour
+  length) — raise `MIN_REGION_CELLS` / simplification eps before anything else.
+
 ## Meshes & textures
 
 - Rock prefabs use the 6-mesh library (`packages/prefabs/src/meshes/library.ts`); `PrefabContext.meshes`

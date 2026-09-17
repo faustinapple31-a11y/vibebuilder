@@ -4,6 +4,8 @@ import { astar } from "../pathfinding";
 import { distanceToPolylinesGrid } from "../grid";
 import { edgeToWorld, progress, type GenContext } from "../context";
 import { connectIslands } from "./islands";
+import { GROUND_STEP } from "./ground";
+import { STAIRS_RISES } from "@worldforge/prefabs";
 
 /**
  * Stage 9: roads. A* over a coarse grid with slope-aware cost (cliffs are impassable),
@@ -22,6 +24,7 @@ export function generateRoads(ctx: GenContext): void {
       ctx.paths.push({ ...prev, points: prev.points.map((p) => [p[0], p[1]] as Vec2) });
       carveRoad(ctx, prev.points, road.width, road.type);
       placeBridges(ctx, road.id, prev.points, road.width);
+      placeStairs(ctx, road.id, prev.points);
       continue;
     }
     const nodes = road.connects.map((n) => resolveNode(ctx, n)).filter((n): n is Vec2 => !!n);
@@ -31,6 +34,7 @@ export function generateRoads(ctx: GenContext): void {
     ctx.paths.push({ id: road.id, kind: "road", type: road.type, points: smooth, width: road.width });
     carveRoad(ctx, smooth, road.width, road.type);
     placeBridges(ctx, road.id, smooth, road.width);
+    placeStairs(ctx, road.id, smooth);
   }
   if (ctx.islands) connectIslands(ctx, rng);
   const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
@@ -77,11 +81,14 @@ export function routeRoad(ctx: GenContext, rng: Rng, nodes: Vec2[], opts: { wate
           const dh = Math.abs(nodeH(x1, z1) - nodeH(x0, z0));
           const run = dist * coarse * ctx.cellSize;
           const slope = Math.atan2(dh, run);
-          if (slope > maxSlope) return Infinity;
+          if (ctx.terrainMode === "parts") {
+            // terraces: flat or exactly one step (a staircase), never more
+            if (dh > GROUND_STEP * 1.05) return Infinity;
+          } else if (slope > maxSlope) return Infinity;
           if (!isGoalLandmark && blocked(x1, z1)) return Infinity;
           const nearGoal = Math.hypot(x1 - goal[0], z1 - goal[1]) < 3;
           if (isGoalLandmark && !nearGoal && blocked(x1, z1)) return Infinity;
-          let c = run * (1 + slope * slope * 14);
+          let c = ctx.terrainMode === "parts" ? run * (dh > 0.5 ? 4 : 1) : run * (1 + slope * slope * 14);
           if (nodeWater(x1, z1)) c *= opts.waterCost ?? 7;
           return c;
         },
@@ -198,20 +205,67 @@ export function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: str
       }
     }
   }
+  const parts = ctx.terrainMode === "parts"; // terraces: the road follows the slabs, stairs take the steps
   for (let k = 0; k < dist.length; k++) {
     const d = dist[k]!;
     if (d > reach) continue;
     if (!Number.isNaN(ctx.water.data[k]!)) continue; // bridges handle water
     const cur = h.data[k]!;
     if (d <= half) {
-      h.data[k] = lerp(cur, target[k]!, 0.92);
+      if (!parts) h.data[k] = lerp(cur, target[k]!, 0.92);
       ctx.materials[k] = mat;
     } else {
       const w = 1 - smoothstep(half, half + shoulder, d);
-      h.data[k] = lerp(cur, target[k]!, w * 0.7);
+      if (!parts) h.data[k] = lerp(cur, target[k]!, w * 0.7);
       // worn dirt shoulder along the road edge
       if (d <= half + 2.5 && ctx.materials[k] !== TERRAIN_MATERIAL_INDEX.Water) ctx.materials[k] = shoulderMat;
     }
+  }
+}
+
+/** Parts-mode terraces: a staircase wherever the road steps up or down one level. */
+export function placeStairs(ctx: GenContext, roadId: string, pts: Vec2[]): void {
+  if (ctx.terrainMode !== "parts") return;
+  const h = ctx.heights;
+  let n = 0;
+  let lastAt = -10;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const ha = h.sample(a[0], a[1]);
+    const hb = h.sample(b[0], b[1]);
+    const rise = Math.abs(hb - ha);
+    if (rise < GROUND_STEP * 0.5 || i - lastAt < 3) continue;
+    if (!Number.isNaN(ctx.water.sample(a[0], a[1])) || !Number.isNaN(ctx.water.sample(b[0], b[1]))) continue;
+    const low = hb > ha ? a : b;
+    const high = hb > ha ? b : a;
+    const dx = high[0] - low[0];
+    const dz = high[1] - low[1];
+    const len = Math.hypot(dx, dz) || 1;
+    const dir: Vec2 = [dx / len, dz / len];
+    let variant = STAIRS_RISES.findIndex((r) => r >= rise - 0.5);
+    if (variant < 0) variant = STAIRS_RISES.length - 1;
+    const scale = rise / STAIRS_RISES[variant]!;
+    const run = Math.round(STAIRS_RISES[variant]! / 2) * 2.5 * scale;
+    // the terrace edge lies between the two samples: the top step lands just past it
+    const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const foot: Vec2 = [mid[0] - dir[0] * (run - 1.5), mid[1] - dir[1] * (run - 1.5)];
+    const lowH = Math.min(ha, hb);
+    ctx.placements.push({
+      id: `stairs_${roadId}_${n++}`,
+      prefab: "stairs",
+      variant,
+      category: "building",
+      position: [foot[0], lowH, foot[1]],
+      rotationY: Math.atan2(-dir[1], dir[0]),
+      scale,
+      layer: "midground",
+      importance: 10,
+      fixed: true,
+      zone: roadId,
+    });
+    ctx.occupants.push({ position: [mid[0], lowH, mid[1]], radius: run / 2 + 4, kind: "building" });
+    lastAt = i;
   }
 }
 

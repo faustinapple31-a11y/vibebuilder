@@ -27,6 +27,7 @@ import { placeRelief } from "./pipeline/relief";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
+import { buildGround, quantizeHeights } from "./pipeline/ground";
 import { defaultBudget, optimizeAndStats } from "./pipeline/optimize";
 
 export const GENERATOR_VERSION = "0.1.0";
@@ -101,6 +102,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     trimmed: {},
     startedAt: started,
   };
+  ctx.terrainMode = spec.terrain.groundMode ?? "parts";
   ctx.roadDistance.data.fill(300);
   ctx.waterDistance.data.fill(400);
   ctx.water.data.fill(NaN);
@@ -122,8 +124,11 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   }
   computeMoisture(ctx);
 
+  if (ctx.terrainMode === "parts") quantizeHeights(ctx);
+
   // ---- water
   generateWater(ctx); // handles reuse of locked rivers internally
+  if (ctx.terrainMode === "parts") quantizeHeights(ctx); // river beds / lake basins snap to terraces too
 
   // ---- biomes & materials (always recomputed: cheap, depends on terrain/water)
   generateBiomes(ctx);
@@ -181,7 +186,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
         if (dv.tags.includes("wall") || dv.tags.includes("field")) ctx.occupants.push({ position: p.position, radius: dv.footprintRadius * p.scale, kind: "building" });
         continue;
       }
-      if (p.category !== "building" || p.prefab === "bridge") continue;
+      if (p.category !== "building" || p.prefab === "bridge" || p.prefab === "plank_bridge" || isGroundwork(p)) continue;
       const v = ctx.prefabs[p.prefab]?.[p.variant];
       if (!v) continue;
       ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
@@ -202,10 +207,11 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
 
   // ---- 3D relief: caves behind cave landmarks, overhangs, arches, lava (voxel ops + fixed interior props)
   if (regenerate.has("landmarks") || regenerate.has("terrain") || !compatiblePrevious) {
-    if (!ctx.islands) placeRelief(ctx);
+    if (!ctx.islands && ctx.terrainMode !== "parts") placeRelief(ctx);
   } else {
     ctx.terrainOps = compatiblePrevious.terrain.ops.map((o) => ({ ...o, position: [...o.position] as [number, number, number] }));
-    for (const p of compatiblePrevious.placements) if (p.fixed) ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
+    // (the parts ground, road strips and road stairs are rebuilt every time — never carried over)
+    for (const p of compatiblePrevious.placements) if (p.fixed && !isGroundwork(p)) ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
     for (const z of compatiblePrevious.zones) if (z.kind === "gameplay" && (z.meta?.kind === "cave" || z.meta?.kind === "lava")) ctx.zones.push({ ...z });
   }
 
@@ -227,7 +233,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   if (compatiblePrevious) {
     const have = new Set(ctx.placements.map((p) => p.id));
     for (const p of compatiblePrevious.placements) {
-      if (!p.locked || have.has(p.id) || !ctx.prefabs[p.prefab]?.[p.variant]) continue;
+      if (!p.locked || have.has(p.id) || isGroundwork(p) || !ctx.prefabs[p.prefab]?.[p.variant]) continue;
       ctx.placements.push({ ...p, position: [p.position[0], p.position[1], p.position[2]] });
     }
   }
@@ -268,6 +274,9 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     }
     p.position[1] = groundHeightFor(ctx, v, p.position[0], p.position[2], p.scale, p.rotationY, conform);
   }
+
+  // ---- ground: terraces of part slabs + cliff walls, road slabs, water blocks (no smooth terrain)
+  if (ctx.terrainMode === "parts") buildGround(ctx);
 
   // ---- optimize + stats
   const stats = optimizeAndStats(ctx, defaultBudget(worldW, worldD));
@@ -412,8 +421,14 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
   for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post", "spawn_plaza"]) ids.add(id);
   if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
-  if (spec.terrain.features.some((f) => f.type === "archipelago")) for (const id of ["plank_bridge", "stairs"]) ids.add(id);
+  if (spec.terrain.features.some((f) => f.type === "archipelago")) ids.add("plank_bridge");
+  ids.add("stairs");
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);
+}
+
+/** Placements the ground / road stages regenerate from scratch on every run (never inherited from a previous bake). */
+function isGroundwork(p: Placement): boolean {
+  return p.prefab === "ground_block" || p.prefab === "road_strip" || p.id.startsWith("stairs_");
 }
 
 /** Regenerate specific layers on top of a previous bake. */
