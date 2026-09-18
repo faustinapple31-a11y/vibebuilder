@@ -49,6 +49,15 @@ function terrainColors(ctx: GenContext): Partial<Record<TerrainMaterial, string>
     Asphalt: mix(d.Asphalt, "#2e2e33", tint * 0.5),
     Snow: mix(d.Snow, mixHex("#f2f6fb", p.sky, 0.12), tint * 0.5),
     Ice: mix(d.Ice, mixHex("#a8d0ea", p.water, 0.3), tint * 0.5),
+    // the rest of the material list: a material with no entry here paints a green slab in parts mode
+    // (`colors[mat] ?? "#6a7f3f"`), so every one of them carries a colour whether a biome uses it today
+    // or not — a green lava field is not a bug anyone should have to find twice
+    CrackedLava: mix(d.CrackedLava, mixHex("#ff6a20", p.glow, 0.4), tint * 0.4),
+    Glacier: mix(d.Glacier, mixHex("#bfe0f2", p.water, 0.25), tint * 0.5),
+    Salt: mix(d.Salt, lightenHex(p.ground, 0.45), tint * 0.5),
+    Concrete: mix(d.Concrete, lightenHex(p.stone, 0.1), tint * 0.5),
+    Brick: mix(d.Brick, mixHex(p.wood, "#9a4a38", 0.5), tint * 0.6),
+    WoodPlanks: mix(d.WoodPlanks, p.wood, tint * 0.8),
   };
 }
 

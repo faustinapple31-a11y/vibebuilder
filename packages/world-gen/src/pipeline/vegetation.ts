@@ -66,11 +66,16 @@ function treeMix(ctx: GenContext, biome: BiomeId, allowed: Set<VegetationSpecies
   if (ctx.style.kits.vegetation === "none") return [];
   if (kitTrees.length === 0) return biomeTrees;
   if (biomeTrees.length === 0) return kitTrees;
+  // On harsh ground the biome decides, not the style kit: a medieval world with a volcano was growing
+  // green conifers on black basalt, because the kit's species outweighed the biome's dead and burnt trees.
+  const [kitWeight, biomeWeight] = HARSH_BIOMES.has(biome) ? [0.2, 0.8] : [0.65, 0.35];
   const out = new Map<VegetationSpecies, number>();
-  for (const [sp, w] of kitTrees) out.set(sp, (out.get(sp) ?? 0) + w * 0.65);
-  for (const [sp, w] of biomeTrees) out.set(sp, (out.get(sp) ?? 0) + w * 0.35);
+  for (const [sp, w] of kitTrees) out.set(sp, (out.get(sp) ?? 0) + w * kitWeight);
+  for (const [sp, w] of biomeTrees) out.set(sp, (out.get(sp) ?? 0) + w * biomeWeight);
   return [...out.entries()];
 }
+/** Biomes whose flora is dictated by the ground itself, whatever the style's vegetation kit. */
+const HARSH_BIOMES = new Set<BiomeId>(["volcanic", "wasteland", "moon", "ocean_floor"]);
 const UNDERGROWTH = new Set<VegetationSpecies>(["bush", "fern", "grass", "flower", "log", "small_mushroom", "seaweed"]);
 
 /** Prefab id for a species. */

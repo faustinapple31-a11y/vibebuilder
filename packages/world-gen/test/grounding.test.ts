@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getStylePreset, getWorldTemplate, type PrefabVariant, type WorldBake } from "@worldforge/core";
+import { TERRAIN_MATERIALS, getStylePreset, getWorldTemplate, type PrefabVariant, type WorldBake } from "@worldforge/core";
 import { generateWorld } from "@worldforge/world-gen";
 
 /**
@@ -145,5 +145,20 @@ describe("nothing stands in the road", () => {
       }
     }
     expect(offenders, `${offenders.length} placements in a carriageway: ${offenders.slice(0, 8).join(", ")}`).toEqual([]);
+  });
+});
+
+describe("terrain colours", () => {
+  it("gives every material a colour, so no slab falls back to green", () => {
+    for (const id of ["moonlit_forest_village"] as const) {
+      const spec = getWorldTemplate(id);
+      const style = getStylePreset(spec.stylePreset);
+      const bake = generateWorld(spec, style);
+      const colors = bake.lighting.terrainColors ?? {};
+      // `pipeline/ground.ts` paints a slab `colors[material] ?? "#6a7f3f"`: a material missing here comes
+      // out as grass, whatever it is. Water is poured, not slabbed, and Air is the absence of terrain.
+      const missing = TERRAIN_MATERIALS.filter((m) => m !== "Air" && m !== "Water" && !(m in colors));
+      expect(missing, `materials with no colour: ${missing.join(", ")}`).toEqual([]);
+    }
   });
 });

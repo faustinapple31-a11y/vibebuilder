@@ -101,6 +101,13 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "montagne", "mountain", "rocher", "rock", "falaise", "cliff") && !biomes.some((b) => b.id === "rocky")) biomes.push({ id: "rocky", weight: 0.2, vegetation: "sparse", elevation: [0.7, 1] });
   if (has(t, "champignon", "mushroom", "fungi") && !biomes.some((b) => b.id === "mushroom_grove")) biomes.push({ id: "mushroom_grove", weight: 0.3, vegetation: "medium" });
   if (has(t, "marais", "swamp", "marecage") && !biomes.some((b) => b.id === "swamp")) biomes.push({ id: "swamp", weight: 0.3, vegetation: "medium" });
+  // a volcano is a place, not just a landmark: black rock over the slopes, no canopy on them. Without
+  // this, "une arène dans un volcan" came out as a green forest hill with a cone in it.
+  if (has(t, "volcan", "volcano", "lave", "lava", "magma")) {
+    if (!biomes.some((b) => b.id === "volcanic")) biomes.push({ id: "volcanic", weight: 0.55, vegetation: "sparse", elevation: [0.4, 1] });
+    if (!biomes.some((b) => b.id === "rocky")) biomes.push({ id: "rocky", weight: 0.25, vegetation: "sparse", elevation: [0.55, 1] });
+    for (const b of biomes) if (b.id !== "volcanic" && b.id !== "rocky") b.weight = Math.min(b.weight ?? 0.3, 0.22);
+  }
   if (has(t, "plage", "beach", "cote", "coast") && !biomes.some((b) => b.id === "beach")) biomes.push({ id: "beach", weight: 0.25, vegetation: "sparse", elevation: [0, 0.2] });
 
   const famType = fam.settlementType ?? "village";
@@ -210,7 +217,11 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "cerisier", "sakura", "cherry")) pushSp("cherry_tree");
   if (has(t, "bambou", "bamboo")) pushSp("bamboo");
   if (has(t, "cactus")) pushSp("cactus");
+  // a volcanic world needs the flora its biome asks for, or `treeMix` falls back to the style kit and
+  // grows green conifers on black basalt
+  if (has(t, "volcan", "volcano", "lave", "lava", "magma")) pushSp("dead_tree", "burnt_tree");
   let density = has(t, "dense", "epais", "thick", "luxuriant", "lush") ? 0.85 : has(t, "clairsem", "sparse", "vide", "empty", "aride") ? 0.3 : Math.min(0.85, 0.25 + fam.vegetationDensity * 0.75);
+  if (has(t, "volcan", "volcano", "lave", "lava", "magma")) density = Math.min(density, 0.35);
   if (archipelago) {
     // mesa islands read as open lawns with a few palms: sparse, no forest biome
     density = Math.min(density, 0.22);
