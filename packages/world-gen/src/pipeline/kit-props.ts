@@ -50,11 +50,13 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
+    if (ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false; // never in the carriageway
     const br = Math.max(1.5, (v.baseRadius ?? 0) * scale);
     const at = settleOnGround(ctx, x, z, br, Math.min(4, Math.max(2.2, br)));
     if (!at) return false;
     [x, z] = at;
     if (distanceToEdge(ctx, x, z) < 6 || isWaterAt(ctx, x, z)) return false;
+    if (ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
     const radius = v.footprintRadius * scale * 0.6;
     if (hash.overlaps(x, z, radius, opts.margin ?? 0.5)) return false;
     const y = ctx.heights.sample(x, z) - (opts.sink === false ? 0 : v.sinkDepth * scale);

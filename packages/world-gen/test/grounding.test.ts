@@ -104,3 +104,46 @@ describe("near-field and horizon detail", () => {
     expect(bake.stats.layerCounts.background / bake.placements.length).toBeGreaterThan(0.08);
   });
 });
+
+describe("nothing stands in the road", () => {
+  const spec = getWorldTemplate("moonlit_forest_village");
+  const style = getStylePreset(spec.stylePreset);
+
+  /** Distance from a point to a polyline's centreline. */
+  function toPolyline(x: number, z: number, pts: [number, number][]): number {
+    let best = Infinity;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!;
+      const b = pts[i]!;
+      const abx = b[0] - a[0];
+      const abz = b[1] - a[1];
+      const ab2 = abx * abx + abz * abz || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * abx + (z - a[1]) * abz) / ab2));
+      best = Math.min(best, Math.hypot(x - (a[0] + abx * t), z - (a[1] + abz * t)));
+    }
+    return best;
+  }
+
+  it("keeps scattered props, vegetation and buildings out of the carriageway", () => {
+    const bake = generateWorld(spec, style);
+    const roads = bake.paths.filter((p) => p.kind === "road");
+    expect(roads.length).toBeGreaterThan(0);
+    const offenders: string[] = [];
+    for (const p of bake.placements) {
+      const v = bake.prefabs[p.prefab]?.[p.variant];
+      if (!v) continue;
+      // a road is routed *to* a landmark, a village centre and the spawn plaza: they are its destination
+      if (p.category === "landmark" || p.id === "spawn_plaza" || p.id.startsWith("layout_")) continue;
+      // what belongs on the road surface, and what spans it
+      if (v.category === "path" || v.tags.some((t) => t === "marking" || t === "kerb" || t === "road" || t === "bridge" || t === "stairs" || t === "floating" || t === "ground")) continue;
+      if ((v.baseRadius ?? 0) < 0.8) continue;
+      for (const road of roads) {
+        if (toPolyline(p.position[0], p.position[2], road.points) < road.width / 2 - 0.5) {
+          offenders.push(`${p.prefab} (${p.id}) in ${road.id}`);
+          break;
+        }
+      }
+    }
+    expect(offenders, `${offenders.length} placements in a carriageway: ${offenders.slice(0, 8).join(", ")}`).toEqual([]);
+  });
+});

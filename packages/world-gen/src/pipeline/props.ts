@@ -34,6 +34,9 @@ export function placeRocksAndProps(ctx: GenContext): void {
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
+    // a solid prop never stands in the carriageway (`roadDistance` is already measured from the road
+    // *edge*, so this is a real clearance). Path-category props — slabs, markings — belong on it.
+    if (opts.category !== "path" && ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
     // step off a terrace lip / cliff edge so the base is not left hanging in the air
     if (!opts.onWater) {
       const br = Math.max(1.5, (v.baseRadius ?? 0) * scale);
@@ -41,6 +44,7 @@ export function placeRocksAndProps(ctx: GenContext): void {
       if (!at) return false;
       [x, z] = at;
       if (!inside(ctx, x, z) || isWaterAt(ctx, x, z)) return false;
+      if (opts.category !== "path" && ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
     }
     const radius = v.footprintRadius * scale * 0.6;
     if (hash.overlaps(x, z, radius, opts.margin ?? 0.5)) return false;

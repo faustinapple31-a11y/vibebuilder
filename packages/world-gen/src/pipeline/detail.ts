@@ -51,10 +51,15 @@ export function placeDetail(ctx: GenContext): void {
     const v: PrefabVariant = variants[vi]!;
     const scale = opts.scale ?? 1;
     const base = Math.max(1.5, (v.baseRadius ?? 0) * scale);
+    // the base disc must clear the carriageway — `roadDistance` is measured from the road edge, so a
+    // verge item may hug the kerb but never stand in it (and a crossing road counts too)
+    const clear = (px: number, pz: number) => opts.allowWater || ctx.roadDistance.sample(px, pz) >= (v.baseRadius ?? 1) * scale;
+    if (!clear(x, z)) return false;
     const at = settleOnGround(ctx, x, z, base, Math.min(4, Math.max(2.2, base)), 2);
     if (!at) return false;
     const [sx, sz] = at;
     if (!inBounds(ctx, sx, sz, 4) || (!opts.allowWater && isWaterAt(ctx, sx, sz))) return false;
+    if (!clear(sx, sz)) return false;
     const radius = v.footprintRadius * scale * 0.5;
     if (hash.overlaps(sx, sz, radius, opts.margin ?? 0.4)) return false;
     const position: [number, number, number] = [sx, ctx.heights.sample(sx, sz) - v.sinkDepth * scale, sz];

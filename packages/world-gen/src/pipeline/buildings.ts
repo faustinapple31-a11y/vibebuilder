@@ -186,8 +186,25 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
   const centerPrefab = s.type === "camp" ? "campfire" : "well";
   const cv = ctx.prefabs[centerPrefab];
   if (cv && cv.length > 0 && ctx.spec.props.sets.includes("village")) {
-    const cx = site.center[0] + rng.float(-4, 4);
-    const cz = site.center[1] + rng.float(-4, 4);
+    // a road usually crosses the plaza, and a well in the middle of the carriageway is the first thing
+    // anyone notices: try a few spots around the centre and keep the one with the most clearance
+    const foot = cv[0]!.footprintRadius;
+    let cx = site.center[0];
+    let cz = site.center[1];
+    let clearest = ctx.roadDistance.sample(cx, cz) - foot;
+    for (let attempt = 0; attempt < 12 && clearest < 1; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = rng.float(3, Math.max(6, site.radius * 0.3));
+      const px = site.center[0] + Math.cos(a) * r;
+      const pz = site.center[1] + Math.sin(a) * r;
+      const clear = ctx.roadDistance.sample(px, pz) - foot;
+      if (clear > clearest) {
+        clearest = clear;
+        cx = px;
+        cz = pz;
+      }
+    }
+    if (clearest < 0.5) return; // the plaza is all road here: no centrepiece rather than one standing in it
     const y = ctx.heights.sample(cx, cz);
     const p: Placement = {
       id: `${site.id}_${centerPrefab}`,
@@ -269,6 +286,9 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
     const x = c[0];
     const z = c[1];
     if (ctx.waterDistance.sample(x, z) < v.footprintRadius + 3) continue;
+    // the grid carves its own streets, but a road routed before the district can cross a block: without
+    // this a tower ends up in the middle of the main road (the organic layout already keeps a clearance)
+    if (ctx.roadDistance.sample(x, z) < v.footprintRadius * 0.75) continue;
     if (slopeAtWorld(ctx, x, z) > 0.55) continue;
     let blockedByLandmark = false;
     for (const o of ctx.occupants) if (o.kind === "landmark" && Math.hypot(x - o.position[0], z - o.position[2]) < o.radius + v.footprintRadius * 0.6) blockedByLandmark = true;
