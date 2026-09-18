@@ -50,9 +50,23 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     problems.push({ id: "foreground_empty", severity: "medium", message: `foreground is empty (${(fg * 100).toFixed(0)}% of placements near paths/spawn)`, layer: "composition" });
     fixes.push({ type: "spec_patch", path: "props.density", op: "set", value: clamp(spec.props.density + 0.2, 0, 1) });
   }
-  if (bg < 0.08) {
+  // silhouettes stand in the border band, and on an island or an archipelago most of that band is open
+  // sea: expect them in proportion to the land there (sea stacks aside, nothing can be planted on water)
+  const t = bake.terrain;
+  const bandCells = Math.max(1, Math.floor(Math.min(t.width, t.depth) * 0.13));
+  let bandLand = 0;
+  let bandTotal = 0;
+  for (let z = 0; z < t.depth; z++) {
+    for (let x = 0; x < t.width; x++) {
+      if (x >= bandCells && x < t.width - bandCells && z >= bandCells && z < t.depth - bandCells) continue;
+      bandTotal++;
+      if (Number.isNaN(t.water[z * t.width + x]!)) bandLand++;
+    }
+  }
+  const bandLandFraction = bandTotal > 0 ? bandLand / bandTotal : 1;
+  if (bg < 0.08 * Math.max(0.25, bandLandFraction)) {
     composition -= 1.5;
-    problems.push({ id: "background_empty", severity: "medium", message: "background has too few silhouettes (edge forest/mountains)", layer: "composition" });
+    problems.push({ id: "background_empty", severity: "medium", message: `background has too few silhouettes (${(bg * 100).toFixed(0)}% of placements in the edge band, ${(bandLandFraction * 100).toFixed(0)}% of it is land)`, layer: "composition" });
   }
   const plazaProps = new Set(["well", "campfire", "fountain", "marble_statue", "totem", "small_shrine", "tiki_statue", "gingerbread_man", "sphinx_statue", "hologram", "energy_pylon", "flag_pole", "burning_barrel", "water_tower"]);
   const villageLandmark = bake.landmarks.some((l) => l.type === "well" || l.type === "statue" || l.type === "windmill" || l.type === "fountain" || l.type === "church" || l.type === "gas_station" || l.type === "water_tower") || bake.placements.some((p) => plazaProps.has(p.prefab)) || bake.zones.some((z) => z.kind === "gameplay");

@@ -46,6 +46,7 @@ export function generateTerrain(ctx: GenContext): void {
   // lip: a long-wavelength modulation turns it into summits and saddles, so the skyline has a shape and
   // the eye can read distance from it (and the odd pass invites the player to look for a way out).
   const borderReach = Math.min(worldW, worldD) * 0.115;
+  const flatBoost = 1 + Math.max(0, 0.55 - t.relief) * 0.9;
   const oceanFeatures = archipelago ? [] : t.features.filter((f) => f.type === "island" || f.type === "coast");
   const ocean = oceanFeatures.length ? computeOceanMask(ctx, oceanFeatures, ridge) : undefined;
   h.map((x, z, v, i) => {
@@ -56,7 +57,9 @@ export function generateTerrain(ctx: GenContext): void {
     const r = ridge.ridged(wx / 160, wz / 160, 3);
     // summits (≈1.55×) and saddles (≈0.5×) around the ring, over ~800 studs
     const crest = 0.5 + smoothstep(-0.35, 0.45, ridge.noise2(wx / 380 + 11, wz / 380 - 7)) * 1.05;
-    return v + m * m * (28 + r * 34) * crest;
+    // a deliberately flat world (a city, a suburb, a farm) keeps its flat interior but earns a taller
+    // frame: without it the horizon is a straight line and the map reads as a table top
+    return v + m * m * (28 + r * 34) * crest * flatBoost;
   });
   if (ocean) applyOcean(ctx, ocean, ridge);
 

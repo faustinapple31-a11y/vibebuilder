@@ -12,7 +12,7 @@ import {
 import { buildPrefabLibrary, PREFAB_INDEX, PROP_KIT_PREFABS, VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
-import { GEN_LAYERS, type GenContext, type GenLayer, type GenerateOptions } from "./context";
+import { GEN_LAYERS, baseRelief, type GenContext, type GenLayer, type GenerateOptions } from "./context";
 import { computeMoisture, generateTerrain } from "./pipeline/terrain";
 import { generateWater } from "./pipeline/water";
 import { generateBiomes } from "./pipeline/biomes";
@@ -27,7 +27,7 @@ import { placeRelief } from "./pipeline/relief";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
-import { buildGround, quantizeHeights, snapHeightsToLevels } from "./pipeline/ground";
+import { GROUND_STEP, buildGround, quantizeHeights, snapHeightsToLevels } from "./pipeline/ground";
 import { placeDetail } from "./pipeline/detail";
 import { defaultBudget, optimizeAndStats } from "./pipeline/optimize";
 
@@ -260,7 +260,17 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
 
   // ---- parts mode: the ground is built from terrace levels, so put the heightmap back on them before
   // snapping (flattened pads, carved roads and levelled discs left heights between two levels)
-  if (ctx.terrainMode === "parts") snapHeightsToLevels(ctx);
+  if (ctx.terrainMode === "parts") {
+    snapHeightsToLevels(ctx);
+    // flat plates that lie *on* the ground — lane stripes, crossings, kerbs — cannot straddle a terrace
+    // step: half the plate ends up in the air. Only the final levels say where the steps are, so they
+    // are culled here rather than where they were placed.
+    ctx.placements = ctx.placements.filter((p) => {
+      const v = ctx.prefabs[p.prefab]?.[p.variant];
+      if (!v || !(v.tags.includes("marking") || v.tags.includes("kerb"))) return true;
+      return baseRelief(ctx, p.position[0], p.position[2], Math.max(2, v.footprintRadius * p.scale)) <= GROUND_STEP * 0.6;
+    });
+  }
 
   // ---- snap everything to the final terrain (no floating objects) and conform small things to the slope
   for (const p of ctx.placements) {

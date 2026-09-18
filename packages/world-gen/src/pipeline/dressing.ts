@@ -1,6 +1,6 @@
 import { Rng, TERRAIN_MATERIAL_INDEX, deriveSeed, lerp, smootherstep, type Placement, type PrefabVariant, type Vec2 } from "@worldforge/core";
 import { WALL_SEGMENT } from "@worldforge/prefabs";
-import { inBounds, isWaterAt, layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
+import { baseRelief, inBounds, isWaterAt, layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
 import { SpatialHash } from "../grid";
 import { roadMaterial } from "./roads";
 import { GROUND_STEP } from "./ground";
@@ -160,6 +160,8 @@ function placeWalls(ctx: GenContext, rng: Rng, add: Add): void {
   for (const s of segs) if (!s.skip) levelDisc(ctx, s.c, WALL_SEGMENT * 1.05, s.y, 1);
   const towerV = ctx.prefabs["gate_tower"];
   let walls = 0;
+  // after levelling, a segment whose pad still spans two terraces would hang over the lower one
+  for (const s of segs) if (!s.skip && baseRelief(ctx, s.c[0], s.c[1], WALL_SEGMENT * 0.6) > GROUND_STEP * 0.6) s.skip = true;
   segs.forEach((s, i) => {
     if (s.skip) return;
     const prev = segs[(i + n - 1) % n]!;
@@ -430,7 +432,8 @@ function placeRoadMarkings(ctx: GenContext, add: Add): void {
         const z = a[1] + tz * t;
         acc += Math.min(len - t, 1);
         kerbAcc += Math.min(len - t, 1);
-        if (acc >= 9 && stripes < 420 && !isWaterAt(ctx, x, z) && !nearCrossing(x, z, 7)) {
+        // markings are flat plates: at a terrace step (where the road gets stairs) they would hang
+        if (acc >= 9 && stripes < 420 && !isWaterAt(ctx, x, z) && !nearCrossing(x, z, 7) && baseRelief(ctx, x, z, 5) < 2.5) {
           add("road_stripe", x, ctx.heights.sample(x, z) + 0.1, z, rotAlongX(tx, tz), { importance: 2 });
           stripes++;
           acc = 0;
@@ -440,7 +443,8 @@ function placeRoadMarkings(ctx: GenContext, add: Add): void {
           for (const sgn of [-1, 1]) {
             const kx = x - tz * sgn * (road.width / 2 + 0.6);
             const kz = z + tx * sgn * (road.width / 2 + 0.6);
-            if (!isWaterAt(ctx, kx, kz)) {
+            // a kerb is a long rigid bar: on a terrace lip half of it ends up in the air
+            if (!isWaterAt(ctx, kx, kz) && baseRelief(ctx, kx, kz, 6) < 2.5) {
               add("kerb", kx, ctx.heights.sample(kx, kz), kz, rotAlongX(tx, tz), { importance: 2 });
               kerbs++;
             }
@@ -460,7 +464,7 @@ function placeRoadMarkings(ctx: GenContext, add: Add): void {
         for (const sgn of [-1, 1]) {
           const x = c.p[0] + dir[0] * sgn * (c.w / 2 + 3.5);
           const z = c.p[1] + dir[1] * sgn * (c.w / 2 + 3.5);
-          if (isWaterAt(ctx, x, z) || ctx.roadDistance.sample(x, z) > 2) continue;
+          if (isWaterAt(ctx, x, z) || ctx.roadDistance.sample(x, z) > 2 || baseRelief(ctx, x, z, 7) > 2.5) continue;
           add("crosswalk", x, ctx.heights.sample(x, z) + 0.1, z, rotAlongX(-dir[1], dir[0]), { importance: 3, scale: Math.max(0.8, Math.min(2.2, (r.width - 1) / 8.6)) });
         }
       }

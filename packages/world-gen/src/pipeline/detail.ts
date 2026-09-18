@@ -260,6 +260,10 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
   const rockIds = ["cliff_block", "boulder", "rock_cluster", "ice_spike", "crystal_cluster", "meteorite"].filter((id) => ctx.prefabs[id]?.length);
   const barren = ctx.style.kits.vegetation === "none" || treeIds.length === 0;
   if (barren && rockIds.length === 0) return;
+  // a city's horizon is a skyline, not a ridge of boulders: a few distant towers, far apart and large
+  const urbanKit = ctx.style.kits.props.some((k) => k === "urban" || k === "cyber" || k === "industrial" || k === "apocalypse");
+  const towerIds = urbanKit ? ["skyscraper", "skyscraper_ruin", "radio_tower", "storage_tank", "cable_pole"].filter((id) => ctx.prefabs[id]?.length) : [];
+  let towers = 0;
   let placed = 0;
   // clump centres along the border band, then a handful of silhouettes around each
   const perSide = Math.max(7, Math.round(Math.min(ctx.worldW, ctx.worldD) / 75));
@@ -316,6 +320,22 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
       continue;
     }
     const biome = biomeAt(ctx, cx, cz);
+    // a skyline clump: two or three towers, then back to the natural silhouettes
+    if (towerIds.length > 0 && towers < 22 && rng.chance(0.55)) {
+      const n = rng.int(1, 3);
+      for (let k = 0; k < n && towers < 22; k++) {
+        const a = rng.float(0, Math.PI * 2);
+        const r = rng.float(6, 26);
+        const x = cx + Math.cos(a) * r;
+        const z = cz + Math.sin(a) * r;
+        const id = towerIds[rng.int(0, towerIds.length - 1)]!;
+        if (add(id, x, z, { scale: rng.float(1.1, 1.8), importance: 6.8, big: true, margin: 6 })) {
+          towers++;
+          placed++;
+        }
+      }
+      continue;
+    }
     const stony = barren || biome === "rocky" || biome === "highlands" || biome === "snow" || biome === "desert" || biome === "moon" || biome === "volcanic" || rng.chance(0.3);
     const ids = stony && rockIds.length > 0 ? rockIds : treeIds;
     if (ids.length === 0) continue;

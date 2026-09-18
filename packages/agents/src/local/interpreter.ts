@@ -165,8 +165,10 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   })();
   const interiors = has(t, "interieur", "interior", "inside", "meuble", "furnish", "entrer dans", "walk in") ? true : undefined;
   if (has(t, "ville", "town", "city", "cite", "metropole", "downtown", "quartier")) {
-    const city = modern && has(t, "city", "cite", "metropole", "downtown", "gratte", "skyscraper", "immeuble");
-    settlements.push({ id: "town", type: abandoned ? (modern ? "abandoned_village" : "ruined_town") : city ? "city_district" : "town", buildings: count ?? (city ? 18 : 14), layout: city || modern ? "grid" : "organic", near: rivers[0]?.id, weathering: abandoned ? 0.9 : 0.3, interiors });
+    // "une ville" in a modern, future or apocalyptic style *is* a city district, not a 16-house town: a
+    // cyberpunk or downtown prompt used to come out as a village-sized cluster on an empty map
+    const city = modern || famType === "city_district" || has(t, "city", "cite", "metropole", "downtown", "gratte", "skyscraper", "immeuble");
+    settlements.push({ id: "town", type: abandoned ? (modern ? "abandoned_village" : "ruined_town") : city ? "city_district" : "town", buildings: count ?? (city ? 34 : 16), layout: city || modern ? "grid" : "organic", near: rivers[0]?.id, weathering: abandoned ? 0.9 : 0.3, interiors });
     tag("town");
   } else if (has(t, "village", "hameau", "hamlet", "colonie", "settlement", "banlieue", "suburb", "neighborhood", "neighbourhood", "quartier residentiel")) {
     settlements.push({ id: "village", type: abandoned ? "abandoned_village" : has(t, "hameau", "hamlet") ? "hamlet" : famType === "city_district" ? "town" : famType, buildings: count ?? 9, layout: modern ? "grid" : "organic", near: rivers[0]?.id ?? lakes[0]?.id, weathering: abandoned ? 0.75 : 0.35, interiors });
@@ -183,7 +185,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     settlements.push({ id: "hamlet", type: "hamlet", buildings: count ?? 3, layout: "organic", weathering: 0.3, interiors });
   } else if (genre.layout === "settlement" || genre.layout === "open_world" || genre.layout === "city_grid") {
     // most genres want a hub: the family's default settlement
-    settlements.push({ id: "hub", type: abandoned ? "abandoned_village" : (famType as never), buildings: count ?? (famType === "city_district" ? 16 : 7), layout: modern ? "grid" : "organic", weathering: abandoned ? 0.8 : 0.35, interiors });
+    settlements.push({ id: "hub", type: abandoned ? "abandoned_village" : (famType as never), buildings: count ?? (famType === "city_district" ? 30 : 8), layout: modern ? "grid" : "organic", weathering: abandoned ? 0.8 : 0.35, interiors });
   }
 
   // ---- roads
