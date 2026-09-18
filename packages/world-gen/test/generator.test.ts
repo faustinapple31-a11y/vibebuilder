@@ -72,6 +72,12 @@ describe("world generator", () => {
     const b1 = bake.placements.filter((p) => p.category === "building").map((p) => p.position.join(","));
     const b2 = bake2.placements.filter((p) => p.category === "building").map((p) => p.position.join(","));
     expect(b2.length).toBe(b1.length);
+    // a regenerated layer must not leave a second copy of what a stage rebuilds from scratch every run
+    // (bridges, stairs, cliff talus, the parts ground, the detail pass) next to the inherited one
+    const seen = new Map<string, number>();
+    for (const p of bake2.placements) seen.set(p.id, (seen.get(p.id) ?? 0) + 1);
+    const dupes = [...seen].filter(([, n]) => n > 1).map(([id]) => id);
+    expect(dupes, `duplicated placements: ${dupes.slice(0, 8).join(", ")}`).toEqual([]);
     const v1 = bake.placements.filter((p) => p.category === "vegetation").map((p) => p.id + p.position.join(","));
     const v2 = bake2.placements.filter((p) => p.category === "vegetation").map((p) => p.id + p.position.join(","));
     expect(v1.join("|")).not.toBe(v2.join("|"));

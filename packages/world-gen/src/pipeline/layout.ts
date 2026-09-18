@@ -281,7 +281,10 @@ function raceTrack(api: LayoutApi, c: Vec2, extent: number, checkpoints: number)
 function tycoonPlots(api: LayoutApi, c: Vec2, extent: number, plots: number): void {
   const { ctx, rng, accent, glow, stone } = api;
   const R = Math.max(70, Math.min(extent, 40 + plots * 12));
-  const hubY = flattenArea(ctx, c, 26, 1.0);
+  // the whole complex is one graded pad: the plot ring and the straight paths to it are walked
+  // constantly, and on a hillside (or against the border ridge) they would come out as cliff climbs
+  const hubY = flattenArea(ctx, c, 30, 1.0);
+  flattenArea(ctx, c, (R + 46) * 1.4, 1.0, hubY);
   paint(ctx, c, 22, TERRAIN_MATERIAL_INDEX.Cobblestone);
   ctx.spawn = { position: [c[0], hubY + 3, c[1] + 10], lookAt: [c[0], hubY + 3, c[1] - 30] };
   api.zone("tycoon_hub", c[0], c[1], 22, { kind: "hub" }, hubY);
@@ -291,7 +294,7 @@ function tycoonPlots(api: LayoutApi, c: Vec2, extent: number, plots: number): vo
     const x = c[0] + Math.cos(a) * R;
     const z = c[1] + Math.sin(a) * R;
     const S = 56;
-    const base = flattenArea(ctx, [x, z], S * 0.75, 1.0);
+    const base = flattenArea(ctx, [x, z], S * 1.05, 1.0, hubY);
     const col = palette[i % palette.length]!;
     const b = new PartListBuilder();
     b.box([0, -0.4, 0], [S, 0.8, S], mixHex(stone, "#ffffff", 0.2), { material: "Concrete", collide: true, lod: 2 });

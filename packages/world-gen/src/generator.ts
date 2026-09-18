@@ -220,19 +220,21 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   if (regenerate.has("vegetation") || !compatiblePrevious) {
     placeVegetation(ctx);
   } else {
-    for (const p of compatiblePrevious.placements) if (p.category === "vegetation" && !p.fixed) ctx.placements.push({ ...p });
+    for (const p of compatiblePrevious.placements) if (p.category === "vegetation" && !p.fixed && !p.id.startsWith("detail_")) ctx.placements.push({ ...p });
   }
 
   // ---- rocks & props
   if (regenerate.has("props") || !compatiblePrevious) {
     placeRocksAndProps(ctx);
   } else {
-    for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_") && !p.fixed) ctx.placements.push({ ...p });
+    for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_") && !p.id.startsWith("detail_") && !isGroundwork(p) && !p.fixed) ctx.placements.push({ ...p });
   }
 
   // ---- near-field & horizon detail (verges, spawn apron, edge silhouettes)
-  // (on a partial regeneration the inherited detail_ placements come back with their own category above)
+  // the detail pass reads the vegetation and the props it dresses around, so it follows either of them;
+  // when neither was regenerated its placements are inherited whole (the layers above skip `detail_`)
   if (regenerate.has("props") || regenerate.has("vegetation") || !compatiblePrevious) placeDetail(ctx);
+  else for (const p of compatiblePrevious.placements) if (p.id.startsWith("detail_") && !p.fixed) ctx.placements.push({ ...p });
 
   // ---- locked placements survive the regeneration of their layer (manual inserts, hero meshes)
   if (compatiblePrevious) {
@@ -437,7 +439,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
 
 /** Placements the ground / road stages regenerate from scratch on every run (never inherited from a previous bake). */
 function isGroundwork(p: Placement): boolean {
-  return p.prefab === "ground_block" || p.prefab === "road_strip" || p.id.startsWith("stairs_");
+  return p.prefab === "ground_block" || p.prefab === "road_strip" || p.id.startsWith("stairs_") || p.id.startsWith("bridge_") || p.id.startsWith("talus_");
 }
 
 /** Regenerate specific layers on top of a previous bake. */

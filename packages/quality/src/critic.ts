@@ -119,9 +119,17 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
 
   // ---------------- vegetation
   let vegetation = 10;
-  const target = (spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9) * 32) as number; // per 10k studs²
+  // expected cover per 10k studs², over the ground that can actually grow anything: plants do not grow
+  // on the sea (an archipelago is mostly water), in a biome set to `none` (a moon, a wasteland) or in a
+  // style with no vegetation kit (a space station gets planters, not a forest)
+  const VEG_LEVEL: Record<string, number> = { none: 0, sparse: 0.28, medium: 0.6, dense: 1 };
+  const biomeWeight = spec.biomes.reduce((a, b) => a + b.weight, 0) || 1;
+  const biomeLevel = spec.biomes.reduce((a, b) => a + b.weight * (VEG_LEVEL[b.vegetation] ?? 0.6), 0) / biomeWeight;
+  const land = Math.max(0.1, 1 - s.waterCoverage);
+  const kitless = style.kits.vegetation === "none" ? 0.1 : 1;
+  const target = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9) * 32 * land * (0.45 + biomeLevel * 0.9) * kitless;
   const ratio = s.vegetationCoverage / Math.max(1, target);
-  if (ratio < 0.5) {
+  if (target >= 1 && ratio < 0.5) {
     vegetation -= 3;
     problems.push({ id: "vegetation_sparse", severity: "medium", message: `vegetation is sparse (${s.vegetationCoverage.toFixed(1)} / 100×100 studs, target ≈ ${target.toFixed(1)})`, layer: "vegetation" });
     fixes.push({ type: "spec_patch", path: "vegetation.density", op: "set", value: clamp(spec.vegetation.density + 0.2, 0, 1) });

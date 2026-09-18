@@ -41,8 +41,10 @@ export function generateTerrain(ctx: GenContext): void {
   const archipelago = t.features.find((f): f is Archipelago => f.type === "archipelago");
   for (const f of t.features) if (f.type !== "island" && f.type !== "coast" && f.type !== "archipelago") applyFeature(ctx, f, ridge, amplitude);
 
-  // border rise so the world reads as a contained valley (background silhouettes) — not over the ocean
-  const borderReach = Math.min(worldW, worldD) * 0.09;
+  // border rise so the world reads as a contained valley — not over the ocean. The ring is not a smooth
+  // lip: a long-wavelength modulation turns it into summits and saddles, so the skyline has a shape and
+  // the eye can read distance from it (and the odd pass invites the player to look for a way out).
+  const borderReach = Math.min(worldW, worldD) * 0.115;
   const oceanFeatures = archipelago ? [] : t.features.filter((f) => f.type === "island" || f.type === "coast");
   const ocean = oceanFeatures.length ? computeOceanMask(ctx, oceanFeatures, ridge) : undefined;
   h.map((x, z, v, i) => {
@@ -51,7 +53,9 @@ export function generateTerrain(ctx: GenContext): void {
     const dEdge = Math.min(wx - origin[0], origin[0] + worldW - wx, wz - origin[1], origin[1] + worldD - wz);
     const m = (1 - smoothstep(0, borderReach, dEdge)) * (1 - (ocean ? ocean.data[i]! : 0));
     const r = ridge.ridged(wx / 160, wz / 160, 3);
-    return v + m * m * (26 + r * 30);
+    // summits (≈1.55×) and saddles (≈0.5×) around the ring, over ~800 studs
+    const crest = 0.5 + smoothstep(-0.35, 0.45, ridge.noise2(wx / 380 + 11, wz / 380 - 7)) * 1.05;
+    return v + m * m * (28 + r * 34) * crest;
   });
   if (ocean) applyOcean(ctx, ocean, ridge);
 
