@@ -33,6 +33,23 @@ export function getBiomePrefs(id: BiomeId) {
 }
 
 /**
+ * The world's climate: the weight-averaged centre of its biomes' moisture bands. A desert world lands
+ * near 0.2, a jungle near 0.8 — and the moisture field is shifted onto it, so the biomes the client
+ * asked for are the ones that actually fit. Without this every world drifted toward the biome whose
+ * band covers the middle (meadow), and a 55%-desert spec came out 62% meadow, green.
+ */
+export function climateMoisture(spec: { biomes: { id: BiomeId; weight: number; moisture?: [number, number] }[] }): number {
+  let sum = 0;
+  let total = 0;
+  for (const b of spec.biomes) {
+    const band = b.moisture ?? BIOME_PREFS[b.id]?.moisture ?? [0.3, 0.7];
+    sum += b.weight * (band[0] + band[1]) * 0.5;
+    total += b.weight;
+  }
+  return total > 0 ? clamp(sum / total, 0, 1) : 0.5;
+}
+
+/**
  * Stage 6: biome masks and terrain materials.
  * Each cell gets the biome with the best score (spec weight × elevation fit × moisture fit × noise),
  * then a material from the biome, overridden by slope (rock), water proximity (mud/sand) and water.
@@ -53,28 +70,67 @@ export function generateBiomes(ctx: GenContext): void {
   ctx.biomeIds = spec.biomes.map((b) => b.id);
 
   progress(ctx, "biomes", 0);
+  // Which biome wins a cell: elevation fit × moisture fit × a per-biome noise field (the regions), times
+  // a bias calibrated below so the *shares* come out as the spec asked. Winner-takes-all scoring is
+  // spatially coherent but has no sense of proportion — the strongest biome used to swallow the map
+  // (a 55/30/15 desert spec came out 96/3/1) and the small ones vanished.
+  const bias = new Float64Array(biomes.length).fill(1);
+  const pick = (i: number, wx: number, wz: number): number => {
+    const h = (ctx.heights.data[i]! - minH) / range;
+    const wd = ctx.waterDistance.data[i]!;
+    // a bank, a lake shore or an oasis is wet whatever the climate: greener biomes win right there
+    const m = clamp(ctx.moisture.data[i]! + (1 - Math.min(1, wd / 70)) * 0.28, 0, 1);
+    let best = 0;
+    let bestScore = -Infinity;
+    for (const b of biomes) {
+      const el = b.elevation ?? b.prefs.elevation;
+      const mo = b.moisture ?? b.prefs.moisture;
+      const fitE = bandFit(h, el, 0.15 + transition * 0.2);
+      const fitM = bandFit(m, mo, 0.2 + transition * 0.2);
+      const noise = (n.fbm(wx / 260 + b.noiseOffset, wz / 260 - b.noiseOffset, 3) + 1) * 0.5;
+      const score = bias[b.index]! * (0.3 + b.weight * 0.9) * (0.4 + fitE) * (0.4 + fitM) * (0.55 + noise * 0.9);
+      if (score > bestScore) {
+        bestScore = score;
+        best = b.index;
+      }
+    }
+    return best;
+  };
+  // calibration: sample the grid, compare the shares with the requested weights, nudge the biases
+  if (biomes.length > 1) {
+    const stride = Math.max(1, Math.round(Math.min(width, depth) / 48));
+    const totalWeight = biomes.reduce((a, b) => a + b.weight, 0) || 1;
+    for (let pass = 0; pass < 10; pass++) {
+      // a decreasing step: a fixed one oscillates (a biome overshoots, then the next pass overcorrects)
+      const step = 0.55 / (1 + pass * 0.6);
+      const share = new Float64Array(biomes.length);
+      let n0 = 0;
+      for (let z = 0; z < depth; z += stride) {
+        for (let x = 0; x < width; x += stride) {
+          const i = z * width + x;
+          if (!Number.isNaN(ctx.water.data[i]!)) continue; // water cells carry no biome the player sees
+          share[pick(i, origin[0] + x * cellSize, origin[1] + z * cellSize)]! += 1;
+          n0++;
+        }
+      }
+      if (n0 === 0) break;
+      for (const b of biomes) {
+        const want = b.weight / totalWeight;
+        const got = share[b.index]! / n0;
+        // move toward the target but stay gentle: a biome whose bands fit nowhere must not explode
+        const ratio = clamp(want / Math.max(got, 0.002), 0.25, 4);
+        bias[b.index] = clamp(bias[b.index]! * Math.pow(ratio, step), 0.02, 50);
+      }
+    }
+  }
   for (let z = 0; z < depth; z++) {
     for (let x = 0; x < width; x++) {
       const i = z * width + x;
       const wx = origin[0] + x * cellSize;
       const wz = origin[1] + z * cellSize;
       const h = (ctx.heights.data[i]! - minH) / range;
-      const m = ctx.moisture.data[i]!;
       const wd = ctx.waterDistance.data[i]!;
-      let best = 0;
-      let bestScore = -Infinity;
-      for (const b of biomes) {
-        const el = b.elevation ?? b.prefs.elevation;
-        const mo = b.moisture ?? b.prefs.moisture;
-        const fitE = bandFit(h, el, 0.15 + transition * 0.2);
-        const fitM = bandFit(m, mo, 0.2 + transition * 0.2);
-        const noise = (n.fbm(wx / 260 + b.noiseOffset, wz / 260 - b.noiseOffset, 3) + 1) * 0.5;
-        const score = (0.35 + b.weight) * (0.4 + fitE) * (0.4 + fitM) * (0.55 + noise * 0.9);
-        if (score > bestScore) {
-          bestScore = score;
-          best = b.index;
-        }
-      }
+      const best = pick(i, wx, wz);
       ctx.biomes[i] = best;
 
       // materials

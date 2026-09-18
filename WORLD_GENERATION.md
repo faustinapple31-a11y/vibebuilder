@@ -149,7 +149,12 @@ passe d'érosion
  ↓ 5. érosion thermique (talus) puis **érosion hydraulique** (gouttes : transport de sédiments, ravines et
       cônes de déjection, budget d'érosion par cellule, delta lissé pour des chenaux lisibles à 4 studs)
 masques de biomes
- ↓ 6. hauteur + humidité (bruit) + distance à l'eau + weights de la spec → biome par cellule + matériaux
+ ↓ 6. hauteur + humidité + distance à l'eau + weights de la spec → biome par cellule + matériaux. Le champ
+      d'humidité est **centré sur le climat du monde** (`climateMoisture` : moyenne pondérée des bandes
+      d'humidité des biomes demandés — un désert tombe vers 0.2, une jungle vers 0.8) et remonté près de
+      l'eau (berges, oasis). Le score « winner-takes-all » n'a aucun sens des proportions : un biais par
+      biome est **calibré** en quelques passes jusqu'à ce que les parts obtenues rejoignent les weights de
+      la spec (une spec désert 55/30/15 sortait 96/3/1, donc verte)
 rivières & lacs
  ↓ 7. source haute → A* descendant → lit creusé + berges + eau ; lacs par remplissage de bassins ; **océan** : toute
       cellule sous le niveau de la mer (`terrain.seaLevel`, défaut baseHeight − 6) est inondée ; distance à l'eau par
@@ -180,6 +185,16 @@ végétation
  ↓ 12. Poisson-disk par biome, clusters/clairières (bruit), évitement routes/bâtiments/eau/pentes, variation espèce/échelle/rotation
 props
  ↓ 13. sets contextuels : village (lanternes, caisses, tonneaux, clôtures, bancs), forêt (troncs, pierres, champignons), ruines (débris, colonnes)
+détail proche & horizon
+ ↓ 13b. `pipeline/detail.ts` (ids `detail_*`) — les deux bandes qu'un scatter large laisse vides :
+       **bas-côtés** des routes (touffes, fleurs, fougères, cailloux, troncs, runs de clôture — chaque étape
+       précédente s'écarte de la route, donc les accotements sortaient nus), **parvis du spawn** (couronne de
+       couvre-sol et de lanternes sur le bord de la clairière + deux arbres qui cadrent la vue vers le
+       landmark focal), **rive** (cailloux au ras de l'eau, roseaux, bois flotté, rochers qui percent la
+       surface juste au large), **horizon** (bouquets d'arbres et d'aiguilles rocheuses surdimensionnés dans
+       la bande de bordure ; pour une île, dont la bordure est de la haute mer, des **sea stacks** posés sur
+       le fond peu profond au large de la côte). Le détail proche a plus d'`importance` que le sous-bois
+       lointain : quand le budget élague, il élague ce dont personne n'est à côté
 optimisation
  ↓ 13b. éclairage : Lighting + Atmosphere + effets, **couleurs de terrain** teintées par la palette
        (`Terrain:SetMaterialColor`, `environment.terrainTint`), **nuages** (`Clouds`, couverture par mood),
@@ -223,8 +238,15 @@ les données du bake précédent (régénération partielle).
 - **Midground** : village, landmarks secondaires, rivière, lisières de forêt, murs/ruines.
 - **Foreground** : autour des routes et du spawn : herbes, fleurs, petits champignons, pierres, lanternes.
 
-Le générateur assigne à chaque placement un `layer` (`foreground|midground|background`) selon la distance
-aux routes/spawn et la taille de l'objet. Le critic vérifie que chaque couche est peuplée.
+Le générateur assigne à chaque placement un `layer` (`foreground|midground|background`) via `layerFor`
+(`context.ts`) : près d'une route ou du spawn, **ou dans un peuplement / une zone de gameplay** (le joueur y
+est, qu'une route y arrive ou non) → foreground ; dans la bande de bordure → background ; sinon midground.
+Toutes les étapes l'appellent — une maison sur une rue est du premier plan, un arbre de lisière une
+silhouette. Le critic vérifie que chaque couche est peuplée.
+
+La bordure relevée n'est pas une lèvre régulière : une modulation à grande longueur d'onde (~800 studs) la
+découpe en **sommets** (≈1.55×) et **cols** (≈0.5×), donc la ligne d'horizon a une forme et l'œil y lit la
+distance — y compris dans un monde volontairement plat (ville, banlieue, ferme).
 
 ---
 

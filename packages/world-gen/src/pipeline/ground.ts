@@ -517,6 +517,9 @@ export function buildGround(ctx: GenContext): void {
     // walls: along every loop edge whose outside is lower
     const wallColor = ROCKY.has(mat) ? stone : mat === "Sand" || wet > 0 ? mixHex(earth, "#c9b27a", 0.5) : earth;
     const wallMat: RobloxMaterial = ROCKY.has(mat) ? "Slate" : "Ground";
+    // what the lower bands grade toward: bedrock under soil, a paler stone under sand
+    const wallStone = ROCKY.has(mat) ? mixHex(stone, "#ffffff", 0.1) : mat === "Sand" || wet > 0 ? mixHex(stone, "#d8c9a4", 0.45) : mixHex(stone, "#6a6258", 0.35);
+    const wallDeepMat: RobloxMaterial = ROCKY.has(mat) ? "Slate" : "Rock";
     const loopsForWalls = [outerT, ...holesT];
     let wallParts = 0;
     for (const loop of loopsForWalls) {
@@ -546,7 +549,11 @@ export function buildGround(ctx: GenContext): void {
           const y1 = -slabT - (drop - slabT) * ((k + 1) / bands);
           const bx = (p[0] + q[0]) / 2 - nx * (inset + t / 2) - cx;
           const bz = (p[1] + q[1]) / 2 - nz * (inset + t / 2) - cz;
-          b.box([bx, (y0 + y1) / 2, bz], [len + t * 1.3, y0 - y1 + 0.1, t], k === 0 ? wallColor : mixHex(wallColor, "#000000", 0.06 * k), { material: wallMat, rotation: [0, yaw, 0], collide: true, lod: k === 0 ? 2 : 1 });
+          // a cliff reads as a section, not a stripe: topsoil at the lip, then rock going down — and a
+          // little hue jitter per band, so two neighbouring walls are not the same flat brown
+          const deep = bands > 1 ? k / (bands - 1) : 0;
+          const bandColor = jitterHex(mixHex(wallColor, wallStone, deep * 0.72), rng.float(-4, 4), rng.float(-0.03, 0.03), rng.float(-0.04, 0.02));
+          b.box([bx, (y0 + y1) / 2, bz], [len + t * 1.3, y0 - y1 + 0.1, t], bandColor, { material: k === 0 ? wallMat : wallDeepMat, rotation: [0, yaw, 0], collide: true, lod: k === 0 ? 2 : 1 });
           wallParts++;
         }
         // rock faces: tall rocky walls get a flattened cliff mesh plate over the boxes (rugged mountain sides)

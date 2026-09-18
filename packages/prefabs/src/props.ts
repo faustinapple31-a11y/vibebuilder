@@ -20,16 +20,28 @@ export function lanternPost(ctx: PrefabContext, variant: number): PrefabVariant 
   b.beam(top, armEnd, 0.6, 0.6, wood, { material: style.materials.trunk, collide: false, lod: 1, overlap: 0.3 });
   b.beam(v3.add(top, [0.2, -1.6, 0]), v3.add(armEnd, [-0.4, -0.2, 0]), 0.4, 0.4, wood, { material: style.materials.trunk, collide: false, lod: 0 });
   const lx = armEnd[0] - 0.4;
+  // the hanger ring, then the lantern itself: a *frame* of four corner bars with a roof and a floor
+  // plate, so the flame inside is visible from every side (a solid housing box read as a black blob,
+  // and its PointLight came out of nowhere)
   b.box([lx, h - 1.1, 0], [0.15, 0.9, 0.15], "#2b2622", { material: style.materials.metal, collide: false, castShadow: false, lod: 0 });
-  b.box([lx, h - 2.6, 0], [1.6, 2.4, 1.6], "#2b2622", { material: style.materials.metal, collide: false, lod: 1 });
-  b.box([lx, h - 2.6, 0], [1.1, 1.6, 1.1], lit ? glow : "#3a332c", {
+  const iron = "#2b2622";
+  const cage = 1.5;
+  const glassH = 2;
+  b.box([lx, h - 2.6, 0], [1.1, glassH * 0.95, 1.1], lit ? glow : "#3a332c", {
     material: lit ? "Neon" : "Glass",
     transparency: lit ? 0.1 : 0.4,
     collide: false,
-    lod: 1,
+    lod: 2,
     light: lit ? { type: "point", color: glow, brightness: 1.6, range: 26 } : undefined,
   });
-  b.box([lx, h - 1.3, 0], [2, 0.4, 2], "#2b2622", { material: style.materials.metal, rotation: [0, 45, 0], collide: false, lod: 0 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    b.box([lx + sx * cage * 0.42, h - 2.6, sz * cage * 0.42], [0.2, glassH + 0.3, 0.2], iron, { material: style.materials.metal, collide: false, castShadow: false, lod: 1 });
+  }
+  b.box([lx, h - 2.6 - glassH / 2 - 0.15, 0], [cage, 0.3, cage], iron, { material: style.materials.metal, collide: false, lod: 1 });
+  // a small hipped roof over the glass (two stacked plates read as a cap at this scale)
+  b.box([lx, h - 2.6 + glassH / 2 + 0.2, 0], [cage + 0.5, 0.35, cage + 0.5], iron, { material: style.materials.metal, collide: false, lod: 1 });
+  b.box([lx, h - 2.6 + glassH / 2 + 0.55, 0], [cage - 0.2, 0.4, cage - 0.2], iron, { material: style.materials.metal, collide: false, lod: 0 });
+  b.box([lx, h - 1.3, 0], [2, 0.4, 2], iron, { material: style.materials.metal, rotation: [0, 45, 0], collide: false, lod: 0 });
   if (lit && style.mushroom.glow > 0.2) b.effect([lx, h - 2.6, 0], [4, 4, 4], { kind: "fireflies", color: glow, rate: 1.2 }, { lod: 0 });
   return b.build({ id: `lantern_post/${variant}`, prefab: "lantern_post", category: "prop", sinkDepth: 0.4, footprintRadius: 1.8, tags: ["village", "light"] });
 }

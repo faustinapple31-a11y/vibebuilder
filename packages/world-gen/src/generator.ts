@@ -274,7 +274,9 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       if (!Number.isNaN(w)) p.position[1] = w + 0.05 - (v.tags.includes("water") ? v.sinkDepth * p.scale : 0);
       continue;
     }
-    const conform = conformFactor(p, v);
+    // parts mode: the ground is flat terraces, so following the "terrain normal" only tips an object
+    // over at a slab edge (a crate standing on one corner). Everything stays upright there.
+    const conform = ctx.terrainMode === "parts" ? 0 : conformFactor(p, v);
     if (conform > 0) {
       const n = terrainNormal(ctx, p.position[0], p.position[2], Math.max(2, (v.baseRadius ?? 2) * p.scale));
       // blend between world up and the terrain normal (trees only lean a little with the slope)

@@ -117,16 +117,16 @@ export function placeRocksAndProps(ctx: GenContext): void {
           const b = road.points[i]!;
           acc += Math.hypot(b[0] - a[0], b[1] - a[1]);
           const inSite = Math.hypot(b[0] - site.center[0], b[1] - site.center[1]) < site.radius * 1.15;
-          if (!inSite || acc < 30) continue;
+          if (!inSite || acc < 30 * rng.float(0.85, 1.4)) continue;
           acc = 0;
           side = -side;
           const nx = -(b[1] - a[1]);
           const nz = b[0] - a[0];
           const len = Math.hypot(nx, nz) || 1;
-          const off = road.width / 2 + 2.5;
+          const off = road.width / 2 + 2.5 + rng.float(-0.5, 1.6);
           const x = b[0] + (nx / len) * off * side;
           const z = b[1] + (nz / len) * off * side;
-          add("lantern_post", x, z, { rotationY: Math.atan2(-(z - b[1]), x - b[0]) + Math.PI, importance: 5, zone: site.id, sink: true });
+          add("lantern_post", x, z, { rotationY: Math.atan2(-(z - b[1]), x - b[0]) + Math.PI + rng.float(-0.14, 0.14), importance: 5, zone: site.id, sink: true });
         }
       }
       // crates / barrels / fences near houses

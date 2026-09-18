@@ -24,6 +24,12 @@ templates/roblox-ts-project   the project every generated game starts from (sync
   `packages/roblox-export/src/template-files.generated.ts`; triggers a full Vite reload of the dev app).
 - `npx tsx scripts/preview-ui-kits.ts [--kit <id>]` — renders the UI kit libraries as a mock screen sheet
   (`demo-output/ui-kits.html`) to review a look without Studio.
+- `npx tsx scripts/preview-map.ts "<prompt>" [--panel --width N --out dir]` — renders a generated world
+  to PNGs (spawn / landmark / village / wide) with a small software rasterizer, plus an `index.html` sheet:
+  how a map change actually *looks*, without Studio.
+- `npx tsx scripts/audit-maps.ts ["<prompt>"]` — generates a 12-prompt panel and prints critic scores, the
+  composition split, relief, vegetation, parts and the geometry defects the critic cannot see (footprints
+  left hanging over an edge). Run it before and after any generator change.
 - `npx tsx scripts/demo-prompt.ts "<prompt>" [--build --open --size N --out dir]` — prompt → full project in `demo-output/`.
 - `npm run dev` — sync template + `tauri dev` (see `.claude/skills/studio-verify` to drive the app and Studio headlessly).
 

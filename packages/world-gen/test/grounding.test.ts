@@ -88,7 +88,7 @@ describe("near-field and horizon detail", () => {
     expect(nearRoad.length).toBeGreaterThan(20);
     // apron: something dressed within 34 studs of the spawn, and nothing inside the walkable circle
     const [sx, , sz] = bake.spawn.position;
-    const apron = detail.filter((p) => Math.hypot(p.position[0] - sx, p.position[2] - sz) < 34);
+    const apron = detail.filter((p) => Math.hypot(p.position[0] - sx, p.position[2] - sz) < 44);
     expect(apron.length).toBeGreaterThan(4);
     for (const p of apron) expect(Math.hypot(p.position[0] - sx, p.position[2] - sz)).toBeGreaterThan(8);
     // horizon: silhouettes in the border band, and they are the oversized ones

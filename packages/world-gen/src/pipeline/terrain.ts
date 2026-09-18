@@ -3,6 +3,7 @@ import { Simplex2D } from "../noise";
 import { Grid } from "../grid";
 import { applyArchipelago, type Archipelago } from "./archipelago";
 import { normToWorld, progress, seaLevelOf, type GenContext } from "../context";
+import { climateMoisture } from "./biomes";
 
 /**
  * Stage 1-5: base heightmap, large forms, spec features, secondary detail, erosion.
@@ -486,12 +487,15 @@ export function computeMoisture(ctx: GenContext): void {
   const n = new Simplex2D(deriveSeed(ctx.seed, "moisture"));
   const { origin, cellSize } = ctx;
   const [minH, maxH] = ctx.heights.minMax();
+  // centred on the world's own climate (see climateMoisture): the field varies around what the spec's
+  // biome mix asks for instead of always sitting in the damp middle
+  const shift = climateMoisture(ctx.spec) - 0.5;
   ctx.moisture.map((x, z) => {
     const wx = origin[0] + x * cellSize;
     const wz = origin[1] + z * cellSize;
     const base = n.fbm(wx / 380, wz / 380, 4) * 0.5 + 0.5;
     const hNorm = (ctx.heights.get(x, z) - minH) / Math.max(1, maxH - minH);
-    return clamp(base * 0.7 + (1 - hNorm) * 0.4, 0, 1);
+    return clamp(base * 0.62 + (1 - hNorm) * 0.32 + 0.06 + shift * 0.95, 0, 1);
   });
 }
 

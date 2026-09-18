@@ -1,4 +1,4 @@
-import { deriveSeed, type BiomeId, type Placement, type PropKit } from "@worldforge/core";
+import { deriveSeed, type BiomeId, type Placement, type PropKit, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { PREFAB_INDEX, PROP_KIT_PREFABS } from "@worldforge/prefabs";
 import { SpatialHash } from "../grid";
@@ -104,6 +104,13 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
 
     // ---- along roads inside settlements: lights alternate sides every ~28 studs, vehicles/markets sparser
     if (roadside.length + roadsideBig.length > 0) {
+      // the village pass already lit its own streets: a second light every 15 studs reads as a
+      // mechanical row, so a new one keeps its distance from every light already standing
+      const lightSpots: Vec2[] = [];
+      for (const p of ctx.placements) {
+        if (ctx.prefabs[p.prefab]?.[p.variant]?.tags.includes("light")) lightSpots.push([p.position[0], p.position[2]]);
+      }
+      const lightNear = (x: number, z: number, r: number) => lightSpots.some((q) => Math.hypot(q[0] - x, q[1] - z) < r);
       let lights = 0;
       let bigs = 0;
       const maxLights = 40;
@@ -119,7 +126,7 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
           const site = ctx.sites.find((s) => Math.hypot(b[0] - s.center[0], b[1] - s.center[1]) < s.radius * 1.2);
           const urbanKit = kit === "urban" || kit === "cyber" || kit === "suburban" || kit === "apocalypse" || kit === "industrial";
           if (!site && !urbanKit) continue;
-          if (acc < (site ? 32 : 70)) continue;
+          if (acc < (site ? 32 : 70) * rng.float(0.85, 1.35)) continue;
           acc = 0;
           side = -side;
           k++;
@@ -131,11 +138,13 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
           const list = big ? roadsideBig : roadside;
           if (big) bigs++;
           else lights++;
-          const off = road.width / 2 + (big ? 5 : 2.5);
+          const off = road.width / 2 + (big ? 5 : 2.5) + rng.float(-0.6, 1.8);
           const x = b[0] + (nx / len) * off * side;
           const z = b[1] + (nz / len) * off * side;
+          if (!big && lightNear(x, z, 26)) continue;
           const heading = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
-          add(list[rng.int(0, list.length - 1)]!, x, z, { rotationY: big ? heading + (side > 0 ? 0 : Math.PI) : heading + Math.PI, importance: big ? 4 : 5, zone: site?.id, sink: true, margin: big ? 1 : 0 });
+          const facing = (big ? heading + (side > 0 ? 0 : Math.PI) : heading + Math.PI) + rng.float(-0.12, 0.12);
+          if (add(list[rng.int(0, list.length - 1)]!, x, z, { rotationY: facing, importance: big ? 4 : 5, zone: site?.id, sink: true, margin: big ? 1 : 0 }) && !big) lightSpots.push([x, z]);
         }
       }
     }

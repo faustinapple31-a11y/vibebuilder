@@ -14,6 +14,9 @@ import { SPECIES_PREFAB, poissonDisk } from "./vegetation";
  *    detail that makes a road look used instead of stamped.
  *  - **spawn apron**: a ring of dressing around the spawn clearing, with two trees framing the view to
  *    the focal landmark (the first thing a player ever sees, so it gets composed rather than scattered).
+ *  - **waterline**: the band where the ground meets a lake, a river or the sea — pebble lines, driftwood,
+ *    reeds and tufts on the bank, a few rocks breaking the surface just off it. A shoreline is the second
+ *    line the eye follows after a road, and it came out as a clean paint boundary.
  *  - **horizon**: clumps of oversized trees and rock spires in the border band, so the map ends on a
  *    silhouette instead of a flat edge.
  *
@@ -76,7 +79,9 @@ export function placeDetail(ctx: GenContext): void {
   placeVerges(ctx, rng, add);
   progress(ctx, "detail:spawn", 0.5);
   placeSpawnApron(ctx, rng, add);
-  progress(ctx, "detail:horizon", 0.7);
+  progress(ctx, "detail:shore", 0.65);
+  placeWaterline(ctx, rng, add);
+  progress(ctx, "detail:horizon", 0.8);
   placeHorizon(ctx, rng, add);
   progress(ctx, "detail:done", 1);
 }
@@ -183,10 +188,12 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
       }
     }
   }
-  const slots = 16;
+  // the rim of the clearing, not its floor: the spawn keeps a 24-stud walkable circle (an occupant),
+  // so anything closer than that is rejected and the apron would come out empty
+  const slots = 18;
   for (let i = 0; i < slots; i++) {
     const a = (i / slots) * Math.PI * 2 + rng.float(-0.1, 0.1);
-    const r = rng.float(19, 32);
+    const r = rng.float(27, 41);
     const x = sx + Math.cos(a) * r;
     const z = sz + Math.sin(a) * r;
     // a lantern or a bench on the road side of the clearing, ground cover everywhere else
@@ -194,6 +201,46 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
     if (mix.length === 0) continue;
     const prefab = rng.chance(0.25) && ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" ? "flower_patch" : mix[rng.int(0, mix.length - 1)]!;
     add(prefab, x, z, { scale: prefab === "stone" ? rng.float(0.4, 0.9) : rng.float(0.85, 1.25), importance: 6.5, margin: 0.2 });
+  }
+}
+
+// ---------------------------------------------------------------- waterline
+function placeWaterline(ctx: GenContext, rng: Rng, add: Add): void {
+  const pebble = ctx.prefabs["stone"]?.length ? "stone" : undefined;
+  const drift = ctx.prefabs["log"]?.length ? "log" : undefined;
+  const reeds = ctx.prefabs["reeds"]?.length ? "reeds" : undefined;
+  const shell = ["clam", "surfboard", "treasure_chest"].find((id) => ctx.prefabs[id]?.length);
+  if (!pebble && !drift && !reeds) return;
+  let placed = 0;
+  const limit = 380;
+  for (const [x, z] of poissonDisk(ctx, rng, 7)) {
+    if (placed >= limit) break;
+    if (!inBounds(ctx, x, z, 8)) continue;
+    const wd = ctx.waterDistance.sample(x, z);
+    const wet = isWaterAt(ctx, x, z);
+    // shallows just off the bank: a rock or a reed clump breaking the surface
+    if (wet) {
+      if (wd > 1.6 || !pebble) continue;
+      const depth = ctx.water.sample(x, z) - ctx.heights.sample(x, z);
+      if (!(depth > 0.4 && depth < 5) || !rng.chance(0.3)) continue;
+      const tall = Math.max(1, ctx.prefabs[pebble]![0]!.bounds.max[1]);
+      if (add(pebble, x, z, { scale: Math.min(3, Math.max(0.8, (depth + rng.float(1, 3)) / tall)), importance: 6.2, margin: 0.2, allowWater: true })) placed++;
+      continue;
+    }
+    if (wd > 5.5 || slopeAtWorld(ctx, x, z) > 0.7) continue;
+    // the bank itself: pebbles right at the edge, tufts and reeds a little further up
+    const atEdge = wd < 2.4;
+    const biome = biomeAt(ctx, x, z);
+    const sandy = biome === "beach" || biome === "desert";
+    const pick = rng.weighted([
+      { item: pebble ?? "", weight: pebble ? (atEdge ? 3 : 1.4) : 0 },
+      { item: reeds ?? "", weight: reeds && !sandy && !atEdge ? 2.2 : 0 },
+      { item: drift ?? "", weight: drift && ctx.style.kits.vegetation !== "none" ? 0.5 : 0 },
+      { item: shell ?? "", weight: shell && sandy && atEdge ? 0.35 : 0 },
+    ]);
+    if (pick === "" || !rng.chance(atEdge ? 0.55 : 0.32)) continue;
+    const scale = pick === pebble ? rng.float(0.3, 0.85) : rng.float(0.8, 1.3);
+    if (add(pick, x, z, { scale, importance: atEdge ? 6.4 : 6, margin: 0.1 })) placed++;
   }
 }
 

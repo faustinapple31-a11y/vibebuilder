@@ -24,6 +24,7 @@ description: "Improve or debug WorldForge map generation (packages/world-gen): p
 | 10b | `relief.ts` | `ctx.terrainOps` voxel ops (carve / fill balls, blocks, cylinders): cave tunnel + chamber behind `cave` landmarks (+ `fixed` interior placements, `cave_chamber` zone), overhang ledges, natural arches, lava lakes |
 | 11 | `vegetation.ts` | poisson scatter by biome density, kit species blend, clearings around sites / roads / water / occupants |
 | 12 | `props.ts`, `kitProps.ts` | rocks, kit props by tag (roadside lights, walls tangent to houses, shore, plaza…), waterside, ambience |
+| 12b | `detail.ts` | `detail_*`: road verges (tufts, pebbles, fence runs), the spawn apron (+ two trees framing the view corridor), the waterline (bank pebbles, reeds, driftwood, rocks breaking the surface), horizon silhouettes in the border band and sea stacks off an island's coast |
 | 13 | `lighting.ts` | Roblox Lighting + Atmosphere + effects + **terrain colors** (palette tint) + **clouds** + **weather** |
 | 14 | generator | spawn clearing, terrain snap / slope conform (`conformFactor`), `optimize.ts` budgets (`layout_*` and `dress_*` never trimmed) → stats |
 
@@ -44,6 +45,40 @@ console.log(bake.placements.filter((p) => p.id.startsWith("dress_")).map((p) => 
 `npx tsx scripts/demo-prompt.ts "<prompt>" --out demo-output/x` builds a full project from a prompt (prints
 detected genre / style / layout and the critic score). Python on `assets/world/WorldBake.json` (`placementMeta`
 ids, `zones`, `lighting`, `stats`) is the quickest way to count things.
+
+## Measure, then look
+
+Two tools, and a generator change is not finished until both have been run before and after it.
+
+- `npx tsx scripts/audit-maps.ts` — a 12-prompt panel: critic score per world, the composition split
+  (foreground / midground / background), height σ, vegetation cover, parts, then every complaint grouped
+  by frequency **and** the two geometry defects the critic cannot see (a footprint hanging over an edge,
+  a base under the ground). Numbers, so a change can be judged instead of argued.
+- `npx tsx scripts/preview-map.ts "<prompt>"` (or `--panel`) — renders the bake to PNGs from four cameras
+  (the player's first frame at the spawn, the focal landmark, the village, a wide sweep) with a software
+  rasterizer: real prefab geometry, the bake's own terrain colours, lighting and fog. Half the defects
+  that matter — a green desert, a black lantern, a row of identical props, a bare verge — are invisible in
+  the score and obvious in the image.
+
+## Invariants with a test behind them
+
+- **nothing hangs over an edge**: every scattered placement goes through `settleOnGround` (`context.ts`),
+  which measures every heightmap cell its base disc touches (a ring of samples aliases past the one cell a
+  terrace lower), steps away from the drop and gives up rather than leaving an object in the air. A settled
+  point must be **re-gated** — stepping off a lip can walk a tree into a road, the water or a village.
+- **parts mode has no slope**: the ground is flat terraces, so `conformFactor` is forced to 0 and
+  `snapHeightsToLevels` re-rounds the heightmap onto the levels the slabs are built from, right before the
+  snap. Any stage that edits heights after `quantizeHeights` (a flattened pad, a carved road, a levelled
+  disc) otherwise leaves objects up to half a step out.
+- **a pad targets a level**: `padHeight` in `dressing.ts` — a wall, a gate tower or a field levelled to an
+  in-between height ends up hanging over the neighbouring slab.
+- **biome shares match the spec**: `generateBiomes` calibrates a per-biome bias over a few passes until the
+  shares approach the requested weights, and `climateMoisture` centres the moisture field on the world's
+  own climate. Winner-takes-all scoring has no sense of proportion: a 55/30/15 desert spec used to come out
+  96/3/1 and rendered green.
+- **no duplicated placement**: anything a stage rebuilds every run (bridges, stairs, talus, the parts
+  ground, the detail pass) must be in `isGroundwork` or excluded from the inherited layers, or a partial
+  regeneration leaves two copies.
 
 ## Failure patterns
 
