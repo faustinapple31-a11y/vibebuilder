@@ -36,12 +36,14 @@ import { encodePng } from "../packages/textures/src";
 // ------------------------------------------------------------------ framebuffer
 class Frame {
   readonly px: Uint8Array;
-  private readonly depth: Float32Array;
+  /** 1/z per pixel: depth is only linear in screen space once inverted, and a ground slab clipped at
+   *  the near plane otherwise takes the depth of its clipped corner and paints over the whole world. */
+  private readonly invZ: Float32Array;
   constructor(readonly w: number, readonly h: number) {
     this.px = new Uint8Array(w * h * 3);
-    this.depth = new Float32Array(w * h).fill(Infinity);
+    this.invZ = new Float32Array(w * h); // 0 = infinitely far
   }
-  /** Flat-shaded triangle with a depth test per pixel (screen coords, `z` = view depth in studs). */
+  /** Flat-shaded triangle with a perspective-correct depth test (screen coords, `z` = view depth). */
   tri(a: [number, number, number], b: [number, number, number], c: [number, number, number], r: number, g: number, bl: number): void {
     const minX = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0])));
     const maxX = Math.min(this.w - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
@@ -50,6 +52,9 @@ class Frame {
     if (minX > maxX || minY > maxY) return;
     const area = (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
     if (Math.abs(area) < 1e-9) return;
+    const ia = 1 / a[2];
+    const ib = 1 / b[2];
+    const ic = 1 / c[2];
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const px = x + 0.5;
@@ -57,10 +62,10 @@ class Frame {
         const w0 = ((b[0] - a[0]) * (py - a[1]) - (px - a[0]) * (b[1] - a[1])) / area;
         const w1 = ((px - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (py - a[1])) / area;
         if (w0 < 0 || w1 < 0 || w0 + w1 > 1) continue;
-        const z = a[2] + (b[2] - a[2]) * w1 + (c[2] - a[2]) * w0;
+        const iz = ia + (ib - ia) * w1 + (ic - ia) * w0;
         const i = y * this.w + x;
-        if (z >= this.depth[i]!) continue;
-        this.depth[i] = z;
+        if (iz <= this.invZ[i]!) continue;
+        this.invZ[i] = iz;
         const o = i * 3;
         this.px[o] = r;
         this.px[o + 1] = g;
@@ -95,6 +100,14 @@ interface Camera {
   fov: number;
 }
 
+const NEAR = 1.2;
+
+/**
+ * World → camera space and camera space → screen, kept apart on purpose: a triangle has to be clipped
+ * against the near plane *before* the perspective divide. Dropping a triangle because one vertex is
+ * behind the camera punches a hole in the ground exactly where the camera stands — the bigger the
+ * triangle, the bigger the hole, which is why whole ground slabs used to disappear and show the sky.
+ */
 function makeProjector(cam: Camera, w: number, h: number) {
   const cy = Math.cos(cam.yaw);
   const sy = Math.sin(cam.yaw);
@@ -104,16 +117,47 @@ function makeProjector(cam: Camera, w: number, h: number) {
   const right: Vec3 = [-sy, 0, cy];
   const up: Vec3 = [-cy * sp, cp, -sy * sp];
   const f = w / 2 / Math.tan(cam.fov / 2);
-  return (p: Vec3): [number, number, number] | undefined => {
+  const toView = (p: Vec3): Vec3 => {
     const dx = p[0] - cam.pos[0];
     const dy = p[1] - cam.pos[1];
     const dz = p[2] - cam.pos[2];
-    const z = dx * fwd[0] + dy * fwd[1] + dz * fwd[2];
-    if (z < 1.2) return undefined;
-    const x = dx * right[0] + dy * right[1] + dz * right[2];
-    const y = dx * up[0] + dy * up[1] + dz * up[2];
-    return [w / 2 + (x / z) * f, h / 2 - (y / z) * f, z];
+    return [
+      dx * right[0] + dy * right[1] + dz * right[2],
+      dx * up[0] + dy * up[1] + dz * up[2],
+      dx * fwd[0] + dy * fwd[1] + dz * fwd[2],
+    ];
   };
+  const toScreen = (v: Vec3): [number, number, number] => [w / 2 + (v[0] / v[2]) * f, h / 2 - (v[1] / v[2]) * f, v[2]];
+  const project = (p: Vec3): [number, number, number] | undefined => {
+    const v = toView(p);
+    return v[2] < NEAR ? undefined : toScreen(v);
+  };
+  /** Screen-space triangles of a world triangle, clipped against the near plane (0, 1 or 2 of them). */
+  const clipTri = (a: Vec3, b: Vec3, c: Vec3): [number, number, number][][] => {
+    const vs = [toView(a), toView(b), toView(c)];
+    const inside = vs.filter((v) => v[2] >= NEAR);
+    if (inside.length === 3) return [[toScreen(vs[0]!), toScreen(vs[1]!), toScreen(vs[2]!)]];
+    if (inside.length === 0) return [];
+    // walk the edges, keeping the inside vertices and the crossings (Sutherland–Hodgman on one plane)
+    const poly: Vec3[] = [];
+    for (let i = 0; i < 3; i++) {
+      const cur = vs[i]!;
+      const nxt = vs[(i + 1) % 3]!;
+      const curIn = cur[2] >= NEAR;
+      const nxtIn = nxt[2] >= NEAR;
+      if (curIn) poly.push(cur);
+      if (curIn !== nxtIn) {
+        const t = (NEAR - cur[2]) / (nxt[2] - cur[2]);
+        poly.push([cur[0] + (nxt[0] - cur[0]) * t, cur[1] + (nxt[1] - cur[1]) * t, NEAR]);
+      }
+    }
+    if (poly.length < 3) return [];
+    const p0 = toScreen(poly[0]!);
+    const out: [number, number, number][][] = [];
+    for (let i = 1; i + 1 < poly.length; i++) out.push([p0, toScreen(poly[i]!), toScreen(poly[i + 1]!)]);
+    return out;
+  };
+  return { project, clipTri };
 }
 
 const LIGHT: Vec3 = [0.42, 0.78, -0.47];
@@ -257,7 +301,7 @@ function partTris(part: Part, meshes: Record<string, { trianglesB64: string; tri
 
 function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: number): Frame {
   const frame = new Frame(w, h);
-  const project = makeProjector(cam, w, h);
+  const { project, clipTri } = makeProjector(cam, w, h);
   const sky = hex(bake.lighting.atmosphere?.color ?? "#9fc6e8");
   const fog = hex(bake.lighting.fogColor ?? bake.lighting.atmosphere?.color ?? "#b9cfdd");
   frame.fillSky([Math.round(sky[0] * 0.72), Math.round(sky[1] * 0.78), Math.round(sky[2] * 0.95)], fog, h * 0.5);
@@ -302,11 +346,12 @@ function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: num
       const y11 = hAt(ix + 1, iz + 1);
       const water = [wAt(ix, iz), wAt(ix + 1, iz), wAt(ix, iz + 1), wAt(ix + 1, iz + 1)];
       const draw = (surface: number[], color: [number, number, number], flat: boolean) => {
-        const p00 = project([x0, surface[0]!, z0]);
-        const p10 = project([x1, surface[1]!, z0]);
-        const p01 = project([x0, surface[2]!, z1]);
-        const p11 = project([x1, surface[3]!, z1]);
-        if (!p00 || !p10 || !p01 || !p11) return;
+        const w00: Vec3 = [x0, surface[0]!, z0];
+        const w10: Vec3 = [x1, surface[1]!, z0];
+        const w01: Vec3 = [x0, surface[2]!, z1];
+        const w11: Vec3 = [x1, surface[3]!, z1];
+        const p00 = project(w00);
+        const p11 = project(w11);
         const n: Vec3 = flat ? [0, 1, 0] : (() => {
           const nx = (surface[0]! + surface[2]! - surface[1]! - surface[3]!) / (2 * t.cellSize);
           const nz = (surface[0]! + surface[1]! - surface[2]! - surface[3]!) / (2 * t.cellSize);
@@ -314,9 +359,8 @@ function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: num
           return [nx / l, 1 / l, nz / l] as Vec3;
         })();
         const sh = shade(n);
-        const c = mix([Math.min(255, color[0] * sh), Math.min(255, color[1] * sh), Math.min(255, color[2] * sh)], fogFactor((p00[2] + p11[2]) / 2));
-        frame.tri(p00, p10, p11, c[0], c[1], c[2]);
-        frame.tri(p00, p11, p01, c[0], c[1], c[2]);
+        const c = mix([Math.min(255, color[0] * sh), Math.min(255, color[1] * sh), Math.min(255, color[2] * sh)], fogFactor(((p00?.[2] ?? far) + (p11?.[2] ?? far)) / 2));
+        for (const [pa, pb, pc] of [...clipTri(w00, w10, w11), ...clipTri(w00, w11, w01)]) frame.tri(pa, pb, pc, c[0], c[1], c[2]);
       };
       if (!parts) draw([y00, y10, y01, y11], tintOf(names[mAt(ix, iz)] ?? "Grass"), false);
       if (water.some((v) => !Number.isNaN(v))) {
@@ -325,18 +369,25 @@ function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: num
     }
   }
   // ---- prefab parts: real geometry (mesh triangles, balls, cylinders, wedges), painter's order
-  type Job = { d: number; part: Part; m: Mat3; origin: Vec3; scale: number; meshes: Record<string, { trianglesB64: string; triangleCount: number; bounds: { min: Vec3; max: Vec3 } }> | undefined };
+  type Job = { d: number; prefab: string; part: Part; m: Mat3; origin: Vec3; scale: number; meshes: Record<string, { trianglesB64: string; triangleCount: number; bounds: { min: Vec3; max: Vec3 } }> | undefined };
   const jobs: Job[] = [];
   for (const p of bake.placements) {
-    const d = Math.hypot(p.position[0] - cam.pos[0], p.position[2] - cam.pos[2]);
-    if (d > far) continue;
     const v = bake.prefabs[p.prefab]?.[p.variant];
     if (!v) continue;
+    // cull against the placement's extent, not its centre: a ground slab is hundreds of studs across and
+    // its centroid can sit past the far plane while the part under the camera is the one being drawn —
+    // dropping it showed the sky through the floor
+    const reach = Math.max(
+      Math.abs(v.bounds.min[0]), Math.abs(v.bounds.max[0]),
+      Math.abs(v.bounds.min[2]), Math.abs(v.bounds.max[2]),
+    ) * p.scale;
+    const d = Math.max(0, Math.hypot(p.position[0] - cam.pos[0], p.position[2] - cam.pos[2]) - reach);
+    if (d > far) continue;
     const m = placementMatrix(p.rotationY, p.up);
     for (const part of v.parts) {
       if ((part.transparency ?? 0) > 0.6) continue;
       if (d > far * 0.4 && (part.lod ?? 2) < 1) continue; // far away, silhouette parts only
-      jobs.push({ d, part, m, origin: p.position, scale: p.scale, meshes: v.meshes as Job["meshes"] });
+      jobs.push({ d, prefab: p.prefab, part, m, origin: p.position, scale: p.scale, meshes: v.meshes as Job["meshes"] });
     }
   }
   jobs.sort((a, b) => b.d - a.d);
@@ -345,18 +396,15 @@ function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: num
     const local = eulerXYZToMatrix(part.rotation);
     const base = hex(part.color);
     const detail = job.d < far * 0.34;
-    for (const tri of partTris(part, job.meshes, scale, detail)) {
+    const tris = partTris(part, job.meshes, scale, detail);
+    for (const tri of tris) {
       const world = tri.map((v) => {
         const l = mat3Apply(local, v);
         const r = mat3Apply(m, [l[0] + part.position[0] * scale, l[1] + part.position[1] * scale, l[2] + part.position[2] * scale]);
         return [origin[0] + r[0], origin[1] + r[1], origin[2] + r[2]] as Vec3;
       });
-      const a = project(world[0]!);
-      const b = project(world[1]!);
-      const c = project(world[2]!);
-      if (!a || !b || !c) continue;
-      // back-face cull on screen winding (the local triangles above are wound counter-clockwise outward)
-      if ((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]) >= 0) continue;
+      // the shade comes from the world-space normal, so it is the same whether or not the triangle
+      // had to be clipped
       const e1 = [world[1]![0] - world[0]![0], world[1]![1] - world[0]![1], world[1]![2] - world[0]![2]];
       const e2 = [world[2]![0] - world[0]![0], world[2]![1] - world[0]![1], world[2]![2] - world[0]![2]];
       const nx = e1[1]! * e2[2]! - e1[2]! * e2[1]!;
@@ -364,8 +412,12 @@ function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: num
       const nz = e1[0]! * e2[1]! - e1[1]! * e2[0]!;
       const nl = Math.hypot(nx, ny, nz) || 1;
       const sh = shade([nx / nl, ny / nl, nz / nl]);
-      const col = mix([Math.min(255, base[0] * sh), Math.min(255, base[1] * sh), Math.min(255, base[2] * sh)], fogFactor((a[2] + b[2] + c[2]) / 3));
-      frame.tri(a, b, c, col[0], col[1], col[2]);
+      for (const [a, b, c] of clipTri(world[0]!, world[1]!, world[2]!)) {
+        // back-face cull on screen winding (the local triangles are wound counter-clockwise outward)
+        if ((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]) >= 0) continue;
+        const col = mix([Math.min(255, base[0] * sh), Math.min(255, base[1] * sh), Math.min(255, base[2] * sh)], fogFactor((a[2] + b[2] + c[2]) / 3));
+        frame.tri(a, b, c, col[0], col[1], col[2]);
+      }
     }
   }
   return frame;
@@ -400,6 +452,41 @@ function cameras(bake: WorldBake): { name: string; cam: Camera; far: number }[] 
   const out: { name: string; cam: Camera; far: number }[] = [];
   const eye = (x: number, z: number, up: number): Vec3 => [x, sampleHeight(bake.terrain, x, z) + up, z];
   const toward = (from: Vec3, at: Vec3): number => Math.atan2(at[2] - from[2], at[0] - from[0]);
+  /** Raises the eye clear of anything tall standing around it — a village camera that lands inside a
+   *  pine canopy renders a wall of green and nothing else. */
+  const clearOfProps = (from: Vec3): Vec3 => {
+    let y = from[1];
+    for (const p of bake.placements) {
+      const v = bake.prefabs[p.prefab]?.[p.variant];
+      if (!v) continue;
+      const reach = v.footprintRadius * p.scale + 8;
+      if (Math.hypot(p.position[0] - from[0], p.position[2] - from[2]) > reach) continue;
+      y = Math.max(y, p.position[1] + v.bounds.max[1] * p.scale + 6);
+    }
+    return [from[0], y, from[2]];
+  };
+  /**
+   * Raises the eye until the ground between it and its subject is below the line of sight. A terrace
+   * wall between the camera and the village fills the frame with a green slab and shows nothing of the
+   * world — a camera that cannot see its subject is a wasted image.
+   */
+  const clearOf = (from: Vec3, at: Vec3): Vec3 => {
+    let y = from[1];
+    for (let pass = 0; pass < 6; pass++) {
+      let worst = 0;
+      const steps = 48;
+      for (let i = 1; i < steps; i++) {
+        const k = i / steps;
+        const x = from[0] + (at[0] - from[0]) * k;
+        const z = from[2] + (at[2] - from[2]) * k;
+        const rayY = y + (at[1] - y) * k;
+        worst = Math.max(worst, sampleHeight(bake.terrain, x, z) + 2 - rayY);
+      }
+      if (worst <= 0) break;
+      y += worst + 4;
+    }
+    return [from[0], y, from[2]];
+  };
   const spawn = bake.spawn.position;
   const look = bake.spawn.lookAt;
   const p0 = eye(spawn[0], spawn[2], 6);
@@ -408,14 +495,18 @@ function cameras(bake: WorldBake): { name: string; cam: Camera; far: number }[] 
   if (focal) {
     const d = 150;
     const a = Math.atan2(focal.position[2] - spawn[2], focal.position[0] - spawn[0]);
-    const p = eye(focal.position[0] - Math.cos(a) * d, focal.position[2] - Math.sin(a) * d, 26);
-    out.push({ name: "landmark", cam: { pos: p, yaw: a, pitch: -0.1, fov: 1.05 }, far: 760 });
+    const raw = eye(focal.position[0] - Math.cos(a) * d, focal.position[2] - Math.sin(a) * d, 26);
+    const p = clearOf(clearOfProps(raw), [focal.position[0], focal.position[1] + 18, focal.position[2]]);
+    const drop = -Math.atan2(p[1] - (focal.position[1] + 18), d);
+    out.push({ name: "landmark", cam: { pos: p, yaw: a, pitch: Math.min(-0.05, drop), fov: 1.05 }, far: 760 });
   }
   const village = bake.zones.find((z) => z.kind === "settlement");
   if (village) {
     const d = village.radius + 90;
-    const p = eye(village.center[0] - d * 0.7, village.center[1] - d * 0.7, 42);
-    out.push({ name: "village", cam: { pos: p, yaw: Math.atan2(d * 0.7, d * 0.7), pitch: -0.22, fov: 1.05 }, far: 700 });
+    const target: Vec3 = [village.center[0], (village.y ?? sampleHeight(bake.terrain, village.center[0], village.center[1])) + 10, village.center[1]];
+    const p = clearOf(clearOfProps(eye(village.center[0] - d * 0.7, village.center[1] - d * 0.7, 42)), target);
+    const drop = -Math.atan2(p[1] - target[1], d);
+    out.push({ name: "village", cam: { pos: p, yaw: Math.atan2(d * 0.7, d * 0.7), pitch: Math.min(-0.12, drop), fov: 1.05 }, far: 700 });
   }
   const cx = bake.terrain.origin[0] + (bake.terrain.width * bake.terrain.cellSize) / 2;
   const cz = bake.terrain.origin[1] + (bake.terrain.depth * bake.terrain.cellSize) / 2;

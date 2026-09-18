@@ -42,7 +42,7 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
   const kits = [...new Set([...(spec.props.sets as string[]), ...style.kits.props])].filter((k) => !LEGACY_SETS.has(k)) as PropKit[];
   if (kits.length === 0) return;
 
-  const add = (prefab: string, x: number, z: number, opts: { rotationY?: number; importance?: number; zone?: string; margin?: number; sink?: boolean; scale?: number } = {}): boolean => {
+  const add = (prefab: string, x: number, z: number, opts: { rotationY?: number; importance?: number; zone?: string; margin?: number; sink?: boolean; scale?: number; onRoad?: boolean } = {}): boolean => {
     const variants = ctx.prefabs[prefab];
     if (!variants || variants.length === 0) return false;
     if (distanceToEdge(ctx, x, z) < 6 || isWaterAt(ctx, x, z)) return false;
@@ -50,13 +50,14 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
-    if (ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false; // never in the carriageway
+    // never in the carriageway — except what belongs on it: a parked car on the verge is not a car
+    if (!opts.onRoad && ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
     const br = Math.max(1.5, (v.baseRadius ?? 0) * scale);
     const at = settleOnGround(ctx, x, z, br, Math.min(4, Math.max(2.2, br)));
     if (!at) return false;
     [x, z] = at;
     if (distanceToEdge(ctx, x, z) < 6 || isWaterAt(ctx, x, z)) return false;
-    if (ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
+    if (!opts.onRoad && ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
     const radius = v.footprintRadius * scale * 0.6;
     if (hash.overlaps(x, z, radius, opts.margin ?? 0.5)) return false;
     const y = ctx.heights.sample(x, z) - (opts.sink === false ? 0 : v.sinkDepth * scale);
@@ -85,6 +86,8 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     if (tags.includes("wall")) return "wall";
     if (tags.includes("light")) return "roadside";
     if (tags.includes("vehicle") || tags.includes("market")) return "roadside_big";
+    // kerbside furniture: a bus stop or a traffic light in someone's garden is not street furniture
+    if (tags.includes("street")) return "street";
     if (tags.includes("statue") || tags.includes("tower")) return "plaza";
     return "mixed";
   };
@@ -97,6 +100,7 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     const ids = (PROP_KIT_PREFABS[kit] ?? []).filter((id) => ctx.prefabs[id]?.length);
     if (ids.length === 0) continue;
     const roadside = ids.filter((id) => classify(id) === "roadside");
+    const street = ids.filter((id) => classify(id) === "street");
     const roadsideBig = ids.filter((id) => classify(id) === "roadside_big");
     const walls = ids.filter((id) => classify(id) === "wall");
     const shore = ids.filter((id) => classify(id) === "shore");
@@ -105,7 +109,7 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     const mixed = ids.filter((id) => classify(id) === "mixed");
 
     // ---- along roads inside settlements: lights alternate sides every ~28 studs, vehicles/markets sparser
-    if (roadside.length + roadsideBig.length > 0) {
+    if (roadside.length + roadsideBig.length + street.length > 0) {
       // the village pass already lit its own streets: a second light every 15 studs reads as a
       // mechanical row, so a new one keeps its distance from every light already standing
       const lightSpots: Vec2[] = [];
@@ -115,8 +119,12 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
       const lightNear = (x: number, z: number, r: number) => lightSpots.some((q) => Math.hypot(q[0] - x, q[1] - z) < r);
       let lights = 0;
       let bigs = 0;
+      let furniture = 0;
+      const maxStreet = 46;
+      const streetUsed = new Map<string, number>();
+      const bigUsed = new Map<string, number>();
       const maxLights = 40;
-      const maxBig = 10;
+      const maxBig = 14;
       for (const road of roads) {
         let acc = 0;
         let side = 1;
@@ -135,18 +143,43 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
           const nx = -(b[1] - a[1]);
           const nz = b[0] - a[0];
           const len = Math.hypot(nx, nz) || 1;
+          // street furniture on its own rhythm, whatever the lights and vehicles do
+          if (street.length > 0 && furniture < maxStreet && k % 2 === 1) {
+            const sid = street.reduce((best, id) => ((streetUsed.get(id) ?? 0) < (streetUsed.get(best) ?? 0) ? id : best), street[0]!);
+            // stand it just past the kerb *for its own size*: a bus stop offset like a bollard has its
+            // base in the carriageway and gets refused
+            const sbase = ctx.prefabs[sid]?.[0]?.baseRadius ?? 1.5;
+            const soff = road.width / 2 + sbase + 1.4 + rng.float(0, 1.8);
+            const sx = b[0] - (nx / len) * soff * side;
+            const sz = b[1] - (nz / len) * soff * side;
+            const shead = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
+            if (add(sid, sx, sz, { rotationY: shead + (side > 0 ? Math.PI : 0) + rng.float(-0.1, 0.1), importance: 4.5, zone: site?.id, sink: true, margin: 0.4 })) {
+              streetUsed.set(sid, (streetUsed.get(sid) ?? 0) + 1);
+              furniture++;
+            }
+          }
           const big = roadsideBig.length > 0 && bigs < maxBig && (roadside.length === 0 ? rng.chance(0.35 * density) : rng.chance(0.18 * density));
           if (!big && (roadside.length === 0 || lights >= maxLights)) continue;
           const list = big ? roadsideBig : roadside;
           if (big) bigs++;
           else lights++;
-          const off = road.width / 2 + (big ? 5 : 2.5) + rng.float(-0.6, 1.8);
+          // prefer what this kit has used least: picking uniformly filled a whole city with cars and left
+          // its bus stops and billboards unplaced, because they share one budget
+          const pick = big
+            ? list.reduce((best, id) => ((bigUsed.get(id) ?? 0) < (bigUsed.get(best) ?? 0) ? id : best), list[rng.int(0, list.length - 1)]!)
+            : list[rng.int(0, list.length - 1)]!;
+          if (big) bigUsed.set(pick, (bigUsed.get(pick) ?? 0) + 1);
+          // a vehicle parks *in* the street, against the kerb and along it; everything else stands outside
+          const vehicle = (PREFAB_INDEX[pick]?.tags ?? []).includes("vehicle");
+          const off = vehicle ? Math.max(2, road.width / 2 - 3) : road.width / 2 + (big ? 5 : 2.5) + rng.float(-0.6, 1.8);
           const x = b[0] + (nx / len) * off * side;
           const z = b[1] + (nz / len) * off * side;
           if (!big && lightNear(x, z, 26)) continue;
           const heading = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
-          const facing = (big ? heading + (side > 0 ? 0 : Math.PI) : heading + Math.PI) + rng.float(-0.12, 0.12);
-          if (add(list[rng.int(0, list.length - 1)]!, x, z, { rotationY: facing, importance: big ? 4 : 5, zone: site?.id, sink: true, margin: big ? 1 : 0 }) && !big) lightSpots.push([x, z]);
+          const facing = vehicle
+            ? heading + (side > 0 ? 0 : Math.PI) + rng.float(-0.05, 0.05)
+            : (big ? heading + (side > 0 ? 0 : Math.PI) : heading + Math.PI) + rng.float(-0.12, 0.12);
+          if (add(pick, x, z, { rotationY: facing, importance: big ? 4 : 5, zone: site?.id, sink: true, margin: vehicle ? 0.5 : big ? 1 : 0, onRoad: vehicle }) && !big) lightSpots.push([x, z]);
         }
       }
     }
