@@ -1033,20 +1033,27 @@ export function tooltip(target: GuiObject, title: string, description: string, r
 		tipTitle = text("", new UDim2(1, -16, 0, 26), new UDim2(0, 8, 0, 6), tip, { size: 20, align: Enum.TextXAlignment.Center, color: theme.highlight, outline: math.min(2, theme.textOutline), zIndex: 51 });
 		tipBody = text("", new UDim2(1, -16, 0, 44), new UDim2(0, 8, 0, 34), tip, { size: 14, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, color: theme.text, outline: 0, font: theme.fontBody, zIndex: 51 });
 	};
+	let hovering = false;
 	target.MouseEnter.Connect(() => {
-		ensure();
-		tipTitle!.Text = title;
-		tipBody!.Text = description;
-		tip!.Visible = true;
-		if (theme.motion > 0) {
-			tip!.BackgroundTransparency = 0.6;
-			TweenService.Create(tip!, new TweenInfo(0.12), { BackgroundTransparency: 0.05 }).Play();
-		}
+		hovering = true;
+		// a short delay so sweeping across a grid of tiles does not flicker the tooltip
+		task.delay(0.22, () => {
+			if (!hovering) return;
+			ensure();
+			tipTitle!.Text = title;
+			tipBody!.Text = description;
+			tip!.Visible = true;
+			if (theme.motion > 0) {
+				tip!.BackgroundTransparency = 0.6;
+				TweenService.Create(tip!, new TweenInfo(0.12), { BackgroundTransparency: 0.05 }).Play();
+			}
+		});
 	});
 	target.MouseMoved.Connect((x, y) => {
 		if (tip) tip.Position = new UDim2(0, x + 14, 0, y + 14);
 	});
 	target.MouseLeave.Connect(() => {
+		hovering = false;
 		if (tip) tip.Visible = false;
 	});
 }
@@ -1148,7 +1155,7 @@ export class Window {
 	}
 
 	setCoins(value: number): void {
-		if (this.coins) this.coins.Text = `${math.floor(value)}`;
+		if (this.coins) this.coins.Text = abbreviate(value);
 	}
 
 	/** Opens / closes with the library's entrance (`pop`, `slide`, `fade` or none). */
@@ -1156,7 +1163,22 @@ export class Window {
 		if (value === this.open) return;
 		this.open = value;
 		if (!value) {
-			this.gui.Enabled = false;
+			if (theme.motion <= 0 || theme.enter === "none") {
+				this.gui.Enabled = false;
+				return;
+			}
+			// close with the mirror of the entrance, then disable the ScreenGui
+			const target = this.scale.Scale;
+			if (theme.enter === "pop") TweenService.Create(this.scale, new TweenInfo(0.12), { Scale: target * 0.9 }).Play();
+			else if (theme.enter === "slide") TweenService.Create(this.window, new TweenInfo(0.12), { Position: this.window.Position.add(new UDim2(0, 0, 0, 24)) }).Play();
+			else TweenService.Create(this.window, new TweenInfo(0.12), { BackgroundTransparency: 1 }).Play();
+			task.delay(0.13, () => {
+				if (this.open) return; // reopened in the meantime
+				this.gui.Enabled = false;
+				this.scale.Scale = target;
+				this.window.Position = new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2);
+				this.window.BackgroundTransparency = theme.panelTransparency;
+			});
 			return;
 		}
 		this.gui.Enabled = true;
@@ -1971,4 +1993,59 @@ export function emptyIllustration(size: number, parent: Instance): Frame {
 	stroke(lid, theme.edge, 2);
 	lid.Parent = f;
 	return f;
+}
+
+/**
+ * Short form of a big number — 1 250 → "1.2K", 3 400 000 → "3.4M". Roblox economies reach these
+ * numbers fast and a HUD pill is 180px wide, so the currency, the prices and the scores use it.
+ */
+export function abbreviate(value: number): string {
+	const n = math.floor(value);
+	const abs = math.abs(n);
+	if (abs < 1000) return `${n}`;
+	const units = ["K", "M", "B", "T", "Qa", "Qi"];
+	let scaled = abs;
+	let unit = -1;
+	while (scaled >= 1000 && unit < units.size() - 1) {
+		scaled /= 1000;
+		unit += 1;
+	}
+	const rounded = math.floor(scaled * 10) / 10;
+	const body = rounded >= 100 || rounded === math.floor(rounded) ? `${math.floor(rounded)}` : `${rounded}`;
+	return `${n < 0 ? "-" : ""}${body}${units[unit]}`;
+}
+
+/** A rotated "OWNED" / "CLAIMED" stamp across a tile (ink outline, slight tilt). */
+export function stamp(str: string, target: GuiObject, color: Color3 = theme.bad): TextLabel {
+	const l = text(str.upper(), new UDim2(1, -8, 0, 34), new UDim2(0, 4, 0.5, -17), target, {
+		size: 26,
+		align: Enum.TextXAlignment.Center,
+		color,
+		outline: math.max(2, theme.textOutline),
+		zIndex: target.ZIndex + 8,
+		scaled: true,
+	});
+	l.Rotation = -14;
+	l.Name = "Stamp";
+	const box = new Instance("Frame");
+	box.Size = new UDim2(1, -10, 0, 38);
+	box.Position = new UDim2(0, 5, 0.5, -19);
+	box.BackgroundTransparency = 1;
+	box.Rotation = -14;
+	box.ZIndex = target.ZIndex + 7;
+	corner(box, 6);
+	stroke(box, color, 3, 0.15);
+	box.Parent = target;
+	return l;
+}
+
+/** Pops a tile and floats a gain label over it (an item just came in). */
+export function acquirePop(target: GuiObject, gain?: string): void {
+	if (theme.motion <= 0) return;
+	const pop = new Instance("UIScale");
+	pop.Scale = 0.82;
+	pop.Parent = target;
+	fxTween(pop, 0.22, { Scale: 1 }, Enum.EasingStyle.Back);
+	task.delay(0.6, () => pop.Destroy());
+	if (gain !== undefined) floatText(gain, target, theme.good, new UDim2(0.5, -40, 0, -10));
 }

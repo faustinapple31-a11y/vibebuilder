@@ -1,7 +1,7 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { PlayerStats } from "shared/net";
-import { body, button, coinIcon, corner, darken, floatText, gradient, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
+import { abbreviate, body, button, coinIcon, corner, darken, floatText, gradient, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -168,6 +168,23 @@ export class Hud {
 		corner(this.loadingFill, 9);
 		gradient(this.loadingFill, theme.gold[0], theme.gold[1]);
 		this.loadingFill.Parent = barHolder;
+		// a highlight sweeping the bar, so a long world build does not look frozen
+		if (motion() > 0) {
+			const beam = new Instance("Frame");
+			beam.Size = new UDim2(0, 22, 1, 0);
+			beam.BackgroundColor3 = new Color3(1, 1, 1);
+			beam.BackgroundTransparency = 0.7;
+			beam.BorderSizePixel = 0;
+			beam.ZIndex = 14;
+			beam.Parent = barHolder;
+			task.spawn(() => {
+				while (beam.Parent && this.loading.Visible) {
+					beam.Position = new UDim2(0, -24, 0, 0);
+					TweenService.Create(beam, new TweenInfo(1.1 / math.max(0.4, motion())), { Position: new UDim2(1, 6, 0, 0) }).Play();
+					task.wait(1.5 / math.max(0.4, motion()));
+				}
+			});
+		}
 	}
 
 	/**
@@ -243,9 +260,9 @@ export class Hud {
 		const coins = math.floor(stats.coins);
 		const gained = coins - this.lastCoins;
 		// the counter rolls up to the new value, and a gain floats out of the pill
-		tweenNumber(this.coins, this.lastCoins, coins);
+		tweenNumber(this.coins, this.lastCoins, coins, (v) => abbreviate(v));
 		if (gained > 0 && this.lastCoins > 0) {
-			floatText(`+${gained}`, this.coinPill, theme.gold[0], new UDim2(0, 54, 0, -4));
+			floatText(`+${abbreviate(gained)}`, this.coinPill, theme.gold[0], new UDim2(0, 54, 0, -4));
 			if (motion() > 0) {
 				const pop = new Instance("UIScale");
 				pop.Parent = this.coinPill;
@@ -254,7 +271,7 @@ export class Hud {
 				task.delay(0.4, () => pop.Destroy());
 			}
 		} else if (gained < 0) {
-			floatText(`${gained}`, this.coinPill, theme.bad, new UDim2(0, 54, 0, -4));
+			floatText(`-${abbreviate(math.abs(gained))}`, this.coinPill, theme.bad, new UDim2(0, 54, 0, -4));
 		}
 		this.lastCoins = coins;
 		const t = math.clamp(stats.hunger / GameConfig.survival.hungerMax, 0, 1);

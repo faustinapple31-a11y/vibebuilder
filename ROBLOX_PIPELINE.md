@@ -211,7 +211,11 @@ compteur de monnaie qui défile (`tweenNumber`), gain « +25 » flottant, éclat
 remplies (`barShine`) et pulsation à la complétion, lignes d'un écran qui entrent en cascade
 (`staggerIn`), vignette rouge et perte chiffrée quand le joueur prend un coup, file d'attente de
 toasts avec rebond, soulignement d'onglet animé, infobulle en fondu, illustration de caisse dessinée
-pour les états vides, tuiles teintées + contour + ruban + chip selon la rareté (`rarityFrame`).
+pour les états vides, tuiles teintées + contour + ruban + chip selon la rareté (`rarityFrame`),
+tampon « OWNED » en travers d'une tuile possédée (`stamp`), tuile qui saute quand un stack grandit
+(`acquirePop`), barre de décompte sous chaque bonus actif, éclat qui balaie la barre de chargement,
+fenêtres qui se ferment par l'animation inverse de leur ouverture, infobulles qui attendent 0,2 s
+avant d'apparaître, et **grands nombres abrégés** partout (`abbreviate` : 1 250 → « 1.2K »).
 
 Rien n'est codé en dur dans les écrans : le thème fournit aussi `edge` (contour visible même sur un
 panneau sombre), `track` (fond de barre), `highlight` (valeurs, minuteurs), `good` / `warn` / `bad`

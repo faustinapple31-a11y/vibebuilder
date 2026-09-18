@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UI_LOCALES, UI_STRINGS, UI_STRINGS_EN, detectLocale, formatString } from "../src";
+import { UI_LOCALES, UI_STRINGS, UI_STRINGS_EN, abbreviateNumber, detectLocale, formatString } from "../src";
 
 /**
  * The libraries decide how a screen looks, this table decides what it says — a generated game speaks
@@ -52,5 +52,16 @@ describe("UI strings", () => {
   it("fills placeholders", () => {
     expect(formatString(UI_STRINGS_EN.confirmBuy, { item: "Luck Boost", price: 60, currency: "Coins" })).toBe("Buy Luck Boost for 60 Coins?");
     expect(formatString(UI_STRINGS.fr.youHave, { count: 3 })).toBe("Vous en avez : 3");
+  });
+
+  it("abbreviates the big numbers a Roblox economy reaches", () => {
+    expect(abbreviateNumber(0)).toBe("0");
+    expect(abbreviateNumber(999)).toBe("999");
+    expect(abbreviateNumber(1000)).toBe("1K");
+    expect(abbreviateNumber(1250)).toBe("1.2K");
+    expect(abbreviateNumber(99999)).toBe("99.9K");
+    expect(abbreviateNumber(3_400_000)).toBe("3.4M");
+    expect(abbreviateNumber(1_000_000_000)).toBe("1B");
+    expect(abbreviateNumber(-2500)).toBe("-2.5K");
   });
 });

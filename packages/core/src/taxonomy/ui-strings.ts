@@ -382,3 +382,23 @@ export function formatString(template: string, values: Record<string, string | n
   for (const [key, value] of Object.entries(values)) out = out.split(`{${key}}`).join(`${value}`);
   return out;
 }
+
+/**
+ * Short form of a big number — 1 250 → "1.2K". Mirrors `abbreviate()` in the template's kit so the
+ * app, the preview sheet and the game agree on what a price looks like.
+ */
+export function abbreviateNumber(value: number): string {
+  const n = Math.floor(value);
+  const abs = Math.abs(n);
+  if (abs < 1000) return `${n}`;
+  const units = ["K", "M", "B", "T", "Qa", "Qi"];
+  let scaled = abs;
+  let unit = -1;
+  while (scaled >= 1000 && unit < units.length - 1) {
+    scaled /= 1000;
+    unit += 1;
+  }
+  const rounded = Math.floor(scaled * 10) / 10;
+  const body = rounded >= 100 || rounded === Math.floor(rounded) ? `${Math.floor(rounded)}` : `${rounded}`;
+  return `${n < 0 ? "-" : ""}${body}${units[unit]}`;
+}

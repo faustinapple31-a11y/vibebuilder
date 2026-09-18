@@ -2,7 +2,7 @@ import { TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, pressAnimation, rarityFrame, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
+import { abbreviate, badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, pressAnimation, rarityFrame, shadow, stamp, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -27,6 +27,8 @@ export class ShopUi {
 	private buy = waitRemoteFunction(Remotes.ShopBuy);
 	private promptRobux = waitRemoteFunction(Remotes.ShopPromptRobux);
 	private cards = new Map<string, { button: TextButton; have?: TextLabel; price: number }>();
+	/** upgrade tiles, so an owned item can be stamped */
+	private tiles = new Map<string, Frame>();
 
 	constructor() {
 		this.win = new Window("Shop", ShopCatalog.title, { width: W, height: H, displayOrder: 5 });
@@ -172,6 +174,7 @@ export class ShopUi {
 			tile.Parent = holder;
 			// price → rarity, the same ramp the inventory uses (it outlines the tile)
 			rarityFrame(tile, item.price >= 250 ? 4 : item.price >= 100 ? 3 : item.price >= 40 ? 2 : 1);
+			this.tiles.set(item.id, tile);
 			shadow(tile, 4, 0.5);
 			hoverable(tile, { shadow: lastShadow(holder) });
 			const head = new Instance("Frame");
@@ -248,7 +251,7 @@ export class ShopUi {
 		})();
 		ic.Position = new UDim2(0, 12, 0.5, -ic.Size.Y.Offset / 2);
 		ic.ZIndex = 8;
-		const label = text(`${price}`, new UDim2(1, -46, 1, 0), new UDim2(0, 42, 0, 0), b, { size: 22, align: Enum.TextXAlignment.Left, zIndex: 8, outline: 1.5 });
+		const label = text(abbreviate(price), new UDim2(1, -46, 1, 0), new UDim2(0, 42, 0, 0), b, { size: 22, align: Enum.TextXAlignment.Left, zIndex: 8, outline: 1.5 });
 		label.Name = "Label";
 		shadow(b, 3, 0.45);
 		pressAnimation(b);
@@ -299,8 +302,11 @@ export class ShopUi {
 			if (!card) continue;
 			if (!item.consumable) {
 				const owned = state.owned.includes(item.id);
-				this.setButtonText(card.button, owned ? L.owned : `${item.price}`);
+				this.setButtonText(card.button, owned ? L.owned : abbreviate(item.price));
 				card.button.BackgroundColor3 = owned ? lighten(theme.pill, 0.18) : theme.pill;
+				// a stamp across the tile reads at a glance, unlike a word in the price button
+				const tile = this.tiles.get(item.id);
+				if (owned && tile && !tile.FindFirstChild("Stamp")) stamp(L.owned, tile, theme.good);
 			} else if (card.have) {
 				card.have.Text = fmt(L.youHave, { count: state.counts[item.id] ?? 0 });
 				const left = item.effect.stat !== undefined ? state.buffs[item.effect.stat] : undefined;
@@ -311,7 +317,7 @@ export class ShopUi {
 			const card = this.cards.get(`bundle:${bundle.id}`);
 			if (!card) continue;
 			const owned = state.owned.includes(`bundle:${bundle.id}`);
-			this.setButtonText(card.button, owned ? L.claimed : `${bundle.price}`);
+			this.setButtonText(card.button, owned ? L.claimed : abbreviate(bundle.price));
 			card.button.BackgroundColor3 = owned ? lighten(theme.pill, 0.18) : theme.pill;
 		}
 		for (const item of ShopCatalog.robux) {

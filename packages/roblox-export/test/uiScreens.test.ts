@@ -151,6 +151,24 @@ describe("UI screens of the template", () => {
     }
   });
 
+  it("ships the polish details the screens rely on", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    for (const api of ["export function abbreviate(", "export function stamp(", "export function acquirePop("]) {
+      expect(kit.includes(api), `kit.ts is missing ${api}`).toBe(true);
+    }
+    // big numbers are abbreviated everywhere they are shown
+    expect(kit.includes("this.coins.Text = abbreviate(value)"), "a window's coin pill should abbreviate").toBe(true);
+    expect(TEMPLATE_FILES["src/ui/Hud.ts"]!.includes("abbreviate"), "the HUD currency should abbreviate").toBe(true);
+    expect(TEMPLATE_FILES["src/ui/ShopUi.ts"]!.includes("abbreviate(price)"), "a price button should abbreviate").toBe(true);
+    // owned upgrades get a stamp, a grown stack pops, a buff shows its countdown
+    expect(TEMPLATE_FILES["src/ui/ShopUi.ts"]!.includes("stamp(L.owned")).toBe(true);
+    expect(TEMPLATE_FILES["src/ui/Inventory.ts"]!.includes("acquirePop(")).toBe(true);
+    expect(TEMPLATE_FILES["src/ui/Inventory.ts"]!.includes("this.buffMax")).toBe(true);
+    // a tooltip waits before showing, a window animates on the way out
+    expect(kit.includes("task.delay(0.22, () => {"), "the tooltip should wait before showing").toBe(true);
+    expect(kit.includes("// close with the mirror of the entrance")).toBe(true);
+  });
+
   it("ships the widget set the screens (and agents) build on", () => {
     const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
     for (const api of ["export function tabs(", "export function confirmDialog(", "export function input(", "export function stepper(", "export function rarityFrame(", "export function makeSelectable(", "export function selectFirst(", "export function progressBar(", "export function toggle(", "export function slider(", "export const RARITY_COLORS"]) {

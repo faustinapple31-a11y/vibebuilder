@@ -1,6 +1,6 @@
 import { ShopCatalog } from "shared/catalog";
 import type { ProfileStateMsg, ShopState } from "shared/net";
-import { body, card, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
+import { abbreviate, acquirePop, body, card, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, progressBar, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -21,6 +21,10 @@ export class Inventory {
 	private filter = "";
 	private profile: ProfileStateMsg = { coins: 0, inventory: {}, owned: [], stats: {}, quests: {} };
 	private shop: ShopState = { coins: 0, owned: [], counts: {}, buffs: {} };
+	/** last counts, so a tile that just grew can pop with its gain */
+	private lastCounts = new Map<string, number>();
+	/** longest seen duration per buff, to draw its countdown */
+	private buffMax = new Map<string, number>();
 
 	constructor() {
 		this.win = new Window("Inventory", L.inventory, { width: 620, height: 600, displayOrder: 6 });
@@ -133,13 +137,19 @@ export class Inventory {
 		if (buffs.size() > 0) {
 			sectionHeader(L.activeBuffs, this.win.body, order++);
 			for (const buff of buffs) {
-				const row = card(52, order++, this.win.body, theme.info);
+				const row = card(56, order++, this.win.body, theme.info);
 				const icon = resourceIcon(buff.stat, 34, row);
 				icon.Position = new UDim2(0, 12, 0.5, -17);
 				text(prettyName(buff.stat), new UDim2(1, -200, 1, 0), new UDim2(0, 56, 0, 0), row, { size: 20, color: textOnGradient(theme.info), zIndex: 6 });
 				const mm = math.floor(buff.seconds / 60);
 				const ss = math.floor(buff.seconds % 60);
-				text(fmt(L.timeLeft, { time: `${mm}:${string.format("%02d", ss)}` }), new UDim2(0, 140, 1, 0), new UDim2(1, -152, 0, 0), row, { size: 18, align: Enum.TextXAlignment.Right, color: textOnGradient(theme.info), zIndex: 6 });
+				text(fmt(L.timeLeft, { time: `${mm}:${string.format("%02d", ss)}` }), new UDim2(0, 140, 0, 26), new UDim2(1, -152, 0, 6), row, { size: 17, align: Enum.TextXAlignment.Right, color: textOnGradient(theme.info), zIndex: 6 });
+				// how much of the buff is left: the longest duration seen is its full bar
+				const longest = math.max(this.buffMax.get(buff.stat) ?? 0, buff.seconds);
+				this.buffMax.set(buff.stat, longest);
+				const bar = progressBar(new UDim2(0, 130, 0, 8), new UDim2(1, -146, 0, 36), row, theme.gold, 7, false);
+				bar.set(buff.seconds / math.max(1, longest));
+				bar.label.Text = "";
 			}
 		}
 	}
@@ -177,7 +187,11 @@ export class Inventory {
 			icon.Position = new UDim2(0.5, -26, 0, 14);
 			icon.ZIndex = 6;
 			const count = panel(new UDim2(0, 40, 0, 26), new UDim2(1, -44, 1, -30), tile, { color: theme.pill, strokeColor: theme.pillStroke, radius: 9, shadow: false, zIndex: 7 });
-			text(`${math.floor(entry.count)}`, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), count, { size: 16, align: Enum.TextXAlignment.Center, zIndex: 8, outline: 1.5 });
+			text(abbreviate(entry.count), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), count, { size: 16, align: Enum.TextXAlignment.Center, zIndex: 8, outline: 1.5 });
+			// the tile pops when the stack grew since the last render
+			const before = this.lastCounts.get(entry.id);
+			if (before !== undefined && entry.count > before) acquirePop(tile, `+${abbreviate(entry.count - before)}`);
+			this.lastCounts.set(entry.id, entry.count);
 			const name = item?.name ?? prettyName(entry.id);
 			// the name under the tile takes the rarity colour from "rare" up
 			body(name, new UDim2(0, TILE + 10, 0, 28), new UDim2(0, col * (TILE + 14) - 1, 0, row * (TILE + 34) + TILE + 2), holder, { size: 13, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, color: tier >= 2 ? rarity : undefined, zIndex: 5 });
