@@ -46,6 +46,10 @@ function kitEntry(kit: UiKitDef): string {
 \t\t\tenter: ${JSON.stringify(s.enter)},
 \t\t\ttextScale: ${s.textScale},
 \t\t\tsound: ${JSON.stringify(s.sound)},
+\t\t\thover: ${JSON.stringify(s.hover)},
+\t\t\tclickFx: ${JSON.stringify(s.clickFx)},
+\t\t\trarityFx: ${JSON.stringify(s.rarityFx)},
+\t\t\tmotion: ${s.motion},
 \t\t},
 \t},`;
 }
@@ -66,6 +70,12 @@ export type UiPress = "squash" | "slide" | "flicker" | "pulse" | "none";
 export type UiEnter = "pop" | "slide" | "fade" | "none";
 /** Click feedback of the kit (built-in Roblox sounds). */
 export type UiSound = "soft" | "click" | "beep" | "pop" | "thud" | "none";
+/** Hover / selection feedback. */
+export type UiHover = "lift" | "glow" | "tint" | "outline" | "none";
+/** Click effect left at the cursor. */
+export type UiClickFx = "ripple" | "burst" | "flash" | "none";
+/** Rarity treatment of item tiles. */
+export type UiRarityFx = "glow" | "sparkle" | "shine" | "none";
 
 export interface UiKitTokens {
 \tpaper: string;
@@ -101,6 +111,11 @@ export interface UiKitShape {
 \t/** multiplies every text size (decorative fonts need more room) */
 \ttextScale: number;
 \tsound: UiSound;
+\thover: UiHover;
+\tclickFx: UiClickFx;
+\trarityFx: UiRarityFx;
+\t/** animation intensity 0…1.4 (0 disables the looping effects) */
+\tmotion: number;
 }
 
 export interface UiKit {

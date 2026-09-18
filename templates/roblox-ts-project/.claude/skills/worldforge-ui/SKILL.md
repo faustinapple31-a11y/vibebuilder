@@ -54,6 +54,13 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
   `input` (TextBox for search / rename / amounts), `stepper` (− value +), `confirmDialog`
   (a "Buy X for 250?" modal above the screens), `tooltip`, the drawn icons and `resourceIcon`.
   Build a new screen out of these — never a raw Frame with hard-coded colours.
+- **effects** (all gated by the library's `motion` budget — never animate outside them):
+  `hoverable(target)` (the library's hover / gamepad-selection feedback), `clickFx(target, x, y)`
+  (ripple / burst / flash at the cursor — `button()` already calls it), `rarityEffect(tile, tier)`
+  (halo, twinkles or light sweep), `tweenNumber(label, from, to)` (a counter rolling up),
+  `floatText("+25", parent)` (a gain floating away), `barShine(bar)` (a highlight sweeping a filled
+  bar, plus a pulse when it completes), `staggerIn(container)` (rows sliding in when a screen opens),
+  `emptyIllustration(size, parent)` (a drawn crate for an empty state) and `motion()`.
 - **rarity**: `RARITY_COLORS` / `RARITY_NAMES` (common → legendary, derived from the library) and
   `rarityFrame(tile, tier)` which outlines a tile and adds a ribbon for epic / legendary. The
   inventory derives the tier from the item's price; a pet / egg / crate screen should do the same.

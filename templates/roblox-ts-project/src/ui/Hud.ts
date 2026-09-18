@@ -1,7 +1,7 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { PlayerStats } from "shared/net";
-import { body, button, coinIcon, corner, darken, gradient, lastShadow, lighten, panel, pill, scaleContainer, shadow, stroke, text, theme } from "./kit";
+import { body, button, coinIcon, corner, darken, floatText, gradient, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -28,12 +28,18 @@ export class Hud {
 	private sfx = new Map<string, Sound>();
 	private toasts: string[] = [];
 	private toasting = false;
+	/** last replicated values, so a change can be animated (count-up, floater, damage flash) */
+	private lastCoins = 0;
+	private lastHealth = 1;
+	private coinPill: Frame;
 	/** Generic value panel (stage, wave, team, lap…) filled by HudValue remotes. */
 	private values: Frame;
 	private valuesShadow: Frame | undefined;
 	private valueRows = new Map<string, TextLabel>();
 	private banner: TextLabel;
 	private healthFill: Frame;
+	/** red edge vignette flashed when the player takes damage */
+	private damageFlash: Frame;
 	/** Extra screen buttons stacked above the Shop button (bottom-left). */
 	private screenButtons: TextButton[] = [];
 	private sfxVolume = 0.6;
@@ -62,6 +68,7 @@ export class Hud {
 		// currency pill (top-left)
 		const coinPill = pill("0", new UDim2(0, 180, 0, 46), new UDim2(0, 18, 0, 18), this.root, "coin", { textSize: 22 });
 		this.coins = coinPill.label;
+		this.coinPill = coinPill.frame;
 		shadow(coinPill.frame, 4, 0.5);
 		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: theme.text, zIndex: 6 });
 		curName.Visible = false;
@@ -89,6 +96,16 @@ export class Hud {
 		this.healthFill.ZIndex = 3;
 		corner(this.healthFill, math.min(7, theme.radius));
 		this.healthFill.Parent = healthBg;
+
+		// damage vignette: a red frame over the whole screen, transparent until a hit
+		this.damageFlash = new Instance("Frame");
+		this.damageFlash.Size = new UDim2(1, 0, 1, 0);
+		this.damageFlash.BackgroundColor3 = theme.bad;
+		this.damageFlash.BackgroundTransparency = 1;
+		this.damageFlash.BorderSizePixel = 0;
+		this.damageFlash.ZIndex = 9;
+		gradient(this.damageFlash, theme.bad, darken(theme.bad, 0.5), 90);
+		this.damageFlash.Parent = this.gui;
 
 		// right-hand value card + big centre banner
 		this.values = panel(new UDim2(0, 250, 0, 12), new UDim2(1, -268, 0, 18), this.root, { color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.pillStroke, strokeThickness: math.max(1.5, theme.strokeThickness - 0.5), radius: math.min(12, theme.radius) });
@@ -210,12 +227,36 @@ export class Hud {
 	}
 
 	setHealth(fraction: number): void {
-		this.healthFill.Size = new UDim2(math.clamp(fraction, 0, 1), 0, 1, 0);
-		this.healthFill.BackgroundColor3 = fraction > 0.5 ? theme.good : fraction > 0.25 ? theme.warn : theme.bad;
+		const value = math.clamp(fraction, 0, 1);
+		// a hit flashes the screen edge red and shakes the bar a little
+		if (value < this.lastHealth - 0.01 && motion() > 0) {
+			this.damageFlash.BackgroundTransparency = 0.72;
+			TweenService.Create(this.damageFlash, new TweenInfo(0.45), { BackgroundTransparency: 1 }).Play();
+			floatText(`${math.floor((value - this.lastHealth) * 100)}`, this.healthFill.Parent as GuiObject, theme.bad, new UDim2(0, 60, 0, -18));
+		}
+		this.lastHealth = value;
+		TweenService.Create(this.healthFill, new TweenInfo(0.2), { Size: new UDim2(value, 0, 1, 0) }).Play();
+		this.healthFill.BackgroundColor3 = value > 0.5 ? theme.good : value > 0.25 ? theme.warn : theme.bad;
 	}
 
 	setStats(stats: PlayerStats): void {
-		this.coins.Text = `${math.floor(stats.coins)}`;
+		const coins = math.floor(stats.coins);
+		const gained = coins - this.lastCoins;
+		// the counter rolls up to the new value, and a gain floats out of the pill
+		tweenNumber(this.coins, this.lastCoins, coins);
+		if (gained > 0 && this.lastCoins > 0) {
+			floatText(`+${gained}`, this.coinPill, theme.gold[0], new UDim2(0, 54, 0, -4));
+			if (motion() > 0) {
+				const pop = new Instance("UIScale");
+				pop.Parent = this.coinPill;
+				TweenService.Create(pop, new TweenInfo(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: 1.07 }).Play();
+				task.delay(0.12, () => TweenService.Create(pop, new TweenInfo(0.14), { Scale: 1 }).Play());
+				task.delay(0.4, () => pop.Destroy());
+			}
+		} else if (gained < 0) {
+			floatText(`${gained}`, this.coinPill, theme.bad, new UDim2(0, 54, 0, -4));
+		}
+		this.lastCoins = coins;
 		const t = math.clamp(stats.hunger / GameConfig.survival.hungerMax, 0, 1);
 		TweenService.Create(this.hungerFill, new TweenInfo(0.25), { Size: new UDim2(t, 0, 1, 0) }).Play();
 	}
@@ -237,6 +278,13 @@ export class Hud {
 				const str = this.toasts.remove(0)!;
 				this.notifText.Text = str;
 				this.notif.Visible = true;
+				if (motion() > 0) {
+					const pop = new Instance("UIScale");
+					pop.Parent = this.notif;
+					pop.Scale = 0.92;
+					TweenService.Create(pop, new TweenInfo(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: 1 }).Play();
+					task.delay(0.5, () => pop.Destroy());
+				}
 				this.notif.Position = new UDim2(0.5, -180, 0, -60);
 				TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position: new UDim2(0.5, -180, 0, 92) }).Play();
 				// a queued toast passes quicker so a burst does not block the HUD for ten seconds

@@ -2,7 +2,7 @@ import { TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, itemIcon, lighten, panel, pill, pressAnimation, rarityFrame, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
+import { badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, pressAnimation, rarityFrame, shadow, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -173,6 +173,7 @@ export class ShopUi {
 			// price → rarity, the same ramp the inventory uses (it outlines the tile)
 			rarityFrame(tile, item.price >= 250 ? 4 : item.price >= 100 ? 3 : item.price >= 40 ? 2 : 1);
 			shadow(tile, 4, 0.5);
+			hoverable(tile, { shadow: lastShadow(holder) });
 			const head = new Instance("Frame");
 			head.Size = new UDim2(1, 0, 0, 30);
 			head.BackgroundColor3 = item.color !== undefined ? Color3.fromHex(item.color) : theme.tileStroke;

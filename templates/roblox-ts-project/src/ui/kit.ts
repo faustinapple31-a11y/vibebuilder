@@ -1,6 +1,6 @@
 import { Players, TweenService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { DEFAULT_UI_KIT, UI_KITS, type UiEnter, type UiKit, type UiOrnament, type UiPress, type UiSound } from "./kits.generated";
+import { DEFAULT_UI_KIT, UI_KITS, type UiClickFx, type UiEnter, type UiHover, type UiKit, type UiOrnament, type UiPress, type UiRarityFx, type UiSound } from "./kits.generated";
 import { L } from "./strings.generated";
 
 /**
@@ -59,6 +59,14 @@ export interface Theme {
 	textScale: number;
 	/** click feedback of the library */
 	sound: UiSound;
+	/** hover / selection feedback */
+	hover: UiHover;
+	/** click effect at the cursor */
+	clickFx: UiClickFx;
+	/** rarity treatment of item tiles */
+	rarityFx: UiRarityFx;
+	/** animation intensity 0…1.4 (0 = still) */
+	motion: number;
 	/** accent colour of the world's style family (GameConfig.ui.accentColor) */
 	accent: Color3;
 	// ---- derived from the library, so nothing in the UI hard-codes a colour
@@ -133,6 +141,10 @@ function makeTheme(): Theme {
 		enter: s.enter,
 		textScale: s.textScale,
 		sound: s.sound,
+		hover: s.hover,
+		clickFx: s.clickFx,
+		rarityFx: s.rarityFx,
+		motion: s.motion,
 		accent: ACCENT,
 		isDark,
 		edge: contrast(ink, paper) >= 1.8 || contrast(ink, paper) >= contrast(hex(t.inkSoft), paper) ? ink : hex(t.inkSoft),
@@ -715,6 +727,12 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 	limit.MaxTextSize = math.floor((opts.size ?? 20) * theme.textScale);
 	limit.Parent = label;
 	b.MouseButton1Click.Connect(() => playUiSound());
+	b.InputBegan.Connect((input) => {
+		if (input.UserInputType === Enum.UserInputType.MouseButton1 || input.UserInputType === Enum.UserInputType.Touch) {
+			clickFx(b, input.Position.X, input.Position.Y);
+		}
+	});
+	hoverable(b, { shadow: lastShadow(parent) });
 	makeSelectable(b);
 	return b;
 }
@@ -1020,6 +1038,10 @@ export function tooltip(target: GuiObject, title: string, description: string, r
 		tipTitle!.Text = title;
 		tipBody!.Text = description;
 		tip!.Visible = true;
+		if (theme.motion > 0) {
+			tip!.BackgroundTransparency = 0.6;
+			TweenService.Create(tip!, new TweenInfo(0.12), { BackgroundTransparency: 0.05 }).Play();
+		}
 	});
 	target.MouseMoved.Connect((x, y) => {
 		if (tip) tip.Position = new UDim2(0, x + 14, 0, y + 14);
@@ -1139,6 +1161,7 @@ export class Window {
 		}
 		this.gui.Enabled = true;
 		this.onOpen?.();
+		staggerIn(this.body);
 		const home = new UDim2(0.5, -this.width / 2, 0.5, -this.height / 2);
 		this.window.Position = home;
 		selectFirst(this.window);
@@ -1179,10 +1202,11 @@ export function sectionHeader(str: string, parent: Instance, order: number): Tex
 	const line = new Instance("Frame");
 	line.Size = new UDim2(1, 0, 0, 3);
 	line.Position = new UDim2(0, 0, 1, -4);
-	line.BackgroundColor3 = theme.inkSoft;
-	line.BackgroundTransparency = 0.4;
+	line.BackgroundColor3 = theme.accent;
+	line.BackgroundTransparency = 0.35;
 	line.BorderSizePixel = 0;
 	line.ZIndex = 3;
+	gradient(line, theme.accent, lighten(theme.inkSoft, 0.1), 0);
 	line.Parent = holder;
 	return text(str.upper(), new UDim2(1, -8, 0, 28), new UDim2(0, 4, 0, 0), holder, { size: 24, color: theme.textDark, outline: 0, zIndex: 4 });
 }
@@ -1204,6 +1228,7 @@ export function card(height: number, order: number, parent: Instance, colors: [C
 	gradient(f, colors[0], colors[1]);
 	stroke(f, theme.edge, theme.strokeThickness);
 	f.Parent = holder;
+	hoverable(f);
 	return f;
 }
 
@@ -1215,7 +1240,7 @@ export interface BarHandle {
 }
 
 /** Outlined progress bar with a centred label ("3 / 5"). */
-export function progressBar(size: UDim2, position: UDim2, parent: Instance, colors: [Color3, Color3] = theme.primary, zIndex = 5): BarHandle {
+export function progressBar(size: UDim2, position: UDim2, parent: Instance, colors: [Color3, Color3] = theme.primary, zIndex = 5, shine = true): BarHandle {
 	const bg = new Instance("Frame");
 	bg.Size = size;
 	bg.Position = position;
@@ -1234,13 +1259,28 @@ export function progressBar(size: UDim2, position: UDim2, parent: Instance, colo
 	gradient(fill, colors[0], colors[1]);
 	fill.Parent = bg;
 	const label = text("", new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), bg, { size: 14, align: Enum.TextXAlignment.Center, zIndex: zIndex + 2, outline: 2 });
-	return {
+	let full = false;
+	const handle: BarHandle = {
 		fill,
 		label,
 		set: (fraction: number) => {
-			TweenService.Create(fill, new TweenInfo(0.2), { Size: new UDim2(math.clamp(fraction, 0, 1), 0, 1, 0) }).Play();
+			const clamped = math.clamp(fraction, 0, 1);
+			TweenService.Create(fill, new TweenInfo(0.2), { Size: new UDim2(clamped, 0, 1, 0) }).Play();
+			// a short pulse the first time it fills (quest done, wave cleared)
+			if (clamped >= 0.999 && !full && theme.motion > 0) {
+				full = true;
+				const pop = new Instance("UIScale");
+				pop.Parent = bg;
+				TweenService.Create(pop, new TweenInfo(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: 1.06 }).Play();
+				task.delay(0.14, () => TweenService.Create(pop, new TweenInfo(0.14), { Scale: 1 }).Play());
+				task.delay(0.4, () => pop.Destroy());
+			} else if (clamped < 0.999) {
+				full = false;
+			}
 		},
 	};
+	if (shine) barShine(handle);
+	return handle;
 }
 
 /** Pill switch (settings): dark track, sliding knob, ON / OFF label. */
@@ -1392,8 +1432,11 @@ export function prettyName(id: string): string {
 export const RARITY_NAMES: string[] = [L.common, L.uncommon, L.rare, L.epic, L.legendary];
 export const RARITY_COLORS: Color3[] = [theme.inkSoft, theme.primary[0], theme.info[0], theme.accent, theme.gold[0]];
 
-/** Outlines a tile with its rarity colour and drops a small corner ribbon. Tier is 0…4. */
-export function rarityFrame(target: GuiObject, tier: number): Color3 {
+/**
+ * Outlines a tile with its rarity colour, tints its fill, adds a rarity chip, a ribbon for epic /
+ * legendary, and the library's rarity effect (halo, twinkles or a light sweep). Tier is 0…4.
+ */
+export function rarityFrame(target: GuiObject, tier: number, chip = false): Color3 {
 	const color = RARITY_COLORS[math.clamp(tier, 0, RARITY_COLORS.size() - 1)]!;
 	const existing = target.FindFirstChildOfClass("UIStroke");
 	if (existing) {
@@ -1414,6 +1457,18 @@ export function rarityFrame(target: GuiObject, tier: number): Color3 {
 		stroke(ribbon, theme.edge, 1.5);
 		ribbon.Parent = target;
 	}
+	if (chip && tier > 0) {
+		// a small rarity chip at the bottom of the tile ("RARE")
+		const label = text(RARITY_NAMES[tier]!.upper(), new UDim2(1, -8, 0, 13), new UDim2(0, 4, 1, -15), target, {
+			size: 10,
+			align: Enum.TextXAlignment.Center,
+			color,
+			outline: math.min(1.5, theme.textOutline),
+			zIndex: target.ZIndex + 4,
+		});
+		label.Name = "Rarity";
+	}
+	rarityEffect(target, tier);
 	return color;
 }
 
@@ -1441,7 +1496,17 @@ export function tabs(labels: string[], size: UDim2, position: UDim2, parent: Ins
 	const width = 1 / count;
 	const buttons: TextButton[] = [];
 	let active = 0;
+	// underline that slides to the active tab
+	const underline = new Instance("Frame");
+	underline.Size = new UDim2(width, -18, 0, 3);
+	underline.Position = new UDim2(0, 9, 1, 1);
+	underline.BackgroundColor3 = theme.accent;
+	underline.BorderSizePixel = 0;
+	underline.ZIndex = 7;
+	corner(underline, 2);
+	underline.Parent = frame;
 	const render = () => {
+		TweenService.Create(underline, new TweenInfo(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position: new UDim2(width * active, 9, 1, 1) }).Play();
 		buttons.forEach((b, i) => {
 			const on = i === active;
 			b.BackgroundColor3 = on ? theme.primary[1] : theme.pill;
@@ -1499,6 +1564,10 @@ export function confirmDialog(title: string, message: string, confirmLabel: stri
 	const scale = new Instance("UIScale");
 	scale.Scale = uiScale();
 	scale.Parent = box;
+	if (theme.motion > 0) {
+		scale.Scale = uiScale() * 0.88;
+		TweenService.Create(scale, new TweenInfo(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale: uiScale() }).Play();
+	}
 	text(title, new UDim2(1, -24, 0, 34), new UDim2(0, 12, 0, 12), box, { size: 24, align: Enum.TextXAlignment.Center, color: theme.textDark, outline: 0, zIndex: 5 });
 	body(message, new UDim2(1, -32, 0, 56), new UDim2(0, 16, 0, 50), box, { size: 15, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, zIndex: 5 });
 	const close = () => gui.Destroy();
@@ -1591,4 +1660,315 @@ export function selectFirst(container: Instance): void {
 			return;
 		}
 	}
+}
+
+// ---------------------------------------------------------------- effects
+
+/**
+ * Every decorative effect goes through the library's `motion` budget: it scales durations and
+ * amplitudes, and at 0 the looping ones never start (a pixel console and a field manual stay still,
+ * candy and kawaii breathe). Effects are frames and tweens only — no assets, no per-frame work when
+ * a screen is closed.
+ */
+export function motion(): number {
+	return theme.motion;
+}
+
+const fxTween = (target: Instance, seconds: number, goal: Record<string, unknown>, style: Enum.EasingStyle = Enum.EasingStyle.Quad): void => {
+	const scale = math.max(0.35, theme.motion);
+	TweenService.Create(target, new TweenInfo(seconds / scale, style, Enum.EasingDirection.Out), goal as never).Play();
+};
+
+/**
+ * Hover / gamepad-selection feedback of the library, for anything (a button, a tile, a card):
+ * `lift` raises it and grows its shadow, `glow` brightens its outline, `tint` lightens the fill,
+ * `outline` draws an accent border, `none` does nothing.
+ */
+export function hoverable(target: GuiObject, opts: { shadow?: Frame; hover?: UiHover } = {}): void {
+	const kind = opts.hover ?? theme.hover;
+	if (kind === "none") return;
+	const home = target.Position;
+	const baseColor = target.BackgroundColor3;
+	const outline = target.FindFirstChildOfClass("UIStroke");
+	const baseThickness = outline ? outline.Thickness : 0;
+	const baseStrokeColor = outline ? outline.Color : theme.edge;
+	let accent: UIStroke | undefined;
+	const enter = () => {
+		if (kind === "lift") {
+			fxTween(target, 0.12, { Position: home.add(new UDim2(0, 0, 0, -3)) }, Enum.EasingStyle.Back);
+			if (opts.shadow) fxTween(opts.shadow, 0.12, { Size: opts.shadow.Size.add(new UDim2(0, 4, 0, 4)) });
+		} else if (kind === "glow" && outline) {
+			fxTween(outline, 0.12, { Thickness: baseThickness + 2, Color: lighten(baseStrokeColor, 0.45) });
+		} else if (kind === "tint") {
+			fxTween(target, 0.12, { BackgroundColor3: lighten(baseColor, 0.16) });
+		} else if (kind === "outline") {
+			if (!accent) {
+				accent = new Instance("UIStroke");
+				accent.Color = theme.accent;
+				accent.Thickness = math.max(2, theme.strokeThickness);
+				accent.Transparency = 1;
+				accent.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+				accent.LineJoinMode = Enum.LineJoinMode.Round;
+				accent.Parent = target;
+			}
+			fxTween(accent, 0.12, { Transparency: 0 });
+		}
+	};
+	const leave = () => {
+		if (kind === "lift") {
+			fxTween(target, 0.14, { Position: home });
+			if (opts.shadow) fxTween(opts.shadow, 0.14, { Size: target.Size });
+		} else if (kind === "glow" && outline) {
+			fxTween(outline, 0.14, { Thickness: baseThickness, Color: baseStrokeColor });
+		} else if (kind === "tint") {
+			fxTween(target, 0.14, { BackgroundColor3: baseColor });
+		} else if (kind === "outline" && accent) {
+			fxTween(accent, 0.14, { Transparency: 1 });
+		}
+	};
+	target.MouseEnter.Connect(enter);
+	target.MouseLeave.Connect(leave);
+	if (target.IsA("GuiButton")) {
+		// the gamepad selection is a hover too
+		target.SelectionGained.Connect(enter);
+		target.SelectionLost.Connect(leave);
+	}
+}
+
+/** Click effect at the cursor: an expanding ring, a little burst of dots, or a full-surface flash. */
+export function clickFx(target: GuiObject, x: number, y: number, kind: UiClickFx = theme.clickFx): void {
+	if (kind === "none" || theme.motion <= 0) return;
+	const at = new Vector2(x - target.AbsolutePosition.X, y - target.AbsolutePosition.Y);
+	if (kind === "flash") {
+		const flash = new Instance("Frame");
+		flash.Size = new UDim2(1, 0, 1, 0);
+		flash.BackgroundColor3 = new Color3(1, 1, 1);
+		flash.BackgroundTransparency = 0.55;
+		flash.BorderSizePixel = 0;
+		flash.ZIndex = target.ZIndex + 6;
+		corner(flash, cornerRadiusOf(target));
+		flash.Parent = target;
+		fxTween(flash, 0.22, { BackgroundTransparency: 1 });
+		task.delay(0.4, () => flash.Destroy());
+		return;
+	}
+	if (kind === "ripple") {
+		const ring = new Instance("Frame");
+		ring.AnchorPoint = new Vector2(0.5, 0.5);
+		ring.Position = new UDim2(0, at.X, 0, at.Y);
+		ring.Size = new UDim2(0, 10, 0, 10);
+		ring.BackgroundTransparency = 1;
+		ring.BorderSizePixel = 0;
+		ring.ZIndex = target.ZIndex + 6;
+		corner(ring, 40);
+		const ink = stroke(ring, theme.accent, 3, 0.15);
+		ring.Parent = target;
+		fxTween(ring, 0.32, { Size: new UDim2(0, 110, 0, 110) });
+		fxTween(ink, 0.32, { Transparency: 1 });
+		task.delay(0.5, () => ring.Destroy());
+		return;
+	}
+	// burst: a handful of dots thrown outwards
+	for (let i = 0; i < 6; i++) {
+		const dot = new Instance("Frame");
+		const size = 5 + math.random(0, 3);
+		dot.AnchorPoint = new Vector2(0.5, 0.5);
+		dot.Position = new UDim2(0, at.X, 0, at.Y);
+		dot.Size = new UDim2(0, size, 0, size);
+		dot.BackgroundColor3 = i % 2 === 0 ? theme.accent : theme.gold[0];
+		dot.BorderSizePixel = 0;
+		dot.ZIndex = target.ZIndex + 6;
+		corner(dot, math.floor(size / 2));
+		dot.Parent = target;
+		const angle = (i / 6) * math.pi * 2 + math.random() * 0.5;
+		const distance = 26 + math.random(0, 14);
+		fxTween(dot, 0.34, {
+			Position: new UDim2(0, at.X + math.cos(angle) * distance, 0, at.Y + math.sin(angle) * distance),
+			BackgroundTransparency: 1,
+			Size: new UDim2(0, 2, 0, 2),
+		});
+		task.delay(0.5, () => dot.Destroy());
+	}
+}
+
+/**
+ * Rarity treatment of a tile: the rarity colour as the outline, a tint of the fill, a small rarity
+ * chip, and the library's `rarityFx` on top — `glow` (a breathing halo for epic+), `sparkle`
+ * (twinkles for legendary), `shine` (a diagonal sweep once in a while), `none`.
+ */
+export function rarityEffect(target: GuiObject, tier: number): void {
+	const color = RARITY_COLORS[math.clamp(tier, 0, RARITY_COLORS.size() - 1)]!;
+	// a tint of the rarity in the fill, stronger with the tier
+	if (tier > 0) gradient(target, lighten(target.BackgroundColor3, 0.05).Lerp(color, 0.1 + tier * 0.05), target.BackgroundColor3);
+	const kind = theme.rarityFx;
+	if (kind === "none" || theme.motion <= 0 || tier < 2) return;
+	if (kind === "glow" && tier >= 3) {
+		const halo = new Instance("UIStroke");
+		halo.Color = color;
+		halo.Thickness = theme.strokeThickness + 3;
+		halo.Transparency = 0.6;
+		halo.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+		halo.LineJoinMode = Enum.LineJoinMode.Round;
+		halo.Parent = target;
+		task.spawn(() => {
+			while (halo.Parent) {
+				fxTween(halo, 0.9, { Transparency: 0.25 });
+				task.wait(1 / math.max(0.4, theme.motion));
+				fxTween(halo, 0.9, { Transparency: 0.75 });
+				task.wait(1 / math.max(0.4, theme.motion));
+			}
+		});
+		return;
+	}
+	if (kind === "sparkle" && tier >= 3) {
+		for (let i = 0; i < 3; i++) {
+			const star = text("✦", new UDim2(0, 14, 0, 14), new UDim2(math.random(15, 85) / 100, -7, math.random(15, 85) / 100, -7), target, {
+				size: 13,
+				align: Enum.TextXAlignment.Center,
+				color,
+				outline: 0,
+				zIndex: target.ZIndex + 5,
+			});
+			star.TextTransparency = 1;
+			task.spawn(() => {
+				task.wait(i * 0.4)
+				while (star.Parent) {
+					fxTween(star, 0.5, { TextTransparency: 0.05, Rotation: 35 });
+					task.wait(0.9 / math.max(0.4, theme.motion));
+					fxTween(star, 0.5, { TextTransparency: 1, Rotation: 0 });
+					task.wait((1.4 + i * 0.3) / math.max(0.4, theme.motion));
+				}
+			});
+		}
+		return;
+	}
+	if (kind === "shine") {
+		// a diagonal light sweep across the tile, repeated slowly
+		const clip = new Instance("Frame");
+		clip.Size = new UDim2(1, 0, 1, 0);
+		clip.BackgroundTransparency = 1;
+		clip.ClipsDescendants = true;
+		clip.ZIndex = target.ZIndex + 4;
+		corner(clip, cornerRadiusOf(target));
+		clip.Parent = target;
+		const beam = new Instance("Frame");
+		beam.Size = new UDim2(0, 26, 2, 0);
+		beam.Position = new UDim2(0, -40, -0.5, 0);
+		beam.BackgroundColor3 = new Color3(1, 1, 1);
+		beam.BackgroundTransparency = 0.72;
+		beam.BorderSizePixel = 0;
+		beam.Rotation = 18;
+		beam.ZIndex = clip.ZIndex;
+		beam.Parent = clip;
+		task.spawn(() => {
+			while (beam.Parent) {
+				beam.Position = new UDim2(0, -40, -0.5, 0);
+				fxTween(beam, 0.8, { Position: new UDim2(1, 40, -0.5, 0) });
+				task.wait((3.2 + tier * -0.4) / math.max(0.4, theme.motion));
+			}
+		});
+	}
+}
+
+/** Counts a number up (or down) in a label — currency, scores, prices. */
+export function tweenNumber(label: TextLabel, from: number, to: number, format?: (value: number) => string): void {
+	const render = format ?? ((v: number) => `${math.floor(v)}`);
+	if (theme.motion <= 0 || math.abs(to - from) < 2) {
+		label.Text = render(to);
+		return;
+	}
+	const steps = math.clamp(math.floor(math.abs(to - from) / 3), 6, 26);
+	task.spawn(() => {
+		for (let i = 1; i <= steps; i++) {
+			if (!label.Parent) return;
+			label.Text = render(from + ((to - from) * i) / steps);
+			task.wait(0.016);
+		}
+		if (label.Parent) label.Text = render(to);
+	});
+}
+
+/** "+25" floating up and fading out — coin gains, score, damage. */
+export function floatText(str: string, parent: GuiObject, color: Color3 = theme.gold[0], position = new UDim2(0.5, -40, 0, -6)): void {
+	if (theme.motion <= 0) return;
+	const l = text(str, new UDim2(0, 80, 0, 24), position, parent, { size: 20, align: Enum.TextXAlignment.Center, color, zIndex: 20 });
+	fxTween(l, 0.75, { Position: position.add(new UDim2(0, 0, 0, -34)), TextTransparency: 1 }, Enum.EasingStyle.Quint);
+	const ink = l.FindFirstChildOfClass("UIStroke");
+	if (ink) fxTween(ink, 0.75, { Transparency: 1 });
+	task.delay(1.1, () => l.Destroy());
+}
+
+/** Moving highlight on a filled bar (progress, countdown, health) + a pulse when it completes. */
+export function barShine(handle: BarHandle): void {
+	if (theme.motion <= 0) return;
+	const beam = new Instance("Frame");
+	beam.Size = new UDim2(0, 18, 1, 0);
+	beam.BackgroundColor3 = new Color3(1, 1, 1);
+	beam.BackgroundTransparency = 0.72;
+	beam.BorderSizePixel = 0;
+	beam.ZIndex = handle.fill.ZIndex + 1;
+	beam.Parent = handle.fill;
+	task.spawn(() => {
+		while (beam.Parent) {
+			beam.Position = new UDim2(0, -20, 0, 0);
+			fxTween(beam, 0.9, { Position: new UDim2(1, 6, 0, 0) });
+			task.wait(2.4 / math.max(0.4, theme.motion));
+		}
+	});
+}
+
+/** Fades and slides the children of a list in, with a small stagger (a screen opening). */
+export function staggerIn(container: Instance): void {
+	if (theme.motion <= 0) return;
+	let index = 0;
+	for (const child of container.GetChildren()) {
+		if (!child.IsA("GuiObject")) continue;
+		const home = child.Position;
+		child.Position = home.add(new UDim2(0, 0, 0, 14));
+		const delay = math.min(0.18, index * 0.03);
+		index += 1;
+		task.delay(delay, () => {
+			if (child.Parent) fxTween(child, 0.22, { Position: home }, Enum.EasingStyle.Back);
+		});
+	}
+}
+
+/** Drawn empty-state illustration (an open crate) for "nothing here yet" cards. */
+export function emptyIllustration(size: number, parent: Instance): Frame {
+	const f = new Instance("Frame");
+	f.Size = new UDim2(0, size, 0, size);
+	f.BackgroundTransparency = 1;
+	f.ZIndex = 6;
+	f.Parent = parent;
+	const crate = new Instance("Frame");
+	crate.Size = new UDim2(0, size * 0.78, 0, size * 0.55);
+	crate.Position = new UDim2(0, size * 0.11, 0, size * 0.4);
+	crate.BackgroundColor3 = theme.inkSoft;
+	crate.BorderSizePixel = 0;
+	crate.ZIndex = 6;
+	corner(crate, math.floor(size * 0.1));
+	stroke(crate, theme.edge, 2);
+	gradient(crate, lighten(theme.inkSoft, 0.2), darken(theme.inkSoft, 0.2));
+	crate.Parent = f;
+	for (const x of [0.3, 0.55]) {
+		const plank = new Instance("Frame");
+		plank.Size = new UDim2(0, 2, 1, -10);
+		plank.Position = new UDim2(x, 0, 0, 5);
+		plank.BackgroundColor3 = darken(theme.inkSoft, 0.35);
+		plank.BorderSizePixel = 0;
+		plank.ZIndex = 7;
+		plank.Parent = crate;
+	}
+	// the open lid, tilted
+	const lid = new Instance("Frame");
+	lid.Size = new UDim2(0, size * 0.62, 0, size * 0.14);
+	lid.Position = new UDim2(0, size * 0.2, 0, size * 0.22);
+	lid.BackgroundColor3 = darken(theme.inkSoft, 0.15);
+	lid.BorderSizePixel = 0;
+	lid.Rotation = -12;
+	lid.ZIndex = 7;
+	corner(lid, 4);
+	stroke(lid, theme.edge, 2);
+	lid.Parent = f;
+	return f;
 }

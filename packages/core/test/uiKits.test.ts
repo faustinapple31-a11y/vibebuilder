@@ -26,7 +26,24 @@ describe("UI kit libraries", () => {
       expect(kit.shape.textScale, kit.id).toBeLessThanOrEqual(1.25);
       expect(["pop", "slide", "fade", "none"], `${kit.id} enter`).toContain(kit.shape.enter);
       expect(["soft", "click", "beep", "pop", "thud", "none"], `${kit.id} sound`).toContain(kit.shape.sound);
+      expect(["lift", "glow", "tint", "outline", "none"], `${kit.id} hover`).toContain(kit.shape.hover);
+      expect(["ripple", "burst", "flash", "none"], `${kit.id} clickFx`).toContain(kit.shape.clickFx);
+      expect(["glow", "sparkle", "shine", "none"], `${kit.id} rarityFx`).toContain(kit.shape.rarityFx);
+      expect(kit.shape.motion, `${kit.id} motion`).toBeGreaterThanOrEqual(0);
+      expect(kit.shape.motion, `${kit.id} motion`).toBeLessThanOrEqual(1.4);
       for (const genre of kit.genres) expect(GENRES.some((g) => g.id === genre), `${kit.id} → ${genre}`).toBe(true);
+    }
+  });
+
+  it("keeps the still libraries still and the playful ones lively", () => {
+    // a pixel console, a field manual and a case file must not breathe; candy and kawaii must
+    const still = ["pixel_retro", "military_stencil", "noir_detective", "grim_horror"];
+    for (const id of still) expect(UI_KIT_INDEX[id]!.shape.motion, id).toBeLessThanOrEqual(0.4);
+    for (const id of ["candy_pop", "kawaii_pastel", "arcade_synth"]) expect(UI_KIT_INDEX[id]!.shape.motion, id).toBeGreaterThanOrEqual(1.2);
+    // a library with no animation budget should not claim a looping rarity effect either
+    for (const kit of UI_KITS) {
+      if (kit.shape.motion > 0) continue;
+      expect(["none", "shine"], `${kit.id} asks for ${kit.shape.rarityFx} with motion 0`).toContain(kit.shape.rarityFx);
     }
   });
 

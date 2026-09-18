@@ -69,6 +69,19 @@ game follows.
   for a sound with no mapping.
 - **textScale**: 0.8–1.25, multiplies every text size. Pixel and condensed fonts want < 1, horror /
   handwritten / serif faces want > 1.
+- **the effect dials** — this is where a library gets its character:
+  - `hover`: `lift` (rises, shadow grows), `glow` (outline brightens), `tint` (fill lightens),
+    `outline` (accent border appears), `none`. Applied to buttons, cards and item tiles, and to the
+    gamepad selection as well.
+  - `clickFx`: `ripple` (expanding accent ring at the cursor), `burst` (dots thrown outwards),
+    `flash` (the surface whitens), `none`.
+  - `rarityFx`: how loudly an item tile shows its tier — `glow` (breathing halo on epic+),
+    `sparkle` (twinkles on legendary), `shine` (slow light sweep), `none`. The rarity colour, the
+    fill tint and the epic/legendary ribbon are applied whatever the value.
+  - `motion`: 0…1.4, the animation budget. It scales every duration and amplitude, **and at 0 the
+    looping effects never start** — that is how a pixel console, a field manual or a case file stays
+    still (a test enforces `motion ≤ 0.4` for those and `≥ 1.2` for candy / kawaii / arcade, and
+    forbids a looping `rarityFx` when `motion` is 0).
 
 ## Making prompts find it
 

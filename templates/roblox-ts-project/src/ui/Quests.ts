@@ -1,7 +1,7 @@
 import { GameConfig } from "shared/config";
 import type { ProfileStateMsg } from "shared/net";
 import { QuestConfig } from "shared/quests";
-import { body, card, coinIcon, panel, progressBar, resourceIcon, sectionHeader, text, textOnGradient, theme, Window } from "./kit";
+import { body, card, coinIcon, emptyIllustration, panel, progressBar, resourceIcon, sectionHeader, text, textOnGradient, theme, Window } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -70,8 +70,10 @@ export class Quests {
 		const done = QuestConfig.quests.filter((q) => this.profile.quests[q.id]?.done === true);
 
 		if (QuestConfig.quests.size() === 0) {
-			const empty = card(60, order++, this.win.body);
-			body(L.noQuest, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
+			const empty = card(108, order++, this.win.body);
+			const crate = emptyIllustration(64, empty);
+			crate.Position = new UDim2(0.5, -32, 0, 6);
+			body(L.noQuest, new UDim2(1, -24, 0, 32), new UDim2(0, 12, 1, -36), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
 			return;
 		}
 

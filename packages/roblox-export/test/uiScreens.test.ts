@@ -112,6 +112,45 @@ describe("UI screens of the template", () => {
     }
   });
 
+  it("renders every hover, click and rarity effect a library asks for", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    for (const h of new Set(UI_KITS.map((k) => k.shape.hover))) {
+      const handled = kit.includes(`kind === "${h}"`) || h === "none";
+      expect(handled, `hover "${h}" has no branch in kit.ts`).toBe(true);
+    }
+    for (const c of new Set(UI_KITS.map((k) => k.shape.clickFx))) {
+      const handled = kit.includes(`kind === "${c}"`) || c === "burst" || c === "none"; // burst is the tail
+      expect(handled, `clickFx "${c}" has no branch in kit.ts`).toBe(true);
+    }
+    for (const r of new Set(UI_KITS.map((k) => k.shape.rarityFx))) {
+      const handled = kit.includes(`kind === "${r}"`) || r === "none";
+      expect(handled, `rarityFx "${r}" has no branch in kit.ts`).toBe(true);
+    }
+    // the motion budget gates every looping effect
+    expect(kit.includes("theme.motion <= 0")).toBe(true);
+    for (const api of ["export function hoverable(", "export function clickFx(", "export function rarityEffect(", "export function tweenNumber(", "export function floatText(", "export function barShine(", "export function staggerIn(", "export function emptyIllustration("]) {
+      expect(kit.includes(api), `kit.ts is missing ${api}`).toBe(true);
+    }
+  });
+
+  it("wires the effects into the screens", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    // buttons: hover + a click effect at the cursor; cards and tiles: hover
+    expect(kit.includes("hoverable(b, { shadow: lastShadow(parent) })")).toBe(true);
+    expect(kit.includes("clickFx(b, input.Position.X, input.Position.Y)")).toBe(true);
+    expect(kit.includes("staggerIn(this.body)"), "a screen should stagger its rows in").toBe(true);
+    // the HUD animates the currency and flashes on damage
+    const hud = TEMPLATE_FILES["src/ui/Hud.ts"]!;
+    expect(hud.includes("tweenNumber(")).toBe(true);
+    expect(hud.includes("floatText(")).toBe(true);
+    expect(hud.includes("damageFlash")).toBe(true);
+    // the tiles of both item screens carry the rarity treatment and react to the cursor
+    for (const path of ["src/ui/Inventory.ts", "src/ui/ShopUi.ts"]) {
+      expect(TEMPLATE_FILES[path]!.includes("rarityFrame("), path).toBe(true);
+      expect(TEMPLATE_FILES[path]!.includes("hoverable("), path).toBe(true);
+    }
+  });
+
   it("ships the widget set the screens (and agents) build on", () => {
     const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
     for (const api of ["export function tabs(", "export function confirmDialog(", "export function input(", "export function stepper(", "export function rarityFrame(", "export function makeSelectable(", "export function selectFirst(", "export function progressBar(", "export function toggle(", "export function slider(", "export const RARITY_COLORS"]) {

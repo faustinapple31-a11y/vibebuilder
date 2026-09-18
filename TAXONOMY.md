@@ -85,8 +85,10 @@ le template et montés par le client uniquement quand le genre les déclare : `h
 un design system complet : jetons de couleur (papier, encre, texte, dégradés primary / gold / danger /
 info, pastilles, tuiles), **langage de forme** (rayon des coins, épaisseur du contour, dégradés oui/non,
 ombre portée, biseau des boutons, contour du texte, transparence des panneaux), polices Roblox,
-**ornement** dessiné sur chaque panneau, **retour des boutons**, **animation d'ouverture** des fenêtres
-et **échelle de texte** (les polices décoratives ont besoin de plus de place). Tous les écrans (HUD, shop,
+**ornement** dessiné sur chaque panneau, **retour des boutons**, **animation d'ouverture** des fenêtres,
+**échelle de texte** (les polices décoratives ont besoin de plus de place), et les **effets** :
+`hover` (lift / glow / tint / outline), `clickFx` (ripple / burst / flash), `rarityFx` (glow / sparkle
+/ shine sur les tuiles d'objets) et `motion` (budget d'animation 0…1,4 ; à 0 rien ne boucle). Tous les écrans (HUD, shop,
 inventaire, quêtes, craft, classement, équipes, manche, réglages, minimap, menu) lisent la librairie
 sélectionnée : changer de look = un champ.
 

@@ -1,6 +1,6 @@
 import { ShopCatalog } from "shared/catalog";
 import type { ProfileStateMsg, ShopState } from "shared/net";
-import { body, card, input, itemIcon, panel, prettyName, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
+import { body, card, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -85,8 +85,10 @@ export class Inventory {
 		resources.sort((a, b) => a.id < b.id);
 		if (this.tab === 0 || this.tab === 1) sectionHeader(L.resources, this.win.body, order++);
 		if (resources.size() === 0 && (this.tab === 0 || this.tab === 1)) {
-			const empty = card(56, order++, this.win.body);
-			body(L.emptyBackpack, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
+			const empty = card(104, order++, this.win.body);
+			const crate = emptyIllustration(64, empty);
+			crate.Position = new UDim2(0.5, -32, 0, 6);
+			body(L.emptyBackpack, new UDim2(1, -24, 0, 30), new UDim2(0, 12, 1, -34), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
 		} else if (resources.size() > 0) {
 			this.tileGrid(resources.map((r) => ({ id: r.id, count: r.count, consumable: false })), order++);
 		}
@@ -169,14 +171,16 @@ export class Inventory {
 			// rarity from the shop price (or the stack size for a raw resource): the library's ramp
 			const price = item?.price ?? 0;
 			const tier = price >= 250 ? 4 : price >= 100 ? 3 : price >= 40 ? 2 : price > 0 ? 1 : entry.count >= 50 ? 2 : entry.count >= 10 ? 1 : 0;
-			rarityFrame(tile, tier);
+			const rarity = rarityFrame(tile, tier);
+			hoverable(tile);
 			const icon = item ? itemIcon(item, 52, tile) : resourceIcon(entry.id, 52, tile);
 			icon.Position = new UDim2(0.5, -26, 0, 14);
 			icon.ZIndex = 6;
 			const count = panel(new UDim2(0, 40, 0, 26), new UDim2(1, -44, 1, -30), tile, { color: theme.pill, strokeColor: theme.pillStroke, radius: 9, shadow: false, zIndex: 7 });
 			text(`${math.floor(entry.count)}`, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), count, { size: 16, align: Enum.TextXAlignment.Center, zIndex: 8, outline: 1.5 });
 			const name = item?.name ?? prettyName(entry.id);
-			body(name, new UDim2(0, TILE + 10, 0, 28), new UDim2(0, col * (TILE + 14) - 1, 0, row * (TILE + 34) + TILE + 2), holder, { size: 13, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, zIndex: 5 });
+			// the name under the tile takes the rarity colour from "rare" up
+			body(name, new UDim2(0, TILE + 10, 0, 28), new UDim2(0, col * (TILE + 14) - 1, 0, row * (TILE + 34) + TILE + 2), holder, { size: 13, align: Enum.TextXAlignment.Center, valign: Enum.TextYAlignment.Top, color: tier >= 2 ? rarity : undefined, zIndex: 5 });
 			tooltip(tile, `${name}  ·  ${RARITY_NAMES[tier]}`, item?.description ?? (entry.consumable ? L.consumable : L.resource), this.win.gui);
 		});
 	}

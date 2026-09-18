@@ -1,6 +1,6 @@
 import { Remotes, waitRemoteEvent, type ProfileStateMsg } from "shared/net";
 import { RecipeConfig, type RecipeDef } from "shared/recipes";
-import { body, button, card, darken, lighten, panel, prettyName, resourceIcon, stroke, text, theme, Window } from "./kit";
+import { body, button, card, darken, emptyIllustration, lighten, panel, prettyName, resourceIcon, stroke, text, theme, Window } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -47,8 +47,10 @@ export class Crafting {
 		this.win.setCoins(this.profile.coins);
 		let order = 0;
 		if (RecipeConfig.recipes.size() === 0) {
-			const empty = card(60, order++, this.win.body);
-			body(L.noRecipe, new UDim2(1, -24, 1, 0), new UDim2(0, 12, 0, 0), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
+			const empty = card(108, order++, this.win.body);
+			const crate = emptyIllustration(64, empty);
+			crate.Position = new UDim2(0.5, -32, 0, 6);
+			body(L.noRecipe, new UDim2(1, -24, 0, 32), new UDim2(0, 12, 1, -36), empty, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 5 });
 			return;
 		}
 		for (const recipe of RecipeConfig.recipes) {
