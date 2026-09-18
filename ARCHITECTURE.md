@@ -1,219 +1,334 @@
 # WorldForge AI — Architecture
 
-> "L'utilisateur décrit son jeu en langage naturel. Les agents IA construisent progressivement le jeu Roblox."
+> « L'utilisateur décrit son jeu en langage naturel. Les agents IA construisent progressivement le jeu Roblox. »
 
-WorldForge AI est une application desktop (Tauri 2 + React + TypeScript + Rust) qui transforme une idée
-en un projet Roblox réel : WorldSpec → monde procédural → projet roblox-ts → Rojo → Roblox Studio → Open Cloud.
+WorldForge AI est une application desktop (Tauri 2 · React 19 · TypeScript · Rust) qui transforme une phrase
+en un projet Roblox réel :
 
-Ce document décrit l'architecture globale. Les sous-systèmes ont chacun leur document :
+```
+prompt → WorldSpec + StyleBible + GameSpec → WorldBake → projet roblox-ts → Rojo → Studio → Open Cloud
+```
+
+Ce document est la **carte du code** : ce que fait chaque partie, ce qu'elle a le droit de savoir des autres,
+et les invariants qui tiennent l'ensemble. Les sous-systèmes ont chacun leur document :
 
 | Document | Sujet |
 |---|---|
-| [WORLD_GENERATION.md](WORLD_GENERATION.md) | WorldSpec, StyleBible, pipeline procédural, prefabs, landmarks |
-| [AGENT_SYSTEM.md](AGENT_SYSTEM.md) | IAgentProvider, providers officiels, orchestrateur, swarm, runtime local |
-| [ROBLOX_PIPELINE.md](ROBLOX_PIPELINE.md) | Projet généré, roblox-ts, Rojo, Studio, Open Cloud, publication |
-| [QUALITY_SYSTEM.md](QUALITY_SYSTEM.md) | Validation, QA loop, Visual Quality Critic, performance |
+| [WORLD_GENERATION.md](WORLD_GENERATION.md) | WorldSpec, StyleBible, pipeline procédural, prefabs, landmarks, composition |
+| [TAXONOMY.md](TAXONOMY.md) | 34 styles × 28 genres, kits, librairies d'UI, détection dans le prompt |
+| [AGENT_SYSTEM.md](AGENT_SYSTEM.md) | IAgentProvider, providers CLI, rôles, orchestrateur, swarm, interpréteur local |
+| [ROBLOX_PIPELINE.md](ROBLOX_PIPELINE.md) | Projet généré, roblox-ts, Rojo, Studio, MCP, Open Cloud |
+| [QUALITY_SYSTEM.md](QUALITY_SYSTEM.md) | Validation, critic visuel, boucle QA, budgets de performance |
 
 ---
 
-## 1. Principes
+## 1. Les cinq principes
 
 1. **Aucune fausse fonctionnalité.** Chaque bouton déclenche une opération réelle. Quand une intégration
-   externe n'est pas disponible (agent non installé, pas de clé Open Cloud), l'UI l'indique et propose
-   l'installation/configuration — jamais une simulation.
-2. **Représentation intermédiaire avant génération.** L'IA ne produit jamais directement des milliers
-   d'objets. Elle produit une `WorldSpec` (JSON validé par schéma Zod). Le générateur procédural déterministe
-   transforme la WorldSpec en `WorldBake` (terrain + placements + prefabs), qui est ensuite exporté vers Roblox.
-3. **TypeScript partout.** Le projet Roblox généré est un projet roblox-ts. Les agents et l'utilisateur éditent
-   des fichiers `.ts`. La compilation TS → Luau est faite par `rbxtsc`, la synchro par Rojo.
-4. **Déterminisme.** `seed + WorldSpec + StyleBible` ⇒ toujours le même `WorldBake`. Cela rend possibles
-   la régénération partielle, les locks, le versioning et la comparaison.
-5. **Offline-first.** Aucun serveur propriétaire. Les projets sont des dossiers locaux + une base SQLite locale.
-   Les credentials restent dans le secure storage de l'OS (Windows Credential Manager / Keychain).
-6. **Modularité.** Monorepo npm workspaces. Chaque package a une responsabilité unique et est testable en Node
-   sans Tauri.
+   externe est indisponible (agent non installé, pas de clé Open Cloud), l'UI le dit et propose de
+   l'installer ou de la configurer — jamais une simulation. Quand une intégration est impossible, on écrit
+   une abstraction propre **et** une implémentation locale qui marche (l'interpréteur local en est
+   l'exemple : il produit une WorldSpec sans aucun agent installé).
+2. **Une représentation intermédiaire avant toute géométrie.** Une IA ne produit jamais directement des
+   milliers d'objets : elle produit un **document JSON validé par un schéma Zod** (WorldSpec, StyleBible,
+   GameSpec). Un générateur déterministe fait le reste. Les schémas sont le contrat : on les étend
+   *avant* le générateur, les prefabs, le template et les agents.
+3. **Déterminisme.** `seed + WorldSpec + StyleBible` ⇒ toujours le même `WorldBake`. C'est ce qui rend
+   possibles la régénération partielle, les locks, le versioning et la comparaison avant/après. Toute
+   aléa passe par `Rng` (xoshiro128\*\*) et une graine dérivée par étape (`deriveSeed(seed, "vegetation")`).
+4. **TypeScript partout.** Le jeu généré est un projet roblox-ts ; agents et humains éditent du `.ts`.
+   Personne n'écrit de Luau à la main : `rbxtsc` compile, Rojo synchronise.
+5. **Offline-first, sans serveur propriétaire.** Les projets sont des dossiers locaux plus une base SQLite
+   locale. Les secrets restent dans le trousseau de l'OS et ne traversent jamais le webview.
 
 ---
 
-## 2. Topologie du monorepo
+## 2. Topologie
 
 ```
 vibebuilder/
-├── apps/
-│   └── desktop/                 # Application Tauri 2 (React + Rust)
-│       ├── src/                 # Frontend React/TS
-│       │   ├── app/             # Shell, routing, layout (sidebar, header, agent panel)
-│       │   ├── components/ui/   # Primitives UI (shadcn-like, Tailwind)
-│       │   ├── features/        # Écrans : home, projects, worlds, assets, workshop, agents, roblox, settings, onboarding
-│       │   ├── stores/          # Zustand stores (projects, agents, world, roblox, settings, onboarding)
-│       │   ├── services/        # Pont Tauri : fs, process, db, secrets, tools, studio, opencloud
-│       │   └── viewer/          # World Viewer Three.js / React Three Fiber
-│       └── src-tauri/           # Backend Rust
-│           └── src/commands/    # tools.rs, process.rs, secrets.rs, studio.rs, opencloud.rs, capture.rs, fs.rs
-├── packages/
-│   ├── core/                    # @worldforge/core — schémas Zod (WorldSpec, StyleBible, GameSpec, Project), PartList, RNG, ids
-│   ├── world-gen/               # @worldforge/world-gen — générateur procédural (heightmap, biomes, rivières, routes, landmarks, placement, bake)
-│   ├── prefabs/                 # @worldforge/prefabs — constructeurs procéduraux de PartList (arbres, rochers, maisons, ruines, props)
-│   ├── quality/                 # @worldforge/quality — critic (règles), scoring, propositions de corrections, budgets perf
-│   ├── roblox-export/           # @worldforge/roblox-export — WorldBake → fichiers projet roblox-ts + Rojo, writer .rbxmx, encodeurs
-│   ├── roblox-cloud/            # @worldforge/roblox-cloud — client Open Cloud (fetch injectable)
-│   └── agents/                  # @worldforge/agents — IAgentProvider, providers, orchestrateur, rôles, prompts, interpréteur local
-├── templates/
-│   └── roblox-ts-project/       # Template du projet Roblox généré (package.json, tsconfig, default.project.json, src/…)
-├── scripts/
-│   └── demo-moonlit.ts          # Démo "Moonlit Forest Village" en ligne de commande
-└── *.md                         # Docs d'architecture
+├── apps/desktop/                 application Tauri (React + Rust)
+├── packages/                     9 packages TypeScript purs, testables en Node
+├── templates/roblox-ts-project/  le projet dont part chaque jeu généré
+├── scripts/                      outils en ligne de commande (sync, démo, audit, previews)
+├── .claude/skills/               procédures pour un agent qui travaille *sur* WorldForge
+└── *.md                          docs d'architecture
 ```
 
-Tous les packages sont du TypeScript pur, sans dépendance à Tauri, pour être utilisables :
-- dans le webview (génération dans l'app),
-- en Node (CLI, tests Vitest, scripts de démo),
-- par les agents (ils lisent les schémas et docs dans le repo).
+### Graphe de dépendances des packages
+
+```
+                         ┌───────────┐
+                         │   core    │  schémas Zod · PartList · RNG · taxonomie · bake
+                         └─────┬─────┘
+          ┌──────────┬─────────┼──────────┬───────────┬────────────┐
+          ▼          ▼         ▼          ▼           ▼            ▼
+      prefabs    textures  roblox-  roblox-cloud  ai-providers   (app)
+          │                 export        (aucune dépendance interne)
+          ▼                    ▲
+      world-gen ───────────────┤
+          │                    │
+          ▼                    │
+       quality                 │
+          │                    │
+          └──────► agents ─────┘
+```
+
+Règles qui tiennent ce graphe :
+
+- **`core` ne dépend de rien** d'autre que `zod`. Tout ce qui est partagé par deux packages y remonte.
+- **Aucun package ne dépend de Tauri.** Ils tournent dans le webview, en Node (tests, scripts, CI) et
+  sont lisibles par un agent qui ouvre le repo. Les E/S et le réseau sont **injectés** (`AiTransport`,
+  `CloudTransport`) plutôt qu'importés.
+- **Le sens des flèches n'est jamais inversé.** `world-gen` ne connaît pas l'exporteur ; `quality`
+  observe un bake mais ne le fabrique pas ; `agents` orchestre et ne contient aucune géométrie.
+
+| Package | Responsabilité | Points d'entrée |
+|---|---|---|
+| `@worldforge/core` | Les contrats : `WorldSpecSchema`, `StyleBibleSchema`, `GameSpecSchema`, les manifestes et le projet ; le format d'asset `PartList` (`Part`, `PrefabVariant`, `MeshData`) ; `WorldBake` + (dé)sérialisation base64 ; la taxonomie (styles, genres, kits, librairies d'UI, chaînes localisées) ; `Rng`, maths, couleurs, ids | `WorldSpecSchema`, `PartListBuilder` types, `serializeBake`, `STYLE_FAMILIES`, `GENRES`, `UI_KITS` |
+| `@worldforge/prefabs` | Constructeurs procéduraux de `PartList` : végétation, rochers, architecture (avec intérieurs), props par kit, landmarks, habillage, ponts d'île ; la bibliothèque de meshes procéduraux ; le registre qui associe un id à un constructeur, un nombre de variantes, un budget de parts et des **tags** que le générateur interprète | `PREFAB_DEFINITIONS`, `buildPrefabLibrary`, `PartListBuilder`, `buildMeshLibrary` |
+| `@worldforge/world-gen` | Le générateur déterministe : un `GenContext` (grilles + structures) traversé par des étapes pures. Bruit, grilles, A\*, budgets | `generateWorld`, `regenerateLayers`, `requiredPrefabs`, `GEN_LAYERS` |
+| `@worldforge/quality` | Le critic : métriques sur un `WorldBake` → scores /10 par axe, problèmes, correctifs applicables (`spec_patch`, `regenerate`) ; lecture des diagnostics `rbxtsc` et des logs Studio ; contrôles avant publication | `critiqueBake`, `applyFixes`, `parseRbxtscOutput`, `validateBakeForPublish` |
+| `@worldforge/roblox-export` | `WorldBake` → fichiers d'un projet roblox-ts : scaffolding depuis le template embarqué, `WorldBake.json`, `default.project.json` Rojo, `.rbxmx`, fichiers de jeu générés depuis la GameSpec, librairies d'UI générées, export `.obj` des meshes | `scaffoldProjectFiles`, `exportWorldFiles`, `buildGameFiles`, `TEMPLATE_FILES` |
+| `@worldforge/roblox-cloud` | Client Open Cloud (publication de place, Assets API, passes et produits) avec **transport injecté** | `OpenCloudClient`, `fetchTransport` |
+| `@worldforge/agents` | `IAgentProvider` et les providers CLI officiels (Claude Code, Codex, OpenCode, Gemini CLI, Antigravity) ; rôles, prompts, orchestrateur ; client MCP + pont Studio ; **interpréteur local** prompt → WorldSpec sans IA | `streamProcess`, `planNewGame`, `interpretPrompt`, `StudioMcp` |
+| `@worldforge/ai-providers` | Génération d'assets (image, mesh, audio) derrière une interface commune, transport injecté | `GeminiImageProvider`, `MeshyMeshProvider`, `ElevenLabsProvider` |
+| `@worldforge/textures` | Textures tuilables procédurales (14 programmes), encodeur PNG sans dépendance, manifeste, MaterialVariants | `generateTextureSet`, `encodePng`, `buildMaterialModelFiles` |
 
 ---
 
-## 3. Vue d'ensemble des flux
+## 3. Les contrats de données
+
+Quatre documents, chacun avec un schéma Zod dans `packages/core/src/schemas/`, un cycle de vie et un
+propriétaire clair.
+
+| Document | Écrit par | Lu par | Vit dans |
+|---|---|---|---|
+| **WorldSpec** | l'interpréteur local ou le rôle *world* | le générateur, le critic, le viewer | `worlds/<w>/world.spec.json` |
+| **StyleBible** | la taxonomie (style → bible), le rôle *vision* depuis une image | le générateur, les prefabs, l'éclairage, l'UI | `worlds/<w>/style.bible.json` |
+| **GameSpec** | le rôle *design* | l'exporteur (`buildGameFiles`), les systèmes du template | `design/game.spec.json` |
+| **WorldBake** | le générateur (jamais un humain, jamais une IA) | le viewer, l'exporteur, le critic, le runtime | `assets/world/WorldBake.json` |
+
+Le WorldBake est le seul artefact **entièrement dérivé** : il se régénère, ne se corrige pas. Quand le critic
+veut changer quelque chose, il propose un patch sur la **spec**, pas sur le bake — c'est ce qui garde la boucle
+qualité réversible et rejouable.
 
 ```
-                       ┌──────────────────────────────────────────────────────────────┐
-                       │                        Desktop App (Tauri)                    │
-                       │                                                              │
-  Prompt utilisateur ──► Agent Orchestrator ──► Rôles (design/world/asset/gameplay/ui/audio/qa) │
-                       │        │                       │                             │
-                       │        │  écrit / valide       ▼                             │
-                       │        │             worlds/<w>/world.spec.json (WorldSpec)  │
-                       │        │                       │                             │
-                       │        │                       ▼                             │
-                       │        │             World Generator (déterministe)          │
-                       │        │                       │                             │
-                       │        │                       ▼                             │
-                       │        │             WorldBake (terrain, prefabs, placements)│
-                       │        │                  │             │                    │
-                       │        │                  ▼             ▼                    │
-                       │        │       World Viewer (3D)   Roblox Export             │
-                       │        │                                │                    │
-                       │        │                                ▼                    │
-                       │        │       project/assets/world/WorldBake.json           │
-                       │        │       project/src/**/*.ts (roblox-ts)               │
-                       │        │                                │                    │
-                       │        ▼                                ▼                    │
-                       │   QA loop ◄────── logs/screens ◄── rbxtsc → Rojo build/serve → Studio
-                       │        │                                                     │
-                       │        ▼                                                     │
-                       │   Open Cloud publish (place version) ◄── .rbxl               │
-                       └──────────────────────────────────────────────────────────────┘
+WorldSpec ──┐
+            ├─► generateWorld(seed) ─► WorldBake ─► exportWorldFiles ─► projet
+StyleBible ─┘        ▲                    │
+                     │                    ▼
+                     └──── spec_patch ── critiqueBake
 ```
+
+### Le format d'asset : PartList
+
+Un prefab n'est ni un fichier ni un asset Roblox : c'est une **liste de parts** décrites en données
+(`shape`, `position`, `rotation`, `size`, `color`, `material`, `lod`, `collide`, plus lumière, effet,
+billboard ou mesh procédural). Le même document est rendu par trois consommateurs :
+
+- le **runtime Roblox** (`src/world/WorldBuilder.ts`) qui instancie des `Part` / `MeshPart`,
+- le **viewer R3F** de l'app, qui en fait des `InstancedMesh`,
+- l'**exporteur**, qui écrit du `.rbxmx` et du `.obj`.
+
+Un prefab est **connecté par construction** : `PartListBuilder` expose des primitives (`segment`, `beam`,
+`chain`, `gableRoof`…) qui posent des parts *entre deux points*, si bien qu'aucune inclinaison ou variation
+aléatoire ne peut désolidariser un modèle. Un test le vérifie pour chaque prefab dans chacun des 34 styles.
 
 ---
 
-## 4. Modèle de données
+## 4. Le générateur de monde
 
-### Base SQLite locale (`<app-data>/worldforge.db`)
+`generateWorld(spec, style, options)` construit un `GenContext` — des grilles (`heights`, `moisture`,
+`water`, `materials`, `biomes`, `roadDistance`, `waterDistance`) et des structures (`sites`, `landmarks`,
+`paths`, `zones`, `placements`, `occupants`, `spawn`) — puis le fait traverser des étapes qui n'ont le droit
+que de lire ce que les précédentes ont écrit.
 
-| Table | Rôle |
+```
+terrain ─ eau ─ biomes ─ sites ─ landmarks ─ spawn ─ routes ─ bâtiments ─ habillage ─ layout ─
+relief ─ végétation ─ props ─ détail ─ éclairage ─ [snap] ─ [sol en parts] ─ budgets ─ WorldBake
+```
+
+L'ordre est un contrat : les routes ont besoin des landmarks, l'habillage a besoin des routes, la végétation
+a besoin de tout ce qui occupe le sol. Chaque étape publie ses **occupants** pour que les suivantes s'en
+écartent. Le détail (`pipeline/detail.ts`) passe en dernier parce qu'il habille ce que les autres ont laissé.
+
+Deux invariants transversaux, tous deux gardés par un test :
+
+- **rien ne pend dans le vide.** Tout placement dispersé passe par `settleOnGround`, qui mesure chaque
+  cellule du heightmap que touche son disque de base — un anneau d'échantillons passe à côté de la cellule
+  située une terrasse plus bas — puis s'écarte du vide ou renonce.
+- **le sol dessiné est le sol mesuré.** En mode « parts » le terrain est bâti en dalles quantifiées ;
+  `snapHeightsToLevels` remet le heightmap sur ces niveaux juste avant l'ancrage, sans quoi tout ce que les
+  étapes tardives ont nivelé se retrouve à une demi-marche du sol réel.
+
+Le mode de sol (`terrain.groundMode`) décide de la nature du monde : `parts` (par défaut) construit des
+terrasses en blocs avec falaises, escaliers et éboulis ; `voxels` écrit un vrai terrain Roblox au runtime.
+Les deux produisent le même `WorldBake` — seule la façon de le bâtir change.
+
+**Régénération partielle.** `regenerateLayers(spec, style, previous, layers)` rejoue certaines couches et
+hérite des autres. Ce qu'une étape reconstruit systématiquement (ponts, escaliers, éboulis, sol en parts,
+passe de détail) est marqué `isGroundwork` et jamais hérité : sans cela une régénération laisse deux copies.
+
+---
+
+## 5. L'application desktop
+
+### Frontend (`apps/desktop/src`)
+
+| Zone | Contenu |
 |---|---|
-| `projects` | id, name, path, thumbnail, created_at, updated_at, last_build_at, last_publish_at, roblox_universe_id, roblox_place_id, settings(json) |
-| `world_versions` | id, project_id, world_id, version (v0.1…), parent_version_id, spec(json), stats(json), score, created_at, label |
-| `prompt_history` | id, project_id, role, provider, prompt, response_summary, created_at |
-| `agent_runs` | id, project_id, provider, role, status, started_at, ended_at, usage(json), log_path |
-| `build_runs` | id, project_id, kind(build/test/publish), status, report(json), started_at, ended_at |
-| `assets` | registre local (id, name, category, subcategory, style, biome, rarity, bbox, tags, source, license, thumbnail, file_path) |
-| `settings` | key/value (non secret) |
+| `app/Workspace.tsx` | le shell : navigation, en-tête (projet, statut Studio / build / publication), panneau d'agents |
+| `features/` | `home` (projets, onboarding), `swarm` (agents), `workshop` (prompt → monde), `world`, `viewer` (R3F), `assets` (textures, meshes, hero meshes), `game` (GameSpec, UI, monétisation), `roblox` (build, Studio, publication), `toolbox`, `settings` |
+| `stores/` | Zustand : `projectStore`, `worldStore` (spec, bake, locks, versions), `agentStore`, `gameStore`, `robloxStore`, `settingsStore` |
+| `lib/` | le pont vers Tauri (`tauri.ts`, `files.ts`, `db.ts`), le lancement d'agents (`runner.ts`, `agents.ts`), la génération (`worldGen.ts` + `worldWorker.ts`), les assets (`textures.ts`, `meshAssets.ts`, `proceduralMeshes.ts`), la mise à niveau de template |
 
-Les secrets (clés Open Cloud, clés providers image/mesh/audio) sont dans le secure storage OS via le crate `keyring`.
+La génération tourne dans un **Web Worker** (`worldWorker.ts`) : un monde de 30 000 placements prend
+plusieurs secondes et l'UI doit rester vivante, avec une barre de progression alimentée par le
+`onProgress` du générateur.
 
-### Projet sur disque
+### Backend Rust (`apps/desktop/src-tauri/src/commands/`)
+
+| Module | Rôle |
+|---|---|
+| `tools` | détection (OS, RAM, virtualisation, Studio, Node, Git, rbxtsc, Rojo, Docker, WSL, agents) et installation guidée |
+| `process` | processus longs avec stdout/stderr streamés par événements, stdin, kill, liste |
+| `fs` | lecture/écriture texte et binaire (base64), parcours, copie — bornées aux dossiers de l'app et du projet |
+| `secrets` | trousseau de l'OS (`keyring`) : `secret_set/get/exists/delete`, plus `.env` local et configuration d'environnement |
+| `opencloud` / `ai` | **proxys HTTP authentifiés** : la clé est lue côté Rust et attachée à la requête ; le webview ne la voit jamais |
+| `studio` | localisation de Studio, ouverture d'une place, installation du plugin Rojo, lecture des logs |
+| `capture` | capture de la fenêtre Studio en PNG (QA visuelle) |
+| `public` | téléchargements sortants contrôlés |
+
+La frontière est nette : **tout ce qui touche à un secret, à un processus ou au disque hors projet est en
+Rust**. Le frontend ne fait que demander.
+
+### Données locales
+
+- SQLite (`worldforge.db`, plugin `tauri-plugin-sql`) : `projects`, `world_versions`, `prompt_history`,
+  `agent_runs`, `build_runs`.
+- Secrets : trousseau de l'OS, jamais la base, jamais le projet.
+- Tout le reste vit **dans le dossier du projet**, en fichiers lisibles — un projet WorldForge reste
+  utilisable sans WorldForge.
+
+---
+
+## 6. Le projet généré
 
 ```
 <project>/
-├── worldforge.json              # métadonnées du projet WorldForge (id, style, world courant, locks)
-├── package.json                 # roblox-ts + @rbxts/types
-├── tsconfig.json
-├── default.project.json         # Rojo
+├── worldforge.json           métadonnées WorldForge (style, monde courant, locks)
+├── default.project.json      Rojo
 ├── src/
-│   ├── client/                  # StarterPlayerScripts (roblox-ts)
-│   ├── server/                  # ServerScriptService
-│   ├── shared/                  # ReplicatedStorage
-│   ├── world/                   # WorldBuilder, décodeurs, LOD, streaming
-│   ├── systems/                 # gameplay (currency, inventory, survival, quests…)
-│   └── ui/                      # UI Roblox (HUD, inventory, shop…)
-├── assets/
-│   ├── world/WorldBake.json     # bake courant (→ ModuleScript via Rojo)
-│   ├── models/                  # .rbxmx des prefabs (asset browser / insertion Studio)
-│   └── audio/, images/          # sorties des providers IA
-├── worlds/
-│   └── main/
-│       ├── world.spec.json      # WorldSpec (source de vérité)
-│       ├── style.bible.json     # StyleBible
-│       └── versions/            # snapshots v0.1.json, v0.2.json…
-├── design/
-│   ├── game.spec.json           # GameSpec (Design Agent)
-│   └── asset.manifest.json      # AssetManifest (Asset Agent)
-└── out/                         # Luau compilé par rbxtsc (ignoré par git)
+│   ├── server/ client/       bootstrap serveur et client
+│   ├── shared/               config, remotes typés, zones, catalogue, quêtes, recettes, décodeurs
+│   ├── world/                WorldBuilder (terrain, prefabs, éclairage, zones, spawn)
+│   ├── systems/              18 systèmes serveur (PlayerData, Survival, Combat, Economy, Tycoon, Rounds…)
+│   └── ui/                   kit + 26 librairies générées + 11 écrans (HUD, boutique, inventaire, minimap…)
+├── assets/world/WorldBake.json
+├── worlds/main/{world.spec,style.bible}.json
+├── design/game.spec.json
+└── .claude/skills/           7 procédures pour l'agent qui travaillera *dans* ce jeu
 ```
 
+Deux règles structurent le runtime :
+
+- **serveur autoritaire** : monnaie, dégâts, achats et progression vivent dans `src/systems/*` ; un
+  LocalScript ne peut que *demander*, via les remotes typés de `src/shared/net.ts` ;
+- **tout ce qui est généré est marqué comme tel** : `config.ts`, `catalog.ts`, `kits.generated.ts`…
+  viennent de la GameSpec et de la taxonomie, et une régénération les réécrit.
+
+Le template vit dans `templates/roblox-ts-project/` et est **embarqué** dans l'exporteur par
+`scripts/sync-template.ts` (fichier `template-files.generated.ts`, retours à la ligne normalisés en LF).
+Un test compare chaque fichier embarqué à celui du disque : le template et l'exporteur ne peuvent pas diverger.
+
 ---
 
-## 5. Backend Rust (Tauri)
+## 7. Les agents
 
-Commandes exposées (`invoke`) :
+Un agent est un **CLI officiel déjà installé sur la machine**, lancé avec le compte de l'utilisateur, dans
+le dossier du projet : Claude Code, Codex, OpenCode, Gemini CLI, Antigravity. `IAgentProvider` normalise le
+lancement, le streaming, les modèles, les niveaux d'effort et les permissions ; l'orchestrateur enchaîne des
+**rôles** (design → world → asset → gameplay → ui → audio → qa → integration, plus vision et chat) dont
+chacun a un prompt, un schéma de sortie attendu et une politique de retry.
 
-| Module | Commandes |
+Aucun agent n'est requis pour que l'application fonctionne : `LocalRulesProvider` et `interpretPrompt`
+transforment une phrase en WorldSpec par règles (détection du style, du genre, des features de terrain, des
+landmarks, des peuplements), instantanément et hors ligne. C'est le chemin par défaut, et le filet quand un
+agent renvoie un JSON invalide.
+
+Le pont **MCP** (`packages/agents/src/mcp/`) parle à Roblox Studio : exécution de Luau dans les modèles de
+données Edit / Server / Client, lecture de l'arbre, déploiement — c'est ce qui rend la boucle QA capable de
+vérifier dans le vrai moteur.
+
+---
+
+## 8. Outils en ligne de commande
+
+Tout ce qui juge le produit doit être exécutable sans l'interface.
+
+| Script | Rôle |
 |---|---|
-| `tools` | `detect_tools` (OS, RAM, virtualisation, Studio, Node, Git, rbxtsc, Rojo, Docker, WSL, agents), `install_tool` (Rojo via release GitHub, roblox-ts via npm) |
-| `process` | `spawn_process` (stream stdout/stderr par événements `process://<id>`), `write_stdin`, `kill_process`, `run_command` (one-shot) |
-| `secrets` | `secret_set`, `secret_get`, `secret_delete`, `secret_exists` (keyring OS) |
-| `studio` | `find_studio`, `open_place_in_studio`, `install_rojo_plugin`, `read_studio_log`, `list_studio_logs` |
-| `opencloud` | `oc_request` (proxy HTTP authentifié, clé lue depuis keyring, jamais exposée au webview) |
-| `capture` | `capture_window` (screenshot fenêtre Studio → PNG) |
-| `fs` | `read_text`, `write_text`, `list_dir`, `exists`, `mkdirp`, `remove`, `copy_dir`, `app_paths` |
+| `scripts/sync-template.ts` | régénère les librairies d'UI et réembarque le template dans l'exporteur — **après toute modification sous `templates/`** |
+| `scripts/demo-prompt.ts "<prompt>"` | prompt → projet complet dans `demo-output/`, avec genre, style, layout et score détectés |
+| `scripts/demo-moonlit.ts` | la scène de référence « Moonlit Forest Village », branchée sur `npm run demo` |
+| `scripts/audit-maps.ts` | panel de 12 prompts : score du critic, répartition des plans, relief, végétation, parts, plaintes groupées **et** les défauts géométriques que le critic ne voit pas |
+| `scripts/preview-map.ts` | rend un monde en PNG depuis quatre caméras (rasteriseur logiciel : z-buffer, géométrie réelle des prefabs, couleurs et brouillard du bake) |
+| `scripts/preview-ui-kits.ts` | planche de contact des 26 librairies d'UI |
 
-Plugins Tauri : `shell` (open URL), `dialog`, `sql` (SQLite + migrations), `opener`.
-
-Sécurité : les processus agents sont lancés avec `cwd = projet`, environnement filtré, et un `permissionMode`
-par provider ; les clés API ne transitent jamais par le frontend (proxy Open Cloud côté Rust).
+Les deux derniers existent pour la même raison : **un score ne montre pas un désert vert, une lanterne noire
+ou une rangée de props identiques.** Une modification du générateur ou d'une librairie d'UI se juge sur des
+chiffres *et* sur une image.
 
 ---
 
-## 6. Frontend
+## 9. Tests
 
-- **Layout** : sidebar gauche (Home, Projects, Worlds, Assets, Visual Workshop, Agents, Roblox, Settings),
-  header (nom projet, statut Roblox/Studio/Build, bouton Publish), zone centrale, panneau Agent à droite
-  (chat + activité des agents).
-- **Stores Zustand** : `projectStore`, `worldStore` (spec, bake, locks, versions), `agentStore` (providers,
-  sessions, activité), `robloxStore` (studio, rojo serve, build, publish), `settingsStore`, `onboardingStore`.
-- **World Viewer** (R3F) : terrain (mesh depuis heightmap), eau, InstancedMesh par variante de prefab,
-  calques (Terrain/Water/Buildings/Vegetation/Props/NPCs/Lighting), caméras (orbit, fly, top, first-person),
-  sélection, wireframe, couleurs de biomes, preview lighting/fog.
-- **Visual Workshop** : prompt + image de référence + preset de style + sliders (terrain, végétation,
-  bâtiments, props, fog, lighting, couleur, densité, échelle, randomness) + boutons GENERATE / REGENERATE
-  (total ou par couche) + locks.
+18 fichiers, ~116 cas, tous en Node sans Tauri ni Roblox.
 
----
-
-## 7. Risques techniques identifiés
-
-| Risque | Mitigation |
+| Nature | Ce qui est gardé |
 |---|---|
-| Terrain Roblox non exprimable via Rojo (voxels) | Terrain construit au runtime par `Terrain:WriteVoxels` à partir d'un heightmap encodé (base64) ; option "Bake to place" via MCP/`run_code` |
-| Trop d'Instances (perf) | Budgets par catégorie, LOD/culling, StreamingEnabled, prefabs partagés clonés, pas d'objets < seuil visuel |
-| Limites Luau sur tables constantes | Données encodées en strings base64 + décodage `buffer` côté Luau |
-| Agents CLI absents / non authentifiés | Détection + auth guidée ; interpréteur local règle-based pour Prompt→WorldSpec afin que la génération de monde fonctionne sans agent |
-| Antigravity sans CLI headless | Provider "ouvre le projet dans Antigravity" + Gemini CLI comme provider headless Google |
-| Open Cloud : endpoints en évolution | Client isolé (`@worldforge/roblox-cloud`), versions d'API centralisées |
-| Screenshot Studio (QA visuelle) | Capture de fenêtre native (crate `xcap`) ; le critic fonctionne aussi sans image via métriques du bake |
-| Windows sans WSL | Runtime `host` isolé par dossier + permissions agents ; runtime `docker` réel si Docker présent |
+| Contrats | taxonomie complète (chaque style × genre résout un kit, une bible, une librairie d'UI), aller-retour de sérialisation d'un bake, primitives PartList |
+| Construction | **connectivité de chaque prefab dans les 34 styles** — aucune part détachée |
+| Génération | bake déterministe et complet, régénération partielle sans doublon d'id, ancrage au sol, passe de détail, archétypes de layout par style |
+| Sortie | fichiers de jeu depuis une GameSpec, écrans d'UI, mise à niveau de template, **synchronisation template ↔ exporteur** |
+| Qualité | le critic ne se plaint ni d'une forêt complète ni d'un monde stérile, et se plaint encore d'une forêt à qui on a demandé des arbres |
+| Intégrations | Open Cloud et providers d'assets avec transport simulé |
+
+La règle : **un défaut trouvé à la main devient un test.** Les invariants du générateur (rien ne pend,
+le heightmap est sur les niveaux, aucun id dupliqué) sont nés de bugs réels.
 
 ---
 
-## 8. Phases
+## 10. Sécurité et limites
 
-1. **Fondations** : monorepo, core schémas, Tauri shell, DB, détection outils, onboarding.
-2. **Project Manager** : création/ouverture de projets, scaffolding roblox-ts + Rojo, build.
-3. **Agent Orchestrator** : providers Claude Code / Codex / OpenCode / Gemini CLI, sessions streamées, rôles, swarm.
-4. **WorldSpec + World Generator** : pipeline complet, prefabs, bake, viewer 3D.
-5. **Roblox Export + Studio** : WorldBuilder runtime, Rojo build/serve, ouverture Studio, logs.
-6. **Quality** : critic, QA loop, corrections automatiques.
-7. **Open Cloud** : auth, publication, produits.
-8. **Génération IA (image/mesh/audio)** : providers configurables.
-9. **Polish UI** + démo "Moonlit Forest Village".
+| Sujet | Position |
+|---|---|
+| Clés API, jetons Open Cloud | trousseau de l'OS, proxy Rust ; jamais dans le repo, les logs, la base ou le webview |
+| Contenu | procédural ou CC0 uniquement ; aucun code, asset ou logo propriétaire |
+| Processus agents | `cwd` = le projet, environnement filtré, `permissionMode` par agent |
+| Nombre d'Instances | budgets par catégorie et plafond de parts, LOD, prefabs partagés clonés ; au-delà de ~45 k parts Studio devient pénible |
+| Tables constantes Luau | données encodées en base64, décodées avec `buffer` côté Luau |
+| EditableMesh côté client | budget de 6 à 8 ; les meshes par variante sont interdits tant que les assets ne sont pas publiés |
+| Terrain voxel non exprimable en Rojo | écrit au runtime depuis le heightmap encodé |
+| Endpoints Open Cloud mouvants | isolés dans un seul package, versions centralisées |
+
+---
+
+## 11. Ajouter quelque chose
+
+Le repo décrit ses propres procédures dans `.claude/skills/` — un agent (ou un humain) lit la skill avant de
+toucher au code :
+
+| Skill | Quand |
+|---|---|
+| `add-style` | un nouveau look (palette, kits, éclairage, mots-clés) |
+| `add-genre` | un nouveau type de jeu (systèmes, archétype de layout, écrans, monétisation) |
+| `add-prefab` | un prop, un bâtiment, un landmark, un kit de murs |
+| `add-ui-kit` | une librairie d'interface |
+| `map-quality` | améliorer ou déboguer la génération de map |
+| `studio-verify` | vérifier dans le vrai Studio, en headless |
+| `release` | finir proprement : sync, typecheck, tests, projet de démo compilé, docs, commit |
+
+Le fil commun : **on part du schéma**, puis le générateur, les prefabs, le template, l'interpréteur, les
+agents, les docs — dans cet ordre, parce que c'est le sens des dépendances.

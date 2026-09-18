@@ -126,9 +126,16 @@ packages/roblox-export  template roblox-ts + Rojo, export WorldBake, writer .rbx
 packages/roblox-cloud   client Open Cloud
 packages/agents         IAgentProvider, providers CLI, interpréteur local, rôles, orchestrateur, client MCP + bridge Studio
 packages/ai-providers   ImageProvider / MeshProvider / AudioProvider (Gemini, Meshy, ElevenLabs)
+packages/textures       textures tuilables procédurales (14 programmes), encodeur PNG, MaterialVariants
 apps/desktop            Tauri 2 : Rust (process, keyring, fs, Studio, proxies HTTP, capture) + React (stores Zustand, viewer R3F, écrans)
 templates/roblox-ts-project   projet Roblox généré (WorldBuilder runtime, systèmes, HUD)
+scripts/                outils CLI : sync-template, demo-prompt, audit-maps, preview-map, preview-ui-kits
 ```
+
+Les deux outils de revue tournent sans l'interface et sans Studio :
+`npx tsx scripts/audit-maps.ts` mesure un panel de 12 mondes (scores du critic, composition, relief,
+défauts géométriques) et `npx tsx scripts/preview-map.ts "<prompt>"` rend le monde en PNG depuis quatre
+caméras. Un changement du générateur se juge sur les deux.
 
 ## Démo : Moonlit Forest Village
 
