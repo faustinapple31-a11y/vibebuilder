@@ -155,11 +155,15 @@ export function generateBiomes(ctx: GenContext): void {
         // cliff faces read as bedded rock: material bands by height (wobbled by noise), darker on the steepest faces
         const band = Math.floor((hAbs + detail * 6) / 9) % 3;
         mat = s > 0.85 && detail > 0.25 ? "Basalt" : band === 0 ? "Rock" : band === 1 ? "Slate" : arctic ? "Rock" : "Limestone";
+        // snow does lie on a slope: on a snowy or tundra summit only the sheer faces stay bare rock,
+        // otherwise a "montagne enneigée" turns back into a grey mountain the moment it gets steep
+        if ((b.id === "snow" || b.id === "tundra") && s < 0.82) mat = detail > -0.3 ? "Snow" : "Ice";
         if (mat === "Limestone" && (ctx.style.id === "alien_planet" || ctx.style.kits.biomes.includes("volcanic"))) mat = "Basalt";
       }
-      else if (s > 0.45 && detail > 0.3 && !ctx.cliffMaterial) mat = "Ground"; // scree / bare slope
-      else if (wd < 3) mat = sandy ? "Sand" : detail > 0.1 ? "Sand" : "Mud"; // sandy banks with mud
-      else if (wd < 9 && detail > -0.2) mat = sandy ? "Sand" : "Ground";
+      else if (s > 0.45 && detail > 0.3 && !ctx.cliffMaterial) mat = b.id === "snow" ? "Snow" : "Ground"; // scree / bare slope
+      // a bank in the snow is snow and ice, not sand and mud
+      else if (wd < 3) mat = b.id === "snow" ? (detail > 0 ? "Ice" : "Snow") : sandy ? "Sand" : detail > 0.1 ? "Sand" : "Mud";
+      else if (wd < 9 && detail > -0.2) mat = b.id === "snow" ? "Snow" : sandy ? "Sand" : "Ground";
       else if (h > snowLine && b.id !== "desert" && !ctx.cliffMaterial) mat = detail > 0 || h > snowLine + 0.05 ? "Snow" : "Rock"; // snow line (style-driven)
       ctx.materials[i] = TERRAIN_MATERIAL_INDEX[mat];
     }

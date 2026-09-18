@@ -103,6 +103,12 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "marais", "swamp", "marecage") && !biomes.some((b) => b.id === "swamp")) biomes.push({ id: "swamp", weight: 0.3, vegetation: "medium" });
   // a volcano is a place, not just a landmark: black rock over the slopes, no canopy on them. Without
   // this, "une arène dans un volcan" came out as a green forest hill with a cone in it.
+  // "montagne enneigée" asks for snow on the heights, not an arctic world: the style stays what the rest
+  // of the prompt chose and a snow biome takes the summits. Without it the word did nothing at all.
+  if (has(t, "neige", "enneig", "snow", "snowy", "glace", "givre", "frost") && !biomes.some((b) => b.id === "snow" || b.id === "tundra")) {
+    biomes.push({ id: "snow", weight: 0.35, vegetation: "sparse", elevation: [0.55, 1] });
+    if (!biomes.some((b) => b.id === "rocky")) biomes.push({ id: "rocky", weight: 0.2, vegetation: "sparse", elevation: [0.5, 1] });
+  }
   if (has(t, "volcan", "volcano", "lave", "lava", "magma")) {
     if (!biomes.some((b) => b.id === "volcanic")) biomes.push({ id: "volcanic", weight: 0.55, vegetation: "sparse", elevation: [0.4, 1] });
     if (!biomes.some((b) => b.id === "rocky")) biomes.push({ id: "rocky", weight: 0.25, vegetation: "sparse", elevation: [0.55, 1] });
@@ -220,6 +226,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   // a volcanic world needs the flora its biome asks for, or `treeMix` falls back to the style kit and
   // grows green conifers on black basalt
   if (has(t, "volcan", "volcano", "lave", "lava", "magma")) pushSp("dead_tree", "burnt_tree");
+  if (has(t, "neige", "enneig", "snow", "snowy")) pushSp("snow_pine", "dead_tree");
   let density = has(t, "dense", "epais", "thick", "luxuriant", "lush") ? 0.85 : has(t, "clairsem", "sparse", "vide", "empty", "aride") ? 0.3 : Math.min(0.85, 0.25 + fam.vegetationDensity * 0.75);
   if (has(t, "volcan", "volcano", "lave", "lava", "magma")) density = Math.min(density, 0.35);
   if (archipelago) {
