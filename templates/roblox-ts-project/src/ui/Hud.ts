@@ -26,6 +26,8 @@ export class Hud {
 	private dialogueName: TextLabel;
 	private dialogueText: TextLabel;
 	private sfx = new Map<string, Sound>();
+	private toasts: string[] = [];
+	private toasting = false;
 	/** Generic value panel (stage, wave, team, lap…) filled by HudValue remotes. */
 	private values: Frame;
 	private valuesShadow: Frame | undefined;
@@ -218,17 +220,32 @@ export class Hud {
 		TweenService.Create(this.hungerFill, new TweenInfo(0.25), { Size: new UDim2(t, 0, 1, 0) }).Play();
 	}
 
+	/**
+	 * Toast notifications are queued: a burst of pickups shows one after the other instead of the
+	 * last one replacing the rest (the server fires several in the same frame all the time).
+	 */
 	notify(str: string): void {
-		this.notifText.Text = str;
-		this.notif.Visible = true;
-		this.notif.Position = new UDim2(0.5, -180, 0, -60);
-		TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position: new UDim2(0.5, -180, 0, 92) }).Play();
-		task.delay(2.2, () => {
-			if (this.notifText.Text !== str) return;
-			TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position: new UDim2(0.5, -180, 0, -60) }).Play();
-			task.delay(0.3, () => {
-				if (this.notifText.Text === str) this.notif.Visible = false;
-			});
+		this.toasts.push(str);
+		if (this.toasts.size() > 6) this.toasts.remove(0); // a huge burst: keep the newest
+		if (!this.toasting) this.drainToasts();
+	}
+
+	private drainToasts(): void {
+		this.toasting = true;
+		task.spawn(() => {
+			while (this.toasts.size() > 0) {
+				const str = this.toasts.remove(0)!;
+				this.notifText.Text = str;
+				this.notif.Visible = true;
+				this.notif.Position = new UDim2(0.5, -180, 0, -60);
+				TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position: new UDim2(0.5, -180, 0, 92) }).Play();
+				// a queued toast passes quicker so a burst does not block the HUD for ten seconds
+				task.wait(this.toasts.size() > 0 ? 1.1 : 2.2);
+				TweenService.Create(this.notif, new TweenInfo(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position: new UDim2(0.5, -180, 0, -60) }).Play();
+				task.wait(0.28);
+			}
+			this.notif.Visible = false;
+			this.toasting = false;
 		});
 	}
 
