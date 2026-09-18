@@ -96,7 +96,7 @@ function purchaseBundle(player: Player, bundleId: string): { ok: boolean; messag
 		}
 		for (let i = 0; i < entry.count; i++) applyEffect(player, item.id, item.effect, true);
 	}
-	notify.FireClient(player, `${bundle.name} claimed!`);
+	notify.FireClient(player, `${bundle.name} claimed!`, "success");
 	replicate(player);
 	return { ok: true, message: `Claimed ${bundle.name}` };
 }

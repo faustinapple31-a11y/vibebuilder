@@ -189,6 +189,31 @@ describe("UI screens of the template", () => {
     expect(board.includes("isLocal) stroke(row, theme.accent")).toBe(true);
   });
 
+  it("ships the HUD details a live game needs", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    const hud = TEMPLATE_FILES["src/ui/Hud.ts"]!;
+    for (const api of ["export function keyHint(", "export function buffRow("]) {
+      expect(kit.includes(api), `kit.ts is missing ${api}`).toBe(true);
+    }
+    // toasts are typed (info / success / warn) and carry a coloured dot
+    expect(TEMPLATE_FILES["src/shared/net.ts"]!.includes("export type NotifyKind")).toBe(true);
+    expect(hud.includes("notify(str: string, kind: NotifyKind")).toBe(true);
+    expect(hud.includes("this.notifDot.BackgroundColor3 = tone")).toBe(true);
+    expect(TEMPLATE_FILES["src/client/main.client.ts"]!.includes("hud.notify(text as string, typeIs(kind"), "the client should pass the toast kind").toBe(true);
+    // the buff chips are mounted and fed from the shop state
+    expect(hud.includes("this.setBuffs = buffRow(")).toBe(true);
+    expect(TEMPLATE_FILES["src/client/main.client.ts"]!.includes("hud.setBuffs(")).toBe(true);
+    // desktop players see the hotkey of each screen button
+    expect(hud.includes('keyHint("B", shopBtn)')).toBe(true);
+    expect(TEMPLATE_FILES["src/client/main.client.ts"]!.includes('undefined, "I")'), "the backpack button should show its key").toBe(true);
+    // a long list fades into the panel instead of being cut
+    expect(kit.includes("soft fades at the top and bottom")).toBe(true);
+    // the minimap pulses and shows north; the loading line animates
+    const minimap = TEMPLATE_FILES["src/ui/Minimap.ts"]!;
+    expect(minimap.includes("a soft pulse around the arrow")).toBe(true);
+    expect(hud.includes("this.loadingDots")).toBe(true);
+  });
+
   it("ships the polish details the screens rely on", () => {
     const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
     for (const api of ["export function abbreviate(", "export function stamp(", "export function acquirePop("]) {

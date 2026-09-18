@@ -1,6 +1,6 @@
 import { Players, RunService, SoundService, UserInputService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { Remotes, waitRemoteEvent, type PlayerStats, type ProfileStateMsg, type RoundStateMsg, type ShopState } from "shared/net";
+import { Remotes, waitRemoteEvent, type NotifyKind, type PlayerStats, type ProfileStateMsg, type RoundStateMsg, type ShopState } from "shared/net";
 import { Hud } from "ui/Hud";
 import { AudioConfig } from "shared/audio";
 import { ShopUi } from "ui/ShopUi";
@@ -42,31 +42,31 @@ const menu = enabled("menu") ? new Menu() : undefined;
 
 // HUD buttons + menu entries for every enabled screen
 if (inventory) {
-	hud.addButton(L.backpack, () => inventory.toggle());
+	hud.addButton(L.backpack, () => inventory.toggle(), undefined, "I");
 	menu?.addEntry(L.backpack, () => inventory.toggle());
 }
 if (quests) {
-	hud.addButton(L.quests, () => quests.toggle());
+	hud.addButton(L.quests, () => quests.toggle(), undefined, "J");
 	menu?.addEntry(L.quests, () => quests.toggle());
 }
 if (crafting) {
-	hud.addButton(L.craft, () => crafting.toggle());
+	hud.addButton(L.craft, () => crafting.toggle(), undefined, "C");
 	menu?.addEntry(L.craft, () => crafting.toggle());
 }
 if (leaderboard) {
-	hud.addButton(L.ranking, () => leaderboard.toggle());
+	hud.addButton(L.ranking, () => leaderboard.toggle(), undefined, "L");
 	menu?.addEntry(L.ranking, () => leaderboard.toggle());
 }
 if (teams) {
-	hud.addButton(L.teams, () => teams.toggle());
+	hud.addButton(L.teams, () => teams.toggle(), undefined, "T");
 	menu?.addEntry(L.teams, () => teams.toggle());
 }
 if (settings) {
-	hud.addButton(L.settings, () => settings.toggle());
+	hud.addButton(L.settings, () => settings.toggle(), undefined, "O");
 	menu?.addEntry(L.settings, () => settings.toggle());
 }
 menu?.addEntry(L.shop, () => shop.toggle());
-if (menu) hud.addButton(L.menu, () => menu.toggle());
+if (menu) hud.addButton(L.menu, () => menu.toggle(), undefined, "M");
 
 // settings are applied locally and persisted server-side (PlayerData `setting_*`)
 let shakeEnabled = true;
@@ -110,10 +110,11 @@ waitRemoteEvent(Remotes.ProfileState).OnClientEvent.Connect((state) => {
 	settings?.setProfile(profile);
 });
 waitRemoteEvent(Remotes.StatsChanged).OnClientEvent.Connect((stats) => hud.setStats(stats as PlayerStats));
-waitRemoteEvent(Remotes.Notify).OnClientEvent.Connect((text) => hud.notify(text as string));
+waitRemoteEvent(Remotes.Notify).OnClientEvent.Connect((text, kind) => hud.notify(text as string, typeIs(kind, "string") ? (kind as NotifyKind) : "info"));
 waitRemoteEvent(Remotes.ShopState).OnClientEvent.Connect((state) => {
 	shop.setState(state as ShopState);
 	inventory?.setShopState(state as ShopState);
+	hud.setBuffs((state as ShopState).buffs);
 });
 waitRemoteEvent(Remotes.NpcTalk).OnClientEvent.Connect((name, text) => hud.say(name as string, text as string));
 // accepts a resolved sound id or an AudioConfig.sfx key ("collect", "purchase", …)

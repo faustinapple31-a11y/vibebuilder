@@ -1,7 +1,7 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import type { PlayerStats } from "shared/net";
-import { abbreviate, body, button, coinIcon, corner, darken, floatText, gradient, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
+import type { NotifyKind, PlayerStats } from "shared/net";
+import { abbreviate, body, buffRow, button, coinIcon, corner, darken, floatText, gradient, keyHint, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -19,14 +19,19 @@ export class Hud {
 	private hungerFill: Frame;
 	private notif: Frame;
 	private notifText: TextLabel;
+	/** coloured dot on the toast (info / success / warn) */
+	private notifDot: Frame;
 	private loading: Frame;
 	private loadingText: TextLabel;
 	private loadingFill: Frame;
+	private loadingStage = "";
+	private loadingPercent = 0;
+	private loadingDots = false;
 	private dialogue: Frame;
 	private dialogueName: TextLabel;
 	private dialogueText: TextLabel;
 	private sfx = new Map<string, Sound>();
-	private toasts: string[] = [];
+	private toasts: { text: string; kind: NotifyKind }[] = [];
 	private toasting = false;
 	/** last replicated values, so a change can be animated (count-up, floater, damage flash) */
 	private lastCoins = 0;
@@ -47,6 +52,8 @@ export class Hud {
 	private sfxVolume = 0.6;
 	/** Set by the client bootstrap to open the shop window. */
 	public onShop: (() => void) | undefined;
+	/** Updates the HUD's buff chips (fed from the shop state). */
+	public setBuffs: (buffs: { [stat: string]: number }) => void;
 
 	constructor() {
 		const player = Players.LocalPlayer;
@@ -121,6 +128,10 @@ export class Hud {
 		// shop button (bottom-left)
 		const shopBtn = button(L.shop, new UDim2(0, 150, 0, 54), new UDim2(0, 18, 1, -76), this.root, { size: 24, radius: 14, icon: (p) => coinIcon(26, p) });
 		shopBtn.MouseButton1Click.Connect(() => this.onShop?.());
+		keyHint("B", shopBtn);
+
+		// active buffs, top-right under the value card (a simulator lives on these)
+		this.setBuffs = buffRow(this.root, new UDim2(1, -168, 0, 160));
 
 		// NPC dialogue bubble (bottom-centre): paper panel with a name tag
 		this.dialogue = panel(new UDim2(0, 560, 0, 96), new UDim2(0.5, -280, 1, -140), this.root, { radius: 16, strokeThickness: 3.5 });
@@ -141,7 +152,17 @@ export class Hud {
 		// toast notification (top-centre, slides in)
 		this.notif = panel(new UDim2(0, 360, 0, 44), new UDim2(0.5, -180, 0, -60), this.root, { color: theme.pill, strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(12, theme.radius), zIndex: 6 });
 		this.notif.Visible = false;
-		this.notifText = text("", new UDim2(1, -16, 1, 0), new UDim2(0, 8, 0, 0), this.notif, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
+		this.notifText = text("", new UDim2(1, -34, 1, 0), new UDim2(0, 26, 0, 0), this.notif, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
+		// a coloured dot says at a glance what kind of news the toast carries
+		this.notifDot = new Instance("Frame");
+		this.notifDot.Size = new UDim2(0, 10, 0, 10);
+		this.notifDot.Position = new UDim2(0, 12, 0.5, -5);
+		this.notifDot.BackgroundColor3 = theme.info[0];
+		this.notifDot.BorderSizePixel = 0;
+		this.notifDot.ZIndex = 8;
+		corner(this.notifDot, 5);
+		stroke(this.notifDot, theme.edge, 1.5);
+		this.notifDot.Parent = this.notif;
 
 		// loading screen: gradient backdrop, title sticker, progress bar
 		this.loading = new Instance("Frame");
@@ -195,13 +216,14 @@ export class Hud {
 	 * settings, menu). They stack above the Shop button, stay ≥ 44 px high for touch and are the only
 	 * way to reach the screens on mobile (the hotkeys are the desktop shortcut).
 	 */
-	addButton(label: string, onClick: () => void, icon?: (parent: GuiObject) => GuiObject): TextButton {
+	addButton(label: string, onClick: () => void, icon?: (parent: GuiObject) => GuiObject, hint?: string): TextButton {
 		const index = this.screenButtons.size();
 		// one column above the Shop button, wrapping into a second column after four entries
 		const column = math.floor(index / 4);
 		const row = index % 4;
 		const b = button(label, new UDim2(0, 150, 0, 48), new UDim2(0, 18 + column * 160, 1, -76 - (row + 1) * 56), this.root, { colors: theme.info, size: 20, radius: 12, icon });
 		b.MouseButton1Click.Connect(onClick);
+		if (hint !== undefined) keyHint(hint, b);
 		this.screenButtons.push(b);
 		return b;
 	}
@@ -289,8 +311,8 @@ export class Hud {
 	 * Toast notifications are queued: a burst of pickups shows one after the other instead of the
 	 * last one replacing the rest (the server fires several in the same frame all the time).
 	 */
-	notify(str: string): void {
-		this.toasts.push(str);
+	notify(str: string, kind: NotifyKind = "info"): void {
+		this.toasts.push({ text: str, kind });
 		if (this.toasts.size() > 6) this.toasts.remove(0); // a huge burst: keep the newest
 		if (!this.toasting) this.drainToasts();
 	}
@@ -299,8 +321,13 @@ export class Hud {
 		this.toasting = true;
 		task.spawn(() => {
 			while (this.toasts.size() > 0) {
-				const str = this.toasts.remove(0)!;
-				this.notifText.Text = str;
+				const toast = this.toasts.remove(0)!;
+				this.notifText.Text = toast.text;
+				// the stroke and the icon dot say what kind of news it is
+				const tone = toast.kind === "success" ? theme.good : toast.kind === "warn" ? theme.warn : theme.info[0];
+				const outline = this.notif.FindFirstChildOfClass("UIStroke");
+				if (outline) outline.Color = tone;
+				this.notifDot.BackgroundColor3 = tone;
 				this.notif.Visible = true;
 				if (motion() > 0) {
 					const pop = new Instance("UIScale");
@@ -346,7 +373,23 @@ export class Hud {
 
 	setLoading(stage: string, done: number, total: number): void {
 		const f = done / math.max(1, total);
-		this.loadingText.Text = `${stage} ${math.floor(f * 100)}%`;
+		this.loadingStage = stage;
+		this.loadingPercent = math.floor(f * 100);
+		this.loadingText.Text = `${stage} ${this.loadingPercent}%`;
+		// animated dots: a stage that takes a while still looks alive
+		if (!this.loadingDots && motion() > 0) {
+			this.loadingDots = true;
+			task.spawn(() => {
+				let step = 0;
+				while (this.loading.Visible) {
+					step = (step + 1) % 4;
+					const dots = string.rep(".", step);
+					this.loadingText.Text = `${this.loadingStage} ${this.loadingPercent}%${dots}`;
+					task.wait(0.35);
+				}
+				this.loadingDots = false;
+			});
+		}
 		TweenService.Create(this.loadingFill, new TweenInfo(0.2), { Size: new UDim2(math.clamp(f, 0, 1), 0, 1, 0) }).Play();
 	}
 

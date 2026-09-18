@@ -222,7 +222,11 @@ fenêtres qui se ferment par l'animation inverse de leur ouverture, infobulles q
 avant d'apparaître, et **grands nombres abrégés** partout (`abbreviate` : 1 250 → « 1.2K »), éclat qui suit le curseur sur
 les tuiles et les lignes (`cursorGlare`), pièce qui tourne sur un gain, éclat qui glisse sur l'or du
 premier au classement (`idleIcon`), flèches ▲▼ de mouvement de rang, ligne du joueur local surlignée à
-l'accent, et compteurs par catégorie sur les onglets de l'inventaire.
+l'accent, et compteurs par catégorie sur les onglets de l'inventaire. Les **toasts sont typés**
+(`Notify` porte `info` / `success` / `warn`, point coloré à gauche), les **bonus actifs ont leur rangée
+de pastilles dans le HUD** avec décompte (`buffRow`), les boutons d'écran affichent leur **touche**
+sur clavier (`keyHint`), les listes longues se **fondent** en haut et en bas du panneau, la minimap
+pulse autour du joueur et marque le nord, et la ligne de chargement anime ses points.
 
 Rien n'est codé en dur dans les écrans : le thème fournit aussi `edge` (contour visible même sur un
 panneau sombre), `track` (fond de barre), `highlight` (valeurs, minuteurs), `good` / `warn` / `bad`

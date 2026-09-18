@@ -81,7 +81,7 @@ export function progressQuest(player: Player, objectiveType: string, target: str
 		if (cur >= q.objective.count) {
 			PlayerData.setStat(player, `quest_${q.id}`, 1);
 			PlayerData.addCoins(player, q.reward.amount);
-			notify.FireClient(player, `Quest complete: ${q.title} (+${q.reward.amount} ${GameConfig.currency.name})`);
+			notify.FireClient(player, `Quest complete: ${q.title} (+${q.reward.amount} ${GameConfig.currency.name})`, "success");
 			grantXp(player, GameConfig.progression.xpPerAction * 6);
 		} else {
 			hudValue.FireClient(player, `quest_${q.id}`, q.title, `${cur} / ${q.objective.count}`);

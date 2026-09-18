@@ -84,6 +84,7 @@ export function waitRemoteFunction(name: string): RemoteFunction {
 
 export const Remotes = {
 	StatsChanged: "StatsChanged",
+	/** Toast: (text, kind?) — kind is "info" | "success" | "warn" and colours the toast. */
 	Notify: "Notify",
 	WorldProgress: "WorldProgress",
 	ShopState: "ShopState",
@@ -102,6 +103,9 @@ export const Remotes = {
 	/** Client-side effects: (kind, position) */
 	Fx: "Fx",
 } as const;
+
+/** Kinds of toast the systems can ask for (the HUD colours and sounds them accordingly). */
+export type NotifyKind = "info" | "success" | "warn";
 
 export interface RoundStateMsg {
 	phase: "lobby" | "intermission" | "playing" | "ending";

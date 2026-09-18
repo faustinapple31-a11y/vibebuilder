@@ -1,7 +1,7 @@
-import { HttpService, Players, ReplicatedStorage, RunService, Workspace } from "@rbxts/services";
+import { HttpService, Players, ReplicatedStorage, RunService, TweenService, Workspace } from "@rbxts/services";
 import { base64ToBuffer, readF32, readU8 } from "shared/world/decode";
 import { TERRAIN_MATERIALS, type WorldBakeData } from "shared/world/types";
-import { corner, darken, panel, scaleContainer, stroke, text, theme } from "./kit";
+import { corner, darken, motion, panel, scaleContainer, stroke, text, theme } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -73,6 +73,29 @@ export class Minimap {
 		corner(this.arrow, 2);
 		stroke(this.arrow, theme.ink, 2);
 		this.arrow.Parent = this.grid;
+		// a soft pulse around the arrow, so the player finds themselves instantly
+		if (motion() > 0) {
+			const halo = new Instance("Frame");
+			halo.AnchorPoint = new Vector2(0.5, 0.5);
+			halo.Position = new UDim2(0.5, 0, 0.5, 0);
+			halo.Size = new UDim2(0, 10, 0, 10);
+			halo.BackgroundTransparency = 1;
+			halo.ZIndex = 8;
+			corner(halo, 10);
+			const ring = stroke(halo, theme.highlight, 2, 0.3);
+			halo.Parent = this.arrow;
+			task.spawn(() => {
+				while (halo.Parent) {
+					halo.Size = new UDim2(0, 10, 0, 10);
+					ring.Transparency = 0.25;
+					TweenService.Create(halo, new TweenInfo(1.1), { Size: new UDim2(0, 30, 0, 30) }).Play();
+					TweenService.Create(ring, new TweenInfo(1.1), { Transparency: 1 }).Play();
+					task.wait(1.6 / math.max(0.4, motion()));
+				}
+			});
+		}
+		// a north tick on the frame
+		text("N", new UDim2(0, 14, 0, 14), new UDim2(0.5, -7, 0, 20), this.frame, { size: 11, align: Enum.TextXAlignment.Center, color: theme.highlight, zIndex: 8, outline: 1.5 });
 		scaleContainer(this.frame);
 	}
 

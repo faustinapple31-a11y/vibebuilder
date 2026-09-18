@@ -1190,6 +1190,21 @@ export class Window {
 			layout.Parent = this.body;
 			padding(this.body, 4, 4, 12);
 		}
+		// soft fades at the top and bottom of the body, so a long list melts into the panel instead
+		// of being cut by a hard edge
+		for (const top of [true, false]) {
+			const fade = new Instance("Frame");
+			fade.Size = new UDim2(1, -36, 0, 16);
+			fade.Position = top ? new UDim2(0, 18, 0, 76) : new UDim2(0, 18, 1, -32);
+			fade.BackgroundColor3 = theme.paper;
+			fade.BorderSizePixel = 0;
+			fade.ZIndex = 8;
+			const g = new Instance("UIGradient");
+			g.Rotation = 90;
+			g.Transparency = top ? new NumberSequence([new NumberSequenceKeypoint(0, 0.15), new NumberSequenceKeypoint(1, 1)]) : new NumberSequence([new NumberSequenceKeypoint(0, 1), new NumberSequenceKeypoint(1, 0.15)]);
+			g.Parent = fade;
+			fade.Parent = this.window;
+		}
 	}
 
 	setCoins(value: number): void {
@@ -2249,4 +2264,73 @@ export function idleIcon(icon: GuiObject, kind: "spin" | "bob" | "glint" = "bob"
 			task.wait(1 / math.max(0.4, theme.motion));
 		}
 	});
+}
+
+/**
+ * Small keyboard chip on a control ("B", "I", "Esc") — desktop players learn the shortcuts, touch
+ * players never see it (`UserInputService.KeyboardEnabled` decides).
+ */
+export function keyHint(str: string, target: GuiObject): TextLabel | undefined {
+	if (!game.GetService("UserInputService").KeyboardEnabled) return undefined;
+	const chip = new Instance("Frame");
+	chip.Size = new UDim2(0, 20, 0, 18);
+	chip.Position = new UDim2(1, -24, 0, 4);
+	chip.BackgroundColor3 = theme.pill;
+	chip.BorderSizePixel = 0;
+	chip.ZIndex = target.ZIndex + 5;
+	corner(chip, 5);
+	stroke(chip, theme.pillStroke, 1.5);
+	chip.Parent = target;
+	return text(str.upper(), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), chip, {
+		size: 11,
+		align: Enum.TextXAlignment.Center,
+		color: theme.text,
+		outline: 0,
+		zIndex: chip.ZIndex + 1,
+	});
+}
+
+/**
+ * Chips for the buffs currently running, with a countdown bar each — the HUD row a simulator needs
+ * so a player knows their x2 is about to end. Returns a setter fed from the shop state.
+ */
+export function buffRow(parent: GuiObject, position: UDim2): (buffs: { [stat: string]: number }) => void {
+	const holder = new Instance("Frame");
+	holder.Size = new UDim2(0, 150, 0, 120);
+	holder.Position = position;
+	holder.BackgroundTransparency = 1;
+	holder.ZIndex = 5;
+	holder.Parent = parent;
+	const chips = new Map<string, { frame: Frame; label: TextLabel; bar: BarHandle; max: number }>();
+	return (buffs: { [stat: string]: number }) => {
+		const alive = new Set<string>();
+		let index = 0;
+		for (const [stat, seconds] of pairs(buffs)) {
+			const key = stat as string;
+			const left = seconds as number;
+			if (left <= 0) continue;
+			alive.add(key);
+			let chip = chips.get(key);
+			if (!chip) {
+				const frame = panel(new UDim2(0, 150, 0, 34), new UDim2(0, 0, 0, index * 40), holder, { color: theme.pill, strokeColor: theme.pillStroke, radius: math.min(10, theme.radius), shadow: false, ornament: false, zIndex: 6 });
+				const icon = resourceIcon(key, 22, frame);
+				icon.Position = new UDim2(0, 6, 0, 4);
+				icon.ZIndex = 8;
+				const label = text(prettyName(key), new UDim2(1, -36, 0, 18), new UDim2(0, 32, 0, 2), frame, { size: 13, zIndex: 8, outline: 1.5 });
+				const bar = progressBar(new UDim2(1, -14, 0, 6), new UDim2(0, 7, 1, -10), frame, theme.gold, 8, false);
+				bar.label.Text = "";
+				chip = { frame, label, bar, max: left };
+				chips.set(key, chip);
+			}
+			chip.max = math.max(chip.max, left);
+			chip.frame.Position = new UDim2(0, 0, 0, index * 40);
+			chip.frame.Visible = true;
+			const mm = math.floor(left / 60);
+			const ss = math.floor(left % 60);
+			chip.label.Text = `${prettyName(key)}  ${mm}:${string.format("%02d", ss)}`;
+			chip.bar.set(left / math.max(1, chip.max));
+			index += 1;
+		}
+		for (const [key, chip] of chips) if (!alive.has(key)) chip.frame.Visible = false;
+	};
 }

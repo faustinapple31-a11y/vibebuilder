@@ -67,7 +67,11 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
   for a purchase, a completed quest, a level, a legendary drop), `refuse(control)` (a shake + the
   error sound when the server says no), `cursorGlare(tile)` (a glare following the cursor),
   `idleIcon(icon, "spin" | "bob" | "glint")`, `playEventSound("hover" | "success" | "error" |
-  "reward")` and `motion()`.
+  "reward")`, `keyHint("B", control)` (a keyboard chip, hidden on touch), `buffRow(parent, position)`
+  (HUD chips with a countdown per active buff) and `motion()`.
+- **toasts are typed**: `hud.notify(text, "info" | "success" | "warn")`, and the server's `Notify`
+  remote carries that kind as its second argument — pass `"success"` for a reward and `"warn"` for a
+  danger so the toast is coloured and read correctly.
 - **rarity**: `RARITY_COLORS` / `RARITY_NAMES` (common → legendary, derived from the library) and
   `rarityFrame(tile, tier)` which outlines a tile and adds a ribbon for epic / legendary. The
   inventory derives the tier from the item's price; a pet / egg / crate screen should do the same.
