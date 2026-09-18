@@ -1,9 +1,9 @@
-import { clamp, deriveSeed, smoothstep, type BiomeId, type Placement, type PlacementLayer, type VegetationSpecies } from "@worldforge/core";
+import { clamp, deriveSeed, smoothstep, type BiomeId, type Placement, type VegetationSpecies } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { Simplex2D, Worley2D } from "../noise";
 import { SpatialHash } from "../grid";
 import { VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
-import { biomeAt, distanceToEdge, isWaterAt, progress, slopeAtWorld, type GenContext } from "../context";
+import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 
 /** Species mix per biome: [species, weight]. Filtered by spec.vegetation.species. */
 const BIOME_TREES: Record<BiomeId, [VegetationSpecies, number][]> = {
@@ -187,10 +187,18 @@ export function placeVegetation(ctx: GenContext): void {
     const edgeD = distanceToEdge(ctx, x, z);
     const bg = 1 + (1 - smoothstep(60, 260, edgeD)) * 0.35;
     const scale = clamp(scaleBase * sizeVar * bg * (species === "giant_mushroom" ? 0.7 : 1), 0.55, 3.2);
+    // a trunk must meet the ground: step away from a terrace lip or cliff edge, else skip the tree
+    const trunk = Math.max(1.5, (v.baseRadius ?? 0) * scale);
+    const at = settleOnGround(ctx, x, z, trunk, Math.min(4, Math.max(2.2, trunk)));
+    if (!at) continue;
+    const tx = at[0];
+    const tz = at[1];
+    // stepping off the edge may have walked into a road, the water or a settlement: re-run the gate
+    if (isWaterAt(ctx, tx, tz) || densityAt(tx, tz, biome, true) <= 0) continue;
     const radius = v.footprintRadius * scale * 0.55;
-    if (hash.overlaps(x, z, radius, 1.5)) continue;
-    const y = ctx.heights.sample(x, z) - v.sinkDepth * scale;
-    const pos: [number, number, number] = [x, y, z];
+    if (hash.overlaps(tx, tz, radius, 1.5)) continue;
+    const y = ctx.heights.sample(tx, tz) - v.sinkDepth * scale;
+    const pos: [number, number, number] = [tx, y, tz];
     hash.insert({ position: pos, radius });
     ctx.placements.push({
       id: `veg_${treeCount++}`,
@@ -200,7 +208,7 @@ export function placeVegetation(ctx: GenContext): void {
       position: pos,
       rotationY: rng.float(0, Math.PI * 2),
       scale,
-      layer: layerFor(ctx, x, z, true),
+      layer: layerFor(ctx, tx, tz, true),
       biome,
       importance: species === "giant_mushroom" ? 6 : 4 + scale,
     });
@@ -233,10 +241,16 @@ export function placeVegetation(ctx: GenContext): void {
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = clamp(rng.float(0.8, 1.35) * (1 + (rng.next() * 2 - 1) * spec.vegetation.sizeVariation * 0.3), 0.5, 2);
+    const base = Math.max(1.5, (v.baseRadius ?? 0) * scale);
+    const spot = settleOnGround(ctx, x, z, base, Math.min(4, Math.max(2.2, base)), 2);
+    if (!spot) continue;
+    const ux = spot[0];
+    const uz = spot[1];
+    if (isWaterAt(ctx, ux, uz) || densityAt(ux, uz, biome, false) <= 0) continue;
     const radius = v.footprintRadius * scale * 0.5;
-    if (hash.overlaps(x, z, radius, 0.3)) continue;
-    const y = ctx.heights.sample(x, z) - v.sinkDepth * scale;
-    const pos: [number, number, number] = [x, y, z];
+    if (hash.overlaps(ux, uz, radius, 0.3)) continue;
+    const y = ctx.heights.sample(ux, uz) - v.sinkDepth * scale;
+    const pos: [number, number, number] = [ux, y, uz];
     if (species === "log" || species === "bush") hash.insert({ position: pos, radius });
     ctx.placements.push({
       id: `ug_${smallCount++}`,
@@ -246,22 +260,12 @@ export function placeVegetation(ctx: GenContext): void {
       position: pos,
       rotationY: rng.float(0, Math.PI * 2),
       scale,
-      layer: layerFor(ctx, x, z, false),
+      layer: layerFor(ctx, ux, uz, false),
       biome,
       importance: 1 + fg * 2 + (species === "small_mushroom" ? 0.5 : 0),
     });
   }
   progress(ctx, "vegetation:done", 1);
-}
-
-export function layerFor(ctx: GenContext, x: number, z: number, big: boolean): PlacementLayer {
-  const rd = ctx.roadDistance.sample(x, z);
-  const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
-  const near = Math.min(rd, ds);
-  if (near < (big ? 26 : 18)) return "foreground";
-  const edgeD = distanceToEdge(ctx, x, z);
-  if (edgeD < Math.min(ctx.worldW, ctx.worldD) * 0.12) return "background";
-  return "midground";
 }
 
 /** Bridson Poisson-disk sampling over the whole world (world coords). */

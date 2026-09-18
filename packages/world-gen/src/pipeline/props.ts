@@ -1,8 +1,8 @@
 import { clamp, deriveSeed, smoothstep, type Placement, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { SpatialHash } from "../grid";
-import { biomeAt, distanceToEdge, isWaterAt, progress, slopeAtWorld, type GenContext } from "../context";
-import { layerFor, poissonDisk } from "./vegetation";
+import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
+import { poissonDisk } from "./vegetation";
 import { placeKitProps } from "./kitProps";
 import { flattenArea } from "./sites";
 
@@ -17,10 +17,13 @@ export function placeRocksAndProps(ctx: GenContext): void {
   const rng = new Rng(deriveSeed(ctx.seed, "props"));
   const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
   for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
+  // standing vegetation blocks a prop (a cactus or a bamboo clump is as solid as a pine: read the
+  // prefab tags rather than guessing from the id, or a desert ruin lands inside a cactus)
   for (const p of ctx.placements) {
-    if (p.category === "vegetation" && (p.prefab.includes("tree") || p.prefab === "giant_mushroom" || p.prefab === "pine_tree" || p.prefab === "willow" || p.prefab === "birch" || p.prefab === "palm")) {
-      hash.insert({ position: p.position, radius: 2.5 * p.scale });
-    }
+    if (p.category !== "vegetation") continue;
+    const v = ctx.prefabs[p.prefab]?.[p.variant];
+    if (!v || !(v.tags.includes("tree") || v.tags.includes("giant") || v.tags.includes("desert") || v.tags.includes("bamboo") || v.tags.includes("coral"))) continue;
+    hash.insert({ position: p.position, radius: Math.max(2.5, (v.baseRadius ?? 0) * 1.6) * p.scale });
   }
   let n = 0;
   const add = (prefab: string, x: number, z: number, opts: { scale?: number; rotationY?: number; importance?: number; zone?: string; category?: Placement["category"]; margin?: number; sink?: boolean; onWater?: boolean }): boolean => {
@@ -31,6 +34,14 @@ export function placeRocksAndProps(ctx: GenContext): void {
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
+    // step off a terrace lip / cliff edge so the base is not left hanging in the air
+    if (!opts.onWater) {
+      const br = Math.max(1.5, (v.baseRadius ?? 0) * scale);
+      const at = settleOnGround(ctx, x, z, br, Math.min(4, Math.max(2.2, br)));
+      if (!at) return false;
+      [x, z] = at;
+      if (!inside(ctx, x, z) || isWaterAt(ctx, x, z)) return false;
+    }
     const radius = v.footprintRadius * scale * 0.6;
     if (hash.overlaps(x, z, radius, opts.margin ?? 0.5)) return false;
     const y = opts.onWater ? ctx.water.sample(x, z) : ctx.heights.sample(x, z) - (opts.sink === false ? 0 : v.sinkDepth * scale);

@@ -1,6 +1,6 @@
 import { Rng, TERRAIN_MATERIALS, TERRAIN_MATERIAL_INDEX, deriveSeed, jitterHex, mixHex, type MeshData, type PrefabVariant, type RobloxMaterial, type TerrainMaterial, type TerrainOp, type Vec2 } from "@worldforge/core";
 import { PartListBuilder, buildMeshLibrary } from "@worldforge/prefabs";
-import { progress, seaLevelOf, type GenContext } from "../context";
+import { baseRelief, progress, seaLevelOf, type GenContext } from "../context";
 
 /**
  * Parts-built ground (every world): the heightmap is quantized into terraces (`GROUND_STEP` studs), every
@@ -15,6 +15,18 @@ const MAJORITY_PASSES = 5;
 const MIN_REGION_CELLS = 24;
 
 /** Round the heightmap to terraces, remove single-cell noise and flatten the deep sea floor. */
+/**
+ * Re-rounds the heightmap onto the terrace levels `buildGround` will actually build, without touching
+ * the region shapes. Every stage after `quantizeHeights` — flattened building pads, carved roads,
+ * `levelDisc` under a wall or a field — leaves heights between two levels, while the ground slab under
+ * them is still `round(h / step) * step`: that is up to half a step (4 studs) of air or burial for
+ * everything placed on it. Called just before the final snap, so placements land on the real slab top.
+ */
+export function snapHeightsToLevels(ctx: GenContext): void {
+  const step = GROUND_STEP;
+  ctx.heights.map((_x, _z, v) => Math.round(v / step) * step);
+}
+
 export function quantizeHeights(ctx: GenContext): void {
   const { width, depth } = ctx;
   const h = ctx.heights;
@@ -554,7 +566,8 @@ export function buildGround(ctx: GenContext): void {
           const fx = p[0] + ex * t2 + nx * rng.float(2.5, 5);
           const fz = p[1] + ez * t2 + nz * rng.float(2.5, 5);
           const fy = h.sample(fx, fz);
-          if (Number.isNaN(ctx.water.sample(fx, fz)) && Math.abs(fy - outsideLevel * step) < 0.5) {
+          // and only where the foot is a real shelf: on a narrow ledge the boulder would hang over the next drop
+          if (Number.isNaN(ctx.water.sample(fx, fz)) && Math.abs(fy - outsideLevel * step) < 0.5 && baseRelief(ctx, fx, fz, 4) <= step * 0.5) {
             const big = rng.chance(0.35);
             const prefab = big ? "boulder" : "stone";
             const nv = ctx.prefabs[prefab]!.length;

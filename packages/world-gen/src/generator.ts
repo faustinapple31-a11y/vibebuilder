@@ -27,7 +27,7 @@ import { placeRelief } from "./pipeline/relief";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
-import { buildGround, quantizeHeights } from "./pipeline/ground";
+import { buildGround, quantizeHeights, snapHeightsToLevels } from "./pipeline/ground";
 import { defaultBudget, optimizeAndStats } from "./pipeline/optimize";
 
 export const GENERATOR_VERSION = "0.1.0";
@@ -250,6 +250,10 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     const big = (v?.bounds.max[1] ?? 0) * p.scale > 6 || p.category === "building";
     return !(big && d < 36) && !(d < 8);
   });
+
+  // ---- parts mode: the ground is built from terrace levels, so put the heightmap back on them before
+  // snapping (flattened pads, carved roads and levelled discs left heights between two levels)
+  if (ctx.terrainMode === "parts") snapHeightsToLevels(ctx);
 
   // ---- snap everything to the final terrain (no floating objects) and conform small things to the slope
   for (const p of ctx.placements) {

@@ -3,6 +3,7 @@ import { WALL_SEGMENT } from "@worldforge/prefabs";
 import { inBounds, isWaterAt, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
 import { SpatialHash } from "../grid";
 import { roadMaterial } from "./roads";
+import { GROUND_STEP } from "./ground";
 
 /**
  * Stage 10b: settlement & landmark dressing — the details that make a generated map read as a
@@ -54,6 +55,15 @@ export function placeDressing(ctx: GenContext): void {
   progress(ctx, "dressing:roads", 0.85);
   placeRoadMarkings(ctx, add);
   progress(ctx, "dressing:done", 1);
+}
+
+/**
+ * The height a levelled pad should aim for. In parts mode the ground is built from terrace levels, so a
+ * pad has to target a level: anything in between is rounded later and leaves the structure on it hanging
+ * over the neighbouring slab.
+ */
+function padHeight(ctx: GenContext, y: number): number {
+  return ctx.terrainMode === "parts" ? Math.round(y / GROUND_STEP) * GROUND_STEP : y;
 }
 
 /** Blend the terrain toward `target` inside `radius` (no material change; water untouched). */
@@ -145,7 +155,9 @@ function placeWalls(ctx: GenContext, rng: Rng, add: Add): void {
       s.y = (ys[(i + n - 1) % n]! + ys[i]! * 2 + ys[(i + 1) % n]!) / 4;
     });
   }
-  for (const s of segs) if (!s.skip) levelDisc(ctx, s.c, WALL_SEGMENT * 0.75, s.y, 0.9);
+  for (const s of segs) s.y = padHeight(ctx, s.y);
+  // level generously: the wall spans WALL_SEGMENT and its towers overhang, so the pad has to reach past it
+  for (const s of segs) if (!s.skip) levelDisc(ctx, s.c, WALL_SEGMENT * 1.05, s.y, 1);
   const towerV = ctx.prefabs["gate_tower"];
   let walls = 0;
   segs.forEach((s, i) => {
@@ -193,8 +205,8 @@ function placeFields(ctx: GenContext, rng: Rng, add: Add): void {
       if (ctx.roadDistance.sample(x, z) < fieldR + 2) continue;
       if (slopeAtWorld(ctx, x, z) > 0.3) continue;
       if (hash.overlaps(x, z, fieldR, 4)) continue;
-      const y = ctx.heights.sample(x, z);
-      levelDisc(ctx, [x, z], fieldR * 1.3, y, 1.0);
+      const y = padHeight(ctx, ctx.heights.sample(x, z));
+      levelDisc(ctx, [x, z], fieldR * 1.45, y, 1.0);
       paintDisc(ctx, [x, z], fieldR * 1.05, TERRAIN_MATERIAL_INDEX.Ground);
       const rot = rng.chance(0.5) ? rng.float(0, Math.PI * 2) : Math.atan2(-(site.center[0] - x), -(site.center[1] - z));
       add("farm_field", x, y, z, rot, { zone: site.id, importance: 8 });

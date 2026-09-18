@@ -3,6 +3,7 @@ import type {
   LandmarkPlacement,
   PathPolyline,
   Placement,
+  PlacementLayer,
   PrefabVariant,
   Rng,
   RobloxLightingSettings,
@@ -172,6 +173,84 @@ export function biomeAt(ctx: GenContext, x: number, z: number): BiomeId {
 
 export function distanceToEdge(ctx: GenContext, x: number, z: number): number {
   return Math.min(x - ctx.origin[0], ctx.origin[0] + ctx.worldW - x, z - ctx.origin[1], ctx.origin[1] + ctx.worldD - z);
+}
+
+/**
+ * Composition layer of a world position: `foreground` near a road / the spawn (what the player sees
+ * up close), `background` in the border band (the silhouette on the horizon), `midground` otherwise.
+ * Every stage that pushes a placement uses this — a house on a street is foreground, an edge tree is
+ * a silhouette. `big` widens the foreground band, because a tall object reads as near from further.
+ */
+export function layerFor(ctx: GenContext, x: number, z: number, big: boolean): PlacementLayer {
+  const rd = ctx.roadDistance.sample(x, z);
+  const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
+  const near = Math.min(rd, ds);
+  if (near < (big ? 26 : 18)) return "foreground";
+  if (distanceToEdge(ctx, x, z) < Math.min(ctx.worldW, ctx.worldD) * 0.12) return "background";
+  return "midground";
+}
+
+/**
+ * Ground under a footprint of radius `r`, measured over every heightmap cell the disc touches (not a
+ * ring of samples: a ring aliases straight past the one cell that is 40 studs lower). Returns the
+ * lowest and highest column and the direction of the lowest one.
+ */
+export function baseGround(ctx: GenContext, x: number, z: number, r: number): { lo: number; hi: number; dir: Vec2 } {
+  const [fcx, fcz] = ctx.heights.toCell(x, z);
+  const rc = Math.ceil(r / ctx.cellSize) + 1;
+  const cx = Math.round(fcx);
+  const cz = Math.round(fcz);
+  const reach = r + ctx.cellSize * 0.5;
+  let lo = Infinity;
+  let hi = -Infinity;
+  let dir: Vec2 = [0, 0];
+  for (let dz = -rc; dz <= rc; dz++) {
+    for (let dx = -rc; dx <= rc; dx++) {
+      const gx = Math.max(0, Math.min(ctx.width - 1, cx + dx));
+      const gz = Math.max(0, Math.min(ctx.depth - 1, cz + dz));
+      const [wx, wz] = ctx.heights.toWorld(gx, gz);
+      const d = Math.hypot(wx - x, wz - z);
+      if (d > reach) continue;
+      const h = ctx.heights.data[gz * ctx.width + gx]!;
+      if (h < lo) {
+        lo = h;
+        if (d > 1e-3) dir = [(wx - x) / d, (wz - z) / d];
+      }
+      if (h > hi) hi = h;
+    }
+  }
+  if (lo === Infinity) {
+    const h = ctx.heights.sample(x, z);
+    return { lo: h, hi: h, dir: [0, 0] };
+  }
+  return { lo, hi, dir };
+}
+
+/** Height spread of the ground under a footprint: how uneven the base of an object would be. */
+export function baseRelief(ctx: GenContext, x: number, z: number, r: number): number {
+  const g = baseGround(ctx, x, z, r);
+  return g.hi - g.lo;
+}
+
+/**
+ * Finds a spot near (x, z) where a footprint of radius `r` meets the ground within `tolerance` studs —
+ * the fix for the classic generated-map defect: a tree, rock or crate standing at the lip of a cliff or
+ * a terrace with a third of its base in the air. Steps away from the drop and gives up after a few
+ * tries, in which case the caller skips the placement rather than leaving it hanging.
+ */
+export function settleOnGround(ctx: GenContext, x: number, z: number, r: number, tolerance: number, tries = 3): Vec2 | undefined {
+  let px = x;
+  let pz = z;
+  for (let t = 0; t < tries; t++) {
+    const g = baseGround(ctx, px, pz, r);
+    if (g.hi - g.lo <= tolerance) return [px, pz];
+    if (g.dir[0] === 0 && g.dir[1] === 0) return undefined;
+    // step away from the drop, a little further than the footprint so the whole base clears the edge
+    px -= g.dir[0] * (r + ctx.cellSize);
+    pz -= g.dir[1] * (r + ctx.cellSize);
+    if (px < ctx.origin[0] || pz < ctx.origin[1] || px > ctx.origin[0] + ctx.worldW || pz > ctx.origin[1] + ctx.worldD) return undefined;
+  }
+  return undefined;
 }
 
 /** Line of sight over the heightmap from A (eye) to B (target). */
