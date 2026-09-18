@@ -88,7 +88,8 @@ ombre portée, biseau des boutons, contour du texte, transparence des panneaux),
 **ornement** dessiné sur chaque panneau, **retour des boutons**, **animation d'ouverture** des fenêtres,
 **échelle de texte** (les polices décoratives ont besoin de plus de place), et les **effets** :
 `hover` (lift / glow / tint / outline), `clickFx` (ripple / burst / flash), `rarityFx` (glow / sparkle
-/ shine sur les tuiles d'objets) et `motion` (budget d'animation 0…1,4 ; à 0 rien ne boucle). Tous les écrans (HUD, shop,
+/ shine sur les tuiles d'objets), `celebrate` (confetti / coins / sparks / rays / none), `barStyle`
+(smooth / segmented) et `motion` (budget d'animation 0…1,4 ; à 0 rien ne boucle). Tous les écrans (HUD, shop,
 inventaire, quêtes, craft, classement, équipes, manche, réglages, minimap, menu) lisent la librairie
 sélectionnée : changer de look = un champ.
 

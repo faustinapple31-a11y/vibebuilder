@@ -50,6 +50,8 @@ function kitEntry(kit: UiKitDef): string {
 \t\t\tclickFx: ${JSON.stringify(s.clickFx)},
 \t\t\trarityFx: ${JSON.stringify(s.rarityFx)},
 \t\t\tmotion: ${s.motion},
+\t\t\tcelebrate: ${JSON.stringify(s.celebrate)},
+\t\t\tbarStyle: ${JSON.stringify(s.barStyle)},
 \t\t},
 \t},`;
 }
@@ -76,6 +78,10 @@ export type UiHover = "lift" | "glow" | "tint" | "outline" | "none";
 export type UiClickFx = "ripple" | "burst" | "flash" | "none";
 /** Rarity treatment of item tiles. */
 export type UiRarityFx = "glow" | "sparkle" | "shine" | "none";
+/** Celebration of a win (purchase, quest, level). */
+export type UiCelebrate = "confetti" | "coins" | "sparks" | "rays" | "none";
+/** Bars: one smooth fill or notched segments. */
+export type UiBarStyle = "smooth" | "segmented";
 
 export interface UiKitTokens {
 \tpaper: string;
@@ -116,6 +122,8 @@ export interface UiKitShape {
 \trarityFx: UiRarityFx;
 \t/** animation intensity 0…1.4 (0 disables the looping effects) */
 \tmotion: number;
+\tcelebrate: UiCelebrate;
+\tbarStyle: UiBarStyle;
 }
 
 export interface UiKit {

@@ -29,6 +29,8 @@ describe("UI kit libraries", () => {
       expect(["lift", "glow", "tint", "outline", "none"], `${kit.id} hover`).toContain(kit.shape.hover);
       expect(["ripple", "burst", "flash", "none"], `${kit.id} clickFx`).toContain(kit.shape.clickFx);
       expect(["glow", "sparkle", "shine", "none"], `${kit.id} rarityFx`).toContain(kit.shape.rarityFx);
+      expect(["confetti", "coins", "sparks", "rays", "none"], `${kit.id} celebrate`).toContain(kit.shape.celebrate);
+      expect(["smooth", "segmented"], `${kit.id} barStyle`).toContain(kit.shape.barStyle);
       expect(kit.shape.motion, `${kit.id} motion`).toBeGreaterThanOrEqual(0);
       expect(kit.shape.motion, `${kit.id} motion`).toBeLessThanOrEqual(1.4);
       for (const genre of kit.genres) expect(GENRES.some((g) => g.id === genre), `${kit.id} → ${genre}`).toBe(true);
@@ -44,6 +46,14 @@ describe("UI kit libraries", () => {
     for (const kit of UI_KITS) {
       if (kit.shape.motion > 0) continue;
       expect(["none", "shine"], `${kit.id} asks for ${kit.shape.rarityFx} with motion 0`).toContain(kit.shape.rarityFx);
+    }
+    // a horror, military or noir UI does not throw a party
+    for (const id of ["grim_horror", "military_stencil", "noir_detective"]) {
+      expect(UI_KIT_INDEX[id]!.shape.celebrate, `${id} should not celebrate`).toBe("none");
+    }
+    // consoles and manuals read their bars in steps
+    for (const id of ["pixel_retro", "military_stencil", "mission_control"]) {
+      expect(UI_KIT_INDEX[id]!.shape.barStyle, id).toBe("segmented");
     }
   });
 

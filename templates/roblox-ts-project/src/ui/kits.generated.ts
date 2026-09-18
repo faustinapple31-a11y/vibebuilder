@@ -19,6 +19,10 @@ export type UiHover = "lift" | "glow" | "tint" | "outline" | "none";
 export type UiClickFx = "ripple" | "burst" | "flash" | "none";
 /** Rarity treatment of item tiles. */
 export type UiRarityFx = "glow" | "sparkle" | "shine" | "none";
+/** Celebration of a win (purchase, quest, level). */
+export type UiCelebrate = "confetti" | "coins" | "sparks" | "rays" | "none";
+/** Bars: one smooth fill or notched segments. */
+export type UiBarStyle = "smooth" | "segmented";
 
 export interface UiKitTokens {
 	paper: string;
@@ -59,6 +63,8 @@ export interface UiKitShape {
 	rarityFx: UiRarityFx;
 	/** animation intensity 0…1.4 (0 disables the looping effects) */
 	motion: number;
+	celebrate: UiCelebrate;
+	barStyle: UiBarStyle;
 }
 
 export interface UiKit {
@@ -110,6 +116,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "glow",
 			motion: 1,
+			celebrate: "confetti",
+			barStyle: "smooth",
 		},
 	},
 	candy_pop: {
@@ -152,6 +160,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "sparkle",
 			motion: 1.35,
+			celebrate: "confetti",
+			barStyle: "smooth",
 		},
 	},
 	neon_cyber: {
@@ -194,6 +204,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "glow",
 			motion: 1.1,
+			celebrate: "sparks",
+			barStyle: "segmented",
 		},
 	},
 	holo_hud: {
@@ -236,6 +248,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "shine",
 			motion: 0.9,
+			celebrate: "rays",
+			barStyle: "segmented",
 		},
 	},
 	grim_horror: {
@@ -278,6 +292,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "none",
 			motion: 0.35,
+			celebrate: "none",
+			barStyle: "segmented",
 		},
 	},
 	pixel_retro: {
@@ -320,6 +336,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "none",
 			rarityFx: "shine",
 			motion: 0,
+			celebrate: "coins",
+			barStyle: "segmented",
 		},
 	},
 	arcade_synth: {
@@ -362,6 +380,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "sparkle",
 			motion: 1.25,
+			celebrate: "sparks",
+			barStyle: "segmented",
 		},
 	},
 	clean_modern: {
@@ -404,6 +424,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "shine",
 			motion: 0.8,
+			celebrate: "rays",
+			barStyle: "smooth",
 		},
 	},
 	glass_soft: {
@@ -446,6 +468,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "shine",
 			motion: 0.85,
+			celebrate: "rays",
+			barStyle: "smooth",
 		},
 	},
 	parchment_fantasy: {
@@ -488,6 +512,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "sparkle",
 			motion: 0.95,
+			celebrate: "sparks",
+			barStyle: "smooth",
 		},
 	},
 	stone_rune: {
@@ -530,6 +556,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "glow",
 			motion: 0.7,
+			celebrate: "sparks",
+			barStyle: "segmented",
 		},
 	},
 	military_stencil: {
@@ -572,6 +600,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "none",
 			rarityFx: "none",
 			motion: 0.25,
+			celebrate: "none",
+			barStyle: "segmented",
 		},
 	},
 	steampunk_brass: {
@@ -614,6 +644,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "glow",
 			motion: 0.9,
+			celebrate: "coins",
+			barStyle: "segmented",
 		},
 	},
 	wood_nature: {
@@ -656,6 +688,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "sparkle",
 			motion: 1,
+			celebrate: "confetti",
+			barStyle: "smooth",
 		},
 	},
 	luxury_gold: {
@@ -698,6 +732,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "shine",
 			motion: 0.8,
+			celebrate: "coins",
+			barStyle: "smooth",
 		},
 	},
 	kawaii_pastel: {
@@ -740,6 +776,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "sparkle",
 			motion: 1.4,
+			celebrate: "confetti",
+			barStyle: "smooth",
 		},
 	},
 	western_saloon: {
@@ -782,6 +820,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "glow",
 			motion: 0.7,
+			celebrate: "coins",
+			barStyle: "segmented",
 		},
 	},
 	vapor_wave: {
@@ -824,6 +864,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "sparkle",
 			motion: 1.2,
+			celebrate: "sparks",
+			barStyle: "segmented",
 		},
 	},
 	y2k_bubble: {
@@ -866,6 +908,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "shine",
 			motion: 1.25,
+			celebrate: "confetti",
+			barStyle: "smooth",
 		},
 	},
 	frost_ice: {
@@ -908,6 +952,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "sparkle",
 			motion: 0.9,
+			celebrate: "sparks",
+			barStyle: "smooth",
 		},
 	},
 	sand_temple: {
@@ -950,6 +996,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "glow",
 			motion: 0.7,
+			celebrate: "rays",
+			barStyle: "segmented",
 		},
 	},
 	deep_sea: {
@@ -992,6 +1040,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "ripple",
 			rarityFx: "sparkle",
 			motion: 1.05,
+			celebrate: "sparks",
+			barStyle: "smooth",
 		},
 	},
 	noir_detective: {
@@ -1034,6 +1084,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "none",
 			rarityFx: "none",
 			motion: 0.3,
+			celebrate: "none",
+			barStyle: "segmented",
 		},
 	},
 	sport_jersey: {
@@ -1076,6 +1128,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "shine",
 			motion: 1.15,
+			celebrate: "confetti",
+			barStyle: "segmented",
 		},
 	},
 	graffiti_street: {
@@ -1118,6 +1172,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "burst",
 			rarityFx: "glow",
 			motion: 1.2,
+			celebrate: "confetti",
+			barStyle: "segmented",
 		},
 	},
 	mission_control: {
@@ -1160,6 +1216,8 @@ export const UI_KITS: { [id: string]: UiKit } = {
 			clickFx: "flash",
 			rarityFx: "shine",
 			motion: 0.6,
+			celebrate: "rays",
+			barStyle: "segmented",
 		},
 	},
 };

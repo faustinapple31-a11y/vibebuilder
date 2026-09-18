@@ -151,6 +151,44 @@ describe("UI screens of the template", () => {
     }
   });
 
+  it("renders every celebration and bar style a library asks for", () => {
+    const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+    for (const c of new Set(UI_KITS.map((k) => k.shape.celebrate))) {
+      const handled = kit.includes(`kind === "${c}"`) || c === "confetti" || c === "coins" || c === "none";
+      expect(handled, `celebrate "${c}" has no branch in kit.ts`).toBe(true);
+    }
+    expect(kit.includes('theme.barStyle === "segmented"'), "segmented bars need a branch").toBe(true);
+    for (const api of ["export function celebrate(", "export function refuse(", "export function cursorGlare(", "export function idleIcon(", "export function playEventSound("]) {
+      expect(kit.includes(api), `kit.ts is missing ${api}`).toBe(true);
+    }
+    // the sound palette stays on built-in assets
+    for (const key of ["hover:", "success:", "error:", "reward:"]) {
+      expect(kit.includes(`\t${key} "rbxasset://`), `the ${key} sound should be a built-in asset`).toBe(true);
+    }
+  });
+
+  it("celebrates, refuses and glares at the right moments", () => {
+    const shop = TEMPLATE_FILES["src/ui/ShopUi.ts"]!;
+    // a purchase that goes through celebrates; one the server refuses shakes and buzzes
+    expect(shop.includes("celebrate(this.win.window")).toBe(true);
+    expect(shop.includes("refuse(card.button)")).toBe(true);
+    expect(shop.includes('playEventSound("success")')).toBe(true);
+    // a quest turning done celebrates exactly once, and never for quests already done on join
+    const quests = TEMPLATE_FILES["src/ui/Quests.ts"]!;
+    expect(quests.includes("this.celebrated")).toBe(true);
+    expect(quests.includes("this.seeded")).toBe(true);
+    // crafting refuses a missing ingredient
+    expect(TEMPLATE_FILES["src/ui/Crafting.ts"]!.includes("refuse(craft)")).toBe(true);
+    // a legendary drop celebrates, and the tiles glare under the cursor
+    const inventory = TEMPLATE_FILES["src/ui/Inventory.ts"]!;
+    expect(inventory.includes("tier >= 4) celebrate(")).toBe(true);
+    expect(inventory.includes("cursorGlare(tile)")).toBe(true);
+    // the leaderboard shows rank movement and highlights the local row
+    const board = TEMPLATE_FILES["src/ui/Leaderboard.ts"]!;
+    expect(board.includes("this.lastRank")).toBe(true);
+    expect(board.includes("isLocal) stroke(row, theme.accent")).toBe(true);
+  });
+
   it("ships the polish details the screens rely on", () => {
     const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
     for (const api of ["export function abbreviate(", "export function stamp(", "export function acquirePop("]) {

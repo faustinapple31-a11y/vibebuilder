@@ -32,6 +32,8 @@ export class Hud {
 	private lastCoins = 0;
 	private lastHealth = 1;
 	private coinPill: Frame;
+	/** the drawn coin inside the pill (spun on a gain) */
+	private coinArt: Frame | undefined;
 	/** Generic value panel (stage, wave, team, lap…) filled by HudValue remotes. */
 	private values: Frame;
 	private valuesShadow: Frame | undefined;
@@ -69,6 +71,7 @@ export class Hud {
 		const coinPill = pill("0", new UDim2(0, 180, 0, 46), new UDim2(0, 18, 0, 18), this.root, "coin", { textSize: 22 });
 		this.coins = coinPill.label;
 		this.coinPill = coinPill.frame;
+		this.coinArt = coinPill.frame.FindFirstChildOfClass("Frame");
 		shadow(coinPill.frame, 4, 0.5);
 		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: theme.text, zIndex: 6 });
 		curName.Visible = false;
@@ -263,6 +266,10 @@ export class Hud {
 		tweenNumber(this.coins, this.lastCoins, coins, (v) => abbreviate(v));
 		if (gained > 0 && this.lastCoins > 0) {
 			floatText(`+${abbreviate(gained)}`, this.coinPill, theme.gold[0], new UDim2(0, 54, 0, -4));
+			if (this.coinArt) {
+				const spin = this.coinArt;
+				TweenService.Create(spin, new TweenInfo(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Rotation: spin.Rotation + 360 }).Play();
+			}
 			if (motion() > 0) {
 				const pop = new Instance("UIScale");
 				pop.Parent = this.coinPill;

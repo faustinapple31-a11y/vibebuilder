@@ -206,7 +206,11 @@ Chaque projet embarque les **26 librairies UI** de la taxonomie (voir TAXONOMY.m
 
 **Effets** (déclarés par librairie, tous soumis au budget `motion` — 0 = immobile) : `hover`
 (`lift` / `glow` / `tint` / `outline`), `clickFx` (`ripple` / `burst` / `flash` au curseur), `rarityFx`
-(`glow` pulsé, `sparkle`, `shine`) et `motion` (0…1,4 qui module durées et amplitudes). Côté détails :
+(`glow` pulsé, `sparkle`, `shine`), `celebrate` (`confetti` / `coins` / `sparks` / `rays` / `none` —
+achat validé, quête terminée, drop légendaire), `barStyle` (`smooth` ou `segmented`) et `motion`
+(0…1,4 qui module durées et amplitudes). Palette sonore intégrée : survol, succès, erreur, récompense
+(`playEventSound`), plus le clic de la librairie — tous en sons Roblox intégrés. Un refus serveur
+secoue le contrôle et sonne (`refuse`). Côté détails :
 compteur de monnaie qui défile (`tweenNumber`), gain « +25 » flottant, éclat mobile sur les barres
 remplies (`barShine`) et pulsation à la complétion, lignes d'un écran qui entrent en cascade
 (`staggerIn`), vignette rouge et perte chiffrée quand le joueur prend un coup, file d'attente de
@@ -215,7 +219,10 @@ pour les états vides, tuiles teintées + contour + ruban + chip selon la raret�
 tampon « OWNED » en travers d'une tuile possédée (`stamp`), tuile qui saute quand un stack grandit
 (`acquirePop`), barre de décompte sous chaque bonus actif, éclat qui balaie la barre de chargement,
 fenêtres qui se ferment par l'animation inverse de leur ouverture, infobulles qui attendent 0,2 s
-avant d'apparaître, et **grands nombres abrégés** partout (`abbreviate` : 1 250 → « 1.2K »).
+avant d'apparaître, et **grands nombres abrégés** partout (`abbreviate` : 1 250 → « 1.2K »), éclat qui suit le curseur sur
+les tuiles et les lignes (`cursorGlare`), pièce qui tourne sur un gain, éclat qui glisse sur l'or du
+premier au classement (`idleIcon`), flèches ▲▼ de mouvement de rang, ligne du joueur local surlignée à
+l'accent, et compteurs par catégorie sur les onglets de l'inventaire.
 
 Rien n'est codé en dur dans les écrans : le thème fournit aussi `edge` (contour visible même sur un
 panneau sombre), `track` (fond de barre), `highlight` (valeurs, minuteurs), `good` / `warn` / `bad`

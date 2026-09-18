@@ -1,6 +1,6 @@
 import { Players } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { body, card, coinIcon, panel, text, theme, Window } from "./kit";
+import { abbreviate, body, card, coinIcon, cursorGlare, idleIcon, panel, stroke, text, theme, Window } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -18,6 +18,8 @@ export class Leaderboard {
 	private win: Window;
 	private statName: string;
 	private ticking = false;
+	/** previous rank per player, to show ▲ / ▼ when it moves */
+	private lastRank = new Map<number, number>();
 
 	constructor() {
 		this.statName = GameConfig.leaderstats[0] ?? GameConfig.currency.name;
@@ -69,14 +71,25 @@ export class Leaderboard {
 			text(`${index + 1}`, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), rank, { size: 20, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 			const isLocal = entry.player === Players.LocalPlayer;
 			text(entry.player.DisplayName, new UDim2(1, -230, 1, 0), new UDim2(0, 68, 0, 0), row, { size: 21, color: medal !== undefined ? theme.textDark : theme.text, zIndex: 6 });
+			// rank movement since the last refresh
+			const before = this.lastRank.get(entry.player.UserId);
+			if (before !== undefined && before !== index) {
+				const up = index < before;
+				text(up ? "▲" : "▼", new UDim2(0, 20, 1, 0), new UDim2(0, 48, 0, 0), row, { size: 14, align: Enum.TextXAlignment.Center, color: up ? theme.good : theme.bad, zIndex: 7 });
+			}
+			this.lastRank.set(entry.player.UserId, index);
+			// the local player's row stands out, whatever the rank
+			if (isLocal) stroke(row, theme.accent, math.max(2, theme.strokeThickness));
+			cursorGlare(row);
 			const value = panel(new UDim2(0, 118, 0, 38), new UDim2(1, -132, 0.5, -19), row, { color: theme.pill, strokeColor: theme.pillStroke, radius: 10, shadow: false, zIndex: 6 });
 			if (this.statName === GameConfig.currency.name) {
 				const ic = coinIcon(22, value);
 				ic.Position = new UDim2(0, 8, 0.5, -11);
 				ic.ZIndex = 8;
-				text(`${entry.value}`, new UDim2(1, -40, 1, 0), new UDim2(0, 36, 0, 0), value, { size: 18, zIndex: 8, outline: 1.5 });
+				if (index === 0) idleIcon(ic, "glint");
+				text(abbreviate(entry.value), new UDim2(1, -40, 1, 0), new UDim2(0, 36, 0, 0), value, { size: 18, zIndex: 8, outline: 1.5 });
 			} else {
-				text(`${entry.value}`, new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), value, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 8, outline: 1.5 });
+				text(abbreviate(entry.value), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), value, { size: 18, align: Enum.TextXAlignment.Center, zIndex: 8, outline: 1.5 });
 			}
 		});
 	}

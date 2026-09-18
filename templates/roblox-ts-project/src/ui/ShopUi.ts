@@ -2,7 +2,7 @@ import { TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { abbreviate, badge, body, button, coinIcon, cloverIcon, confirmDialog, corner, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, pressAnimation, rarityFrame, shadow, stamp, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
+import { abbreviate, acquirePop, badge, body, button, celebrate, coinIcon, cloverIcon, confirmDialog, corner, cursorGlare, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, playEventSound, pressAnimation, rarityFrame, refuse, shadow, stamp, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -175,6 +175,7 @@ export class ShopUi {
 			// price → rarity, the same ramp the inventory uses (it outlines the tile)
 			rarityFrame(tile, item.price >= 250 ? 4 : item.price >= 100 ? 3 : item.price >= 40 ? 2 : 1);
 			this.tiles.set(item.id, tile);
+			cursorGlare(tile);
 			shadow(tile, 4, 0.5);
 			hoverable(tile, { shadow: lastShadow(holder) });
 			const head = new Instance("Frame");
@@ -291,7 +292,19 @@ export class ShopUi {
 	private send(itemId: string): void {
 		const res = this.buy.InvokeServer(itemId) as { ok: boolean; message: string };
 		const card = this.cards.get(itemId);
-		if (card && !res.ok) this.flash(card.button, res.message);
+		if (!res.ok) {
+			// the server refused: shake the price, say why, play the error sound
+			if (card) {
+				refuse(card.button);
+				this.flash(card.button, res.message);
+			}
+			return;
+		}
+		playEventSound("success");
+		// a pack or an expensive upgrade is a moment: the library celebrates it its own way
+		const price = card?.price ?? 0;
+		if (price >= CONFIRM_ABOVE || itemId.sub(1, 7) === "bundle:") celebrate(this.win.window, new UDim2(0.5, 0, 0.5, -40));
+		else if (card) acquirePop(card.button);
 	}
 
 	setState(state: ShopState): void {

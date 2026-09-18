@@ -77,6 +77,12 @@ export type UiClickFx = "ripple" | "burst" | "flash" | "none";
 /** How loudly the library expresses item rarity on a tile. */
 export type UiRarityFx = "glow" | "sparkle" | "shine" | "none";
 
+/** What a win looks like: a purchase going through, a quest completed, a level gained. */
+export type UiCelebrate = "confetti" | "coins" | "sparks" | "rays" | "none";
+
+/** Bars: one smooth fill, or notched segments (consoles, field manuals, engineering consoles). */
+export type UiBarStyle = "smooth" | "segmented";
+
 export interface UiKitShape {
   radius: number;
   strokeThickness: number;
@@ -113,6 +119,10 @@ export interface UiKitShape {
    * (0 disables the looping ones entirely: a pixel console or a field manual does not breathe).
    */
   motion: number;
+  /** celebration of a win (purchase, quest, level) */
+  celebrate: UiCelebrate;
+  /** shape of a progress / countdown bar */
+  barStyle: UiBarStyle;
 }
 
 export interface UiKitDef {
@@ -149,6 +159,8 @@ const base: UiKitShape = {
   clickFx: "ripple",
   rarityFx: "glow",
   motion: 1,
+  celebrate: "confetti",
+  barStyle: "smooth",
 };
 
 export const UI_KITS: UiKitDef[] = [
@@ -175,7 +187,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#3d3229",
       tileStroke: "#1e1710",
     },
-    shape: { ...base, hover: "lift", clickFx: "ripple", rarityFx: "glow", motion: 1.0 },
+    shape: { ...base, hover: "lift", clickFx: "ripple", rarityFx: "glow", motion: 1.0, celebrate: "confetti", barStyle: "smooth" },
   },
   {
     id: "candy_pop",
@@ -200,7 +212,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#5a2a4a",
       tileStroke: "#2d1224",
     },
-    shape: { ...base, radius: 24, strokeThickness: 4, font: "LuckiestGuy", fontBody: "Nunito", press: "pulse", shadow: 6, enter: "pop", sound: "pop", hover: "tint", clickFx: "burst", rarityFx: "sparkle", motion: 1.35 },
+    shape: { ...base, radius: 24, strokeThickness: 4, font: "LuckiestGuy", fontBody: "Nunito", press: "pulse", shadow: 6, enter: "pop", sound: "pop", hover: "tint", clickFx: "burst", rarityFx: "sparkle", motion: 1.35, celebrate: "confetti", barStyle: "smooth" },
   },
   {
     id: "neon_cyber",
@@ -225,7 +237,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#121a2a",
       tileStroke: "#35f0ff",
     },
-    shape: { ...base, radius: 8, strokeThickness: 2.5, gradients: true, shadow: 0, bevel: false, textOutline: 1.5, panelTransparency: 0.08, font: "Michroma", fontBody: "Gotham", ornament: "glow", press: "flicker", enter: "fade", textScale: 0.95, sound: "beep", hover: "glow", clickFx: "ripple", rarityFx: "glow", motion: 1.1 },
+    shape: { ...base, radius: 8, strokeThickness: 2.5, gradients: true, shadow: 0, bevel: false, textOutline: 1.5, panelTransparency: 0.08, font: "Michroma", fontBody: "Gotham", ornament: "glow", press: "flicker", enter: "fade", textScale: 0.95, sound: "beep", hover: "glow", clickFx: "ripple", rarityFx: "glow", motion: 1.1, celebrate: "sparks", barStyle: "segmented" },
   },
   {
     id: "holo_hud",
@@ -250,7 +262,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#0b1a26",
       tileStroke: "#4a90b0",
     },
-    shape: { ...base, radius: 2, strokeThickness: 1.5, gradients: false, shadow: 0, bevel: false, textOutline: 0, panelTransparency: 0.25, font: "Jura", fontBody: "Gotham", ornament: "brackets", press: "slide", enter: "slide", sound: "beep", hover: "outline", clickFx: "flash", rarityFx: "shine", motion: 0.9 },
+    shape: { ...base, radius: 2, strokeThickness: 1.5, gradients: false, shadow: 0, bevel: false, textOutline: 0, panelTransparency: 0.25, font: "Jura", fontBody: "Gotham", ornament: "brackets", press: "slide", enter: "slide", sound: "beep", hover: "outline", clickFx: "flash", rarityFx: "shine", motion: 0.9, celebrate: "rays", barStyle: "segmented" },
   },
   {
     id: "grim_horror",
@@ -275,7 +287,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#201618",
       tileStroke: "#4a1a1a",
     },
-    shape: { ...base, radius: 4, strokeThickness: 2.5, gradients: false, shadow: 4, shadowTransparency: 0.35, bevel: false, textOutline: 1.5, font: "Creepster", fontBody: "SpecialElite", ornament: "grain", press: "none", enter: "fade", textScale: 1.12, sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "none", motion: 0.35 },
+    shape: { ...base, radius: 4, strokeThickness: 2.5, gradients: false, shadow: 4, shadowTransparency: 0.35, bevel: false, textOutline: 1.5, font: "Creepster", fontBody: "SpecialElite", ornament: "grain", press: "none", enter: "fade", textScale: 1.12, sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "none", motion: 0.35, celebrate: "none", barStyle: "segmented" },
   },
   {
     id: "pixel_retro",
@@ -300,7 +312,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1d1d29",
       tileStroke: "#0b0b12",
     },
-    shape: { ...base, radius: 0, strokeThickness: 4, gradients: false, shadow: 6, shadowTransparency: 0.2, bevel: false, textOutline: 0, font: "Arcade", fontBody: "Code", ornament: "none", press: "none", enter: "none", textScale: 0.88, sound: "click", hover: "outline", clickFx: "none", rarityFx: "shine", motion: 0.0 },
+    shape: { ...base, radius: 0, strokeThickness: 4, gradients: false, shadow: 6, shadowTransparency: 0.2, bevel: false, textOutline: 0, font: "Arcade", fontBody: "Code", ornament: "none", press: "none", enter: "none", textScale: 0.88, sound: "click", hover: "outline", clickFx: "none", rarityFx: "shine", motion: 0.0, celebrate: "coins", barStyle: "segmented" },
   },
   {
     id: "arcade_synth",
@@ -325,7 +337,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1f1136",
       tileStroke: "#5affe1",
     },
-    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2.5, font: "Arcade", fontBody: "Michroma", ornament: "scanlines", press: "pulse", enter: "slide", textScale: 0.88, sound: "beep", hover: "glow", clickFx: "burst", rarityFx: "sparkle", motion: 1.25 },
+    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2.5, font: "Arcade", fontBody: "Michroma", ornament: "scanlines", press: "pulse", enter: "slide", textScale: 0.88, sound: "beep", hover: "glow", clickFx: "burst", rarityFx: "sparkle", motion: 1.25, celebrate: "sparks", barStyle: "segmented" },
   },
   {
     id: "clean_modern",
@@ -350,7 +362,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#2b3441",
       tileStroke: "#111827",
     },
-    shape: { ...base, radius: 12, strokeThickness: 1.5, gradients: false, shadow: 4, shadowTransparency: 0.75, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "none", press: "slide", enter: "slide", sound: "click", hover: "lift", clickFx: "ripple", rarityFx: "shine", motion: 0.8 },
+    shape: { ...base, radius: 12, strokeThickness: 1.5, gradients: false, shadow: 4, shadowTransparency: 0.75, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "none", press: "slide", enter: "slide", sound: "click", hover: "lift", clickFx: "ripple", rarityFx: "shine", motion: 0.8, celebrate: "rays", barStyle: "smooth" },
   },
   {
     id: "glass_soft",
@@ -375,7 +387,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#44536e",
       tileStroke: "#26324a",
     },
-    shape: { ...base, radius: 20, strokeThickness: 1.5, gradients: true, shadow: 3, shadowTransparency: 0.8, bevel: false, textOutline: 0, panelTransparency: 0.18, font: "Nunito", fontBody: "Nunito", ornament: "none", press: "slide", enter: "fade", textScale: 1.05, sound: "soft", hover: "glow", clickFx: "ripple", rarityFx: "shine", motion: 0.85 },
+    shape: { ...base, radius: 20, strokeThickness: 1.5, gradients: true, shadow: 3, shadowTransparency: 0.8, bevel: false, textOutline: 0, panelTransparency: 0.18, font: "Nunito", fontBody: "Nunito", ornament: "none", press: "slide", enter: "fade", textScale: 1.05, sound: "soft", hover: "glow", clickFx: "ripple", rarityFx: "shine", motion: 0.85, celebrate: "rays", barStyle: "smooth" },
   },
   {
     id: "parchment_fantasy",
@@ -401,7 +413,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#5a3f24",
       tileStroke: "#2a1a08",
     },
-    shape: { ...base, radius: 10, strokeThickness: 3.5, font: "Fondamento", fontBody: "Merriweather", ornament: "filigree", press: "squash", textScale: 1.08, sound: "soft", hover: "lift", clickFx: "ripple", rarityFx: "sparkle", motion: 0.95 },
+    shape: { ...base, radius: 10, strokeThickness: 3.5, font: "Fondamento", fontBody: "Merriweather", ornament: "filigree", press: "squash", textScale: 1.08, sound: "soft", hover: "lift", clickFx: "ripple", rarityFx: "sparkle", motion: 0.95, celebrate: "sparks", barStyle: "smooth" },
   },
   {
     id: "stone_rune",
@@ -426,7 +438,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#3a3a3e",
       tileStroke: "#141418",
     },
-    shape: { ...base, radius: 4, strokeThickness: 3.5, gradients: true, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash", enter: "slide", sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "glow", motion: 0.7 },
+    shape: { ...base, radius: 4, strokeThickness: 3.5, gradients: true, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash", enter: "slide", sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "glow", motion: 0.7, celebrate: "sparks", barStyle: "segmented" },
   },
   {
     id: "military_stencil",
@@ -451,7 +463,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1f221b",
       tileStroke: "#9aa06a",
     },
-    shape: { ...base, radius: 3, strokeThickness: 3, gradients: false, shadow: 4, shadowTransparency: 0.4, bevel: false, textOutline: 1.5, font: "GothamBlack", fontBody: "Code", ornament: "stripes", press: "none", enter: "none", textScale: 0.95, sound: "click", hover: "outline", clickFx: "none", rarityFx: "none", motion: 0.25 },
+    shape: { ...base, radius: 3, strokeThickness: 3, gradients: false, shadow: 4, shadowTransparency: 0.4, bevel: false, textOutline: 1.5, font: "GothamBlack", fontBody: "Code", ornament: "stripes", press: "none", enter: "none", textScale: 0.95, sound: "click", hover: "outline", clickFx: "none", rarityFx: "none", motion: 0.25, celebrate: "none", barStyle: "segmented" },
   },
   {
     id: "steampunk_brass",
@@ -476,7 +488,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#3a2a18",
       tileStroke: "#a88452",
     },
-    shape: { ...base, radius: 8, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, textOutline: 2, font: "Bodoni", fontBody: "Merriweather", ornament: "rivets", press: "squash", textScale: 1.06, sound: "thud", hover: "lift", clickFx: "burst", rarityFx: "glow", motion: 0.9 },
+    shape: { ...base, radius: 8, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, textOutline: 2, font: "Bodoni", fontBody: "Merriweather", ornament: "rivets", press: "squash", textScale: 1.06, sound: "thud", hover: "lift", clickFx: "burst", rarityFx: "glow", motion: 0.9, celebrate: "coins", barStyle: "segmented" },
   },
   {
     id: "wood_nature",
@@ -501,7 +513,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#4f361b",
       tileStroke: "#221507",
     },
-    shape: { ...base, radius: 12, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "PatrickHand", fontBody: "Nunito", ornament: "notch", press: "squash", textScale: 1.12, sound: "soft", hover: "lift", clickFx: "ripple", rarityFx: "sparkle", motion: 1.0 },
+    shape: { ...base, radius: 12, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "PatrickHand", fontBody: "Nunito", ornament: "notch", press: "squash", textScale: 1.12, sound: "soft", hover: "lift", clickFx: "ripple", rarityFx: "sparkle", motion: 1.0, celebrate: "confetti", barStyle: "smooth" },
   },
   {
     id: "luxury_gold",
@@ -526,7 +538,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1a1a20",
       tileStroke: "#d4af37",
     },
-    shape: { ...base, radius: 6, strokeThickness: 2, gradients: true, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 0, font: "Bodoni", fontBody: "Merriweather", ornament: "filigree", press: "slide", enter: "fade", textScale: 1.06, sound: "soft", hover: "glow", clickFx: "flash", rarityFx: "shine", motion: 0.8 },
+    shape: { ...base, radius: 6, strokeThickness: 2, gradients: true, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 0, font: "Bodoni", fontBody: "Merriweather", ornament: "filigree", press: "slide", enter: "fade", textScale: 1.06, sound: "soft", hover: "glow", clickFx: "flash", rarityFx: "shine", motion: 0.8, celebrate: "coins", barStyle: "smooth" },
   },
   {
     id: "kawaii_pastel",
@@ -551,7 +563,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#7a5a8a",
       tileStroke: "#43284f",
     },
-    shape: { ...base, radius: 26, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.6, textOutline: 2, font: "Kalam", fontBody: "Nunito", ornament: "none", press: "pulse", textScale: 1.12, sound: "pop", hover: "tint", clickFx: "burst", rarityFx: "sparkle", motion: 1.4 },
+    shape: { ...base, radius: 26, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.6, textOutline: 2, font: "Kalam", fontBody: "Nunito", ornament: "none", press: "pulse", textScale: 1.12, sound: "pop", hover: "tint", clickFx: "burst", rarityFx: "sparkle", motion: 1.4, celebrate: "confetti", barStyle: "smooth" },
   },
   {
     id: "western_saloon",
@@ -576,7 +588,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#51371c",
       tileStroke: "#1e1206",
     },
-    shape: { ...base, radius: 6, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "Antique", fontBody: "SpecialElite", ornament: "stitch", press: "squash", enter: "slide", textScale: 1.06, sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "glow", motion: 0.7 },
+    shape: { ...base, radius: 6, strokeThickness: 3.5, shadow: 5, textOutline: 2, font: "Antique", fontBody: "SpecialElite", ornament: "stitch", press: "squash", enter: "slide", textScale: 1.06, sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "glow", motion: 0.7, celebrate: "coins", barStyle: "segmented" },
   },
   {
     id: "vapor_wave",
@@ -601,7 +613,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#24123a",
       tileStroke: "#8ae7ff",
     },
-    shape: { ...base, radius: 10, strokeThickness: 2.5, shadow: 4, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Michroma", fontBody: "Gotham", ornament: "grid", press: "pulse", enter: "fade", textScale: 0.95, sound: "beep", hover: "glow", clickFx: "ripple", rarityFx: "sparkle", motion: 1.2 },
+    shape: { ...base, radius: 10, strokeThickness: 2.5, shadow: 4, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Michroma", fontBody: "Gotham", ornament: "grid", press: "pulse", enter: "fade", textScale: 0.95, sound: "beep", hover: "glow", clickFx: "ripple", rarityFx: "sparkle", motion: 1.2, celebrate: "sparks", barStyle: "segmented" },
   },
   {
     id: "y2k_bubble",
@@ -626,7 +638,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#25456e",
       tileStroke: "#0a1a2e",
     },
-    shape: { ...base, radius: 20, strokeThickness: 2.5, shadow: 4, shadowTransparency: 0.6, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "bubbles", press: "pulse", enter: "pop", sound: "pop", hover: "glow", clickFx: "burst", rarityFx: "shine", motion: 1.25 },
+    shape: { ...base, radius: 20, strokeThickness: 2.5, shadow: 4, shadowTransparency: 0.6, textOutline: 0, font: "GothamBlack", fontBody: "Gotham", ornament: "bubbles", press: "pulse", enter: "pop", sound: "pop", hover: "glow", clickFx: "burst", rarityFx: "shine", motion: 1.25, celebrate: "confetti", barStyle: "smooth" },
   },
   {
     id: "frost_ice",
@@ -651,7 +663,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#1e4c66",
       tileStroke: "#071b28",
     },
-    shape: { ...base, radius: 16, strokeThickness: 2.5, shadow: 3, shadowTransparency: 0.75, bevel: false, textOutline: 0, panelTransparency: 0.12, font: "Nunito", fontBody: "Nunito", ornament: "stitch", press: "slide", enter: "fade", textScale: 1.05, sound: "soft", hover: "glow", clickFx: "ripple", rarityFx: "sparkle", motion: 0.9 },
+    shape: { ...base, radius: 16, strokeThickness: 2.5, shadow: 3, shadowTransparency: 0.75, bevel: false, textOutline: 0, panelTransparency: 0.12, font: "Nunito", fontBody: "Nunito", ornament: "stitch", press: "slide", enter: "fade", textScale: 1.05, sound: "soft", hover: "glow", clickFx: "ripple", rarityFx: "sparkle", motion: 0.9, celebrate: "sparks", barStyle: "smooth" },
   },
   {
     id: "sand_temple",
@@ -676,7 +688,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#5a4020",
       tileStroke: "#231705",
     },
-    shape: { ...base, radius: 4, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash", enter: "slide", textScale: 1.05, sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "glow", motion: 0.7 },
+    shape: { ...base, radius: 4, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.45, bevel: false, textOutline: 2, font: "Antique", fontBody: "Merriweather", ornament: "notch", press: "squash", enter: "slide", textScale: 1.05, sound: "thud", hover: "tint", clickFx: "flash", rarityFx: "glow", motion: 0.7, celebrate: "rays", barStyle: "segmented" },
   },
   {
     id: "deep_sea",
@@ -701,7 +713,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#0a2c38",
       tileStroke: "#4aa8b8",
     },
-    shape: { ...base, radius: 18, strokeThickness: 3, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 1.5, panelTransparency: 0.06, font: "Nunito", fontBody: "Gotham", ornament: "bubbles", press: "slide", enter: "fade", textScale: 1.05, sound: "soft", hover: "glow", clickFx: "ripple", rarityFx: "sparkle", motion: 1.05 },
+    shape: { ...base, radius: 18, strokeThickness: 3, shadow: 4, shadowTransparency: 0.5, bevel: false, textOutline: 1.5, panelTransparency: 0.06, font: "Nunito", fontBody: "Gotham", ornament: "bubbles", press: "slide", enter: "fade", textScale: 1.05, sound: "soft", hover: "glow", clickFx: "ripple", rarityFx: "sparkle", motion: 1.05, celebrate: "sparks", barStyle: "smooth" },
   },
   {
     id: "noir_detective",
@@ -726,7 +738,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#2a2723",
       tileStroke: "#000000",
     },
-    shape: { ...base, radius: 2, strokeThickness: 3, gradients: false, shadow: 5, shadowTransparency: 0.35, bevel: false, textOutline: 0, font: "SpecialElite", fontBody: "SpecialElite", ornament: "grain", press: "none", enter: "fade", textScale: 1.08, sound: "click", hover: "outline", clickFx: "none", rarityFx: "none", motion: 0.3 },
+    shape: { ...base, radius: 2, strokeThickness: 3, gradients: false, shadow: 5, shadowTransparency: 0.35, bevel: false, textOutline: 0, font: "SpecialElite", fontBody: "SpecialElite", ornament: "grain", press: "none", enter: "fade", textScale: 1.08, sound: "click", hover: "outline", clickFx: "none", rarityFx: "none", motion: 0.3, celebrate: "none", barStyle: "segmented" },
   },
   {
     id: "sport_jersey",
@@ -751,7 +763,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#0f2e1d",
       tileStroke: "#000000",
     },
-    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2, font: "GothamBlack", fontBody: "GothamBold", ornament: "chevrons", press: "slide", enter: "slide", textScale: 0.98, sound: "click", hover: "lift", clickFx: "burst", rarityFx: "shine", motion: 1.15 },
+    shape: { ...base, radius: 6, strokeThickness: 3, shadow: 4, shadowTransparency: 0.4, textOutline: 2, font: "GothamBlack", fontBody: "GothamBold", ornament: "chevrons", press: "slide", enter: "slide", textScale: 0.98, sound: "click", hover: "lift", clickFx: "burst", rarityFx: "shine", motion: 1.15, celebrate: "confetti", barStyle: "segmented" },
   },
   {
     id: "graffiti_street",
@@ -776,7 +788,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#242427",
       tileStroke: "#000000",
     },
-    shape: { ...base, radius: 4, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.4, textOutline: 2.5, font: "PermanentMarker", fontBody: "GothamBold", ornament: "stitch", press: "squash", enter: "pop", textScale: 1.05, sound: "pop", hover: "tint", clickFx: "burst", rarityFx: "glow", motion: 1.2 },
+    shape: { ...base, radius: 4, strokeThickness: 3.5, shadow: 5, shadowTransparency: 0.4, textOutline: 2.5, font: "PermanentMarker", fontBody: "GothamBold", ornament: "stitch", press: "squash", enter: "pop", textScale: 1.05, sound: "pop", hover: "tint", clickFx: "burst", rarityFx: "glow", motion: 1.2, celebrate: "confetti", barStyle: "segmented" },
   },
   {
     id: "mission_control",
@@ -801,7 +813,7 @@ export const UI_KITS: UiKitDef[] = [
       tile: "#2e3339",
       tileStroke: "#0d0f12",
     },
-    shape: { ...base, radius: 3, strokeThickness: 2, gradients: false, shadow: 3, shadowTransparency: 0.7, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Code", ornament: "brackets", press: "slide", enter: "slide", textScale: 0.95, sound: "beep", hover: "outline", clickFx: "flash", rarityFx: "shine", motion: 0.6 },
+    shape: { ...base, radius: 3, strokeThickness: 2, gradients: false, shadow: 3, shadowTransparency: 0.7, bevel: false, textOutline: 0, font: "GothamBlack", fontBody: "Code", ornament: "brackets", press: "slide", enter: "slide", textScale: 0.95, sound: "beep", hover: "outline", clickFx: "flash", rarityFx: "shine", motion: 0.6, celebrate: "rays", barStyle: "segmented" },
   },
 ];
 

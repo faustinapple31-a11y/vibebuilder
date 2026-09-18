@@ -1,6 +1,6 @@
 import { ShopCatalog } from "shared/catalog";
 import type { ProfileStateMsg, ShopState } from "shared/net";
-import { abbreviate, acquirePop, body, card, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, progressBar, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
+import { abbreviate, acquirePop, body, card, celebrate, cursorGlare, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, progressBar, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -57,11 +57,29 @@ export class Inventory {
 	setProfile(state: ProfileStateMsg): void {
 		this.profile = state;
 		this.win.setCoins(state.coins);
+		this.refreshTabCounts();
 		if (this.win.open) this.render();
+	}
+
+	/** "Resources 12" — how much each category holds, on the tab itself. */
+	private refreshTabCounts(): void {
+		let resources = 0;
+		for (const [id, count] of pairs(this.profile.inventory)) {
+			if ((count as number) > 0 && !ShopCatalog.items.some((i) => i.id === (id as string))) resources += 1;
+		}
+		let items = 0;
+		for (const [, count] of pairs(this.shop.counts)) if ((count as number) > 0) items += 1;
+		const upgrades = this.profile.owned.filter((id) => id.sub(1, 7) !== "bundle:").size();
+		const labels = [`${L.all}`, `${L.resources} ${resources}`, `${L.items} ${items}`, `${L.upgrades} ${upgrades}`];
+		this.tabs.buttons.forEach((b, i) => {
+			const label = b.FindFirstChild("Label") as TextLabel | undefined;
+			if (label) label.Text = labels[i]!;
+		});
 	}
 
 	setShopState(state: ShopState): void {
 		this.shop = state;
+		this.refreshTabCounts();
 		if (this.win.open) this.render();
 	}
 
@@ -183,6 +201,7 @@ export class Inventory {
 			const tier = price >= 250 ? 4 : price >= 100 ? 3 : price >= 40 ? 2 : price > 0 ? 1 : entry.count >= 50 ? 2 : entry.count >= 10 ? 1 : 0;
 			const rarity = rarityFrame(tile, tier);
 			hoverable(tile);
+			cursorGlare(tile);
 			const icon = item ? itemIcon(item, 52, tile) : resourceIcon(entry.id, 52, tile);
 			icon.Position = new UDim2(0.5, -26, 0, 14);
 			icon.ZIndex = 6;
@@ -190,7 +209,11 @@ export class Inventory {
 			text(abbreviate(entry.count), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), count, { size: 16, align: Enum.TextXAlignment.Center, zIndex: 8, outline: 1.5 });
 			// the tile pops when the stack grew since the last render
 			const before = this.lastCounts.get(entry.id);
-			if (before !== undefined && entry.count > before) acquirePop(tile, `+${abbreviate(entry.count - before)}`);
+			if (before !== undefined && entry.count > before) {
+				acquirePop(tile, `+${abbreviate(entry.count - before)}`);
+				// a legendary drop deserves the library's celebration, not just a pop
+				if (tier >= 4) celebrate(this.win.window, new UDim2(0.5, 0, 0.45, 0));
+			}
 			this.lastCounts.set(entry.id, entry.count);
 			const name = item?.name ?? prettyName(entry.id);
 			// the name under the tile takes the rarity colour from "rare" up

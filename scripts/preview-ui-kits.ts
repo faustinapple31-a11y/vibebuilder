@@ -123,7 +123,7 @@ function kitSheet(kit: UiKitDef): string {
     <header>
       <b>${kit.name}</b><code>${kit.id}</code>
       <span class="meta">${s.ornament} · ${s.press} · ${s.enter} · ${s.font} · r${s.radius} · ×${s.textScale}</span>
-      <span class="meta fx">hover ${s.hover} · click ${s.clickFx} · rarity ${s.rarityFx} · motion ${s.motion}</span>
+      <span class="meta fx">hover ${s.hover} · click ${s.clickFx} · rarity ${s.rarityFx} · win ${s.celebrate} · bar ${s.barStyle} · motion ${s.motion}</span>
     </header>
     <p class="desc">${kit.description}</p>
     <div class="window" style="background:${panelBg};border:${stroke}px solid ${edge};border-radius:${s.radius}px;${shadow}opacity:${1 - s.panelTransparency / 2};">
@@ -161,6 +161,7 @@ function kitSheet(kit: UiKitDef): string {
       </div>
       <div class="bar" style="background:${t.ink};border:1px solid ${edge};border-radius:${Math.min(9, s.radius)}px">
         <span style="width:62%;background:${s.gradients ? `linear-gradient(${t.primary[0]}, ${t.primary[1]})` : t.primary[1]};border-radius:${Math.min(9, s.radius)}px"></span>
+        ${s.barStyle === "segmented" ? `<span class="notches" style="background:repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), ${t.ink}66 calc(10% - 2px) 10%)"></span>` : ""}
         <em style="color:${onPrimary};font-family:${font(s.fontBody)};font-size:${9 * scale}px;${outline}">3 / 5</em>
       </div>
       <div class="row bottom">
@@ -216,6 +217,7 @@ const html = `<!doctype html>
   .tile { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 0; font-weight: 700; }
   .bar { position: relative; height: 16px; margin-top: 8px; overflow: hidden; }
   .bar span { position: absolute; inset: 0 auto 0 0; }
+  .bar .notches { inset: 0; width: 100%; }
   .bar em { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-weight: 700; }
   .btn { padding: 5px 12px; font-weight: 700; display: inline-block; }
 </style></head>

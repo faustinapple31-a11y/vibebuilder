@@ -1,6 +1,6 @@
 import { Players, TweenService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
-import { DEFAULT_UI_KIT, UI_KITS, type UiClickFx, type UiEnter, type UiHover, type UiKit, type UiOrnament, type UiPress, type UiRarityFx, type UiSound } from "./kits.generated";
+import { DEFAULT_UI_KIT, UI_KITS, type UiBarStyle, type UiCelebrate, type UiClickFx, type UiEnter, type UiHover, type UiKit, type UiOrnament, type UiPress, type UiRarityFx, type UiSound } from "./kits.generated";
 import { L } from "./strings.generated";
 
 /**
@@ -67,6 +67,10 @@ export interface Theme {
 	rarityFx: UiRarityFx;
 	/** animation intensity 0…1.4 (0 = still) */
 	motion: number;
+	/** celebration of a win */
+	celebrate: UiCelebrate;
+	/** smooth or notched bars */
+	barStyle: UiBarStyle;
 	/** accent colour of the world's style family (GameConfig.ui.accentColor) */
 	accent: Color3;
 	// ---- derived from the library, so nothing in the UI hard-codes a colour
@@ -145,6 +149,8 @@ function makeTheme(): Theme {
 		clickFx: s.clickFx,
 		rarityFx: s.rarityFx,
 		motion: s.motion,
+		celebrate: s.celebrate,
+		barStyle: s.barStyle,
 		accent: ACCENT,
 		isDark,
 		edge: contrast(ink, paper) >= 1.8 || contrast(ink, paper) >= contrast(hex(t.inkSoft), paper) ? ink : hex(t.inkSoft),
@@ -256,13 +262,44 @@ const UI_SOUNDS: { [key: string]: string } = {
 	thud: "rbxasset://sounds/bass.wav",
 };
 
+/** The other moments a UI makes a noise, all from built-in Roblox assets. */
+const EVENT_SOUNDS: { [key: string]: string } = {
+	hover: "rbxasset://sounds/clickfast.wav",
+	success: "rbxasset://sounds/electronicpingshort.wav",
+	error: "rbxasset://sounds/bass.wav",
+	reward: "rbxasset://sounds/action_get_up.mp3",
+};
+
 let uiSoundVolume = 0.5;
 let uiSound: Sound | undefined;
+const eventSounds = new Map<string, Sound>();
 
 /** Follows the SFX slider of the Settings screen. */
 export function setUiSoundVolume(volume: number): void {
 	uiSoundVolume = math.clamp(volume, 0, 1);
 	if (uiSound) uiSound.Volume = uiSoundVolume * 0.5;
+	for (const [, sound] of eventSounds) sound.Volume = uiSoundVolume * 0.5;
+}
+
+/**
+ * Plays one of the UI moments: `hover` (a quiet tick under the cursor), `success` (a purchase went
+ * through), `error` (it did not) or `reward` (a quest, a level, a pack). Volume follows the SFX
+ * slider; a library with `sound: "none"` only keeps `error` (a refusal must be felt).
+ */
+export function playEventSound(kind: "hover" | "success" | "error" | "reward"): void {
+	if (theme.sound === "none" && kind !== "error") return;
+	const id = EVENT_SOUNDS[kind];
+	if (id === undefined) return;
+	let sound = eventSounds.get(kind);
+	if (!sound || !sound.Parent) {
+		sound = new Instance("Sound");
+		sound.Name = `WorldForgeUi_${kind}`;
+		sound.SoundId = id;
+		sound.Parent = game.GetService("SoundService");
+		eventSounds.set(kind, sound);
+	}
+	sound.Volume = uiSoundVolume * (kind === "hover" ? 0.18 : 0.55);
+	sound.Play();
 }
 
 /** Plays the library's click (buttons call it; `none` stays silent). */
@@ -733,6 +770,7 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 		}
 	});
 	hoverable(b, { shadow: lastShadow(parent) });
+	b.MouseEnter.Connect(() => playEventSound("hover"));
 	makeSelectable(b);
 	return b;
 }
@@ -1301,7 +1339,20 @@ export function progressBar(size: UDim2, position: UDim2, parent: Instance, colo
 			}
 		},
 	};
-	if (shine) barShine(handle);
+	if (theme.barStyle === "segmented") {
+		// notches over the fill: a console / field-manual bar reads in steps
+		for (let i = 1; i < 10; i++) {
+			const notch = new Instance("Frame");
+			notch.Size = new UDim2(0, 2, 1, 0);
+			notch.Position = new UDim2(i / 10, -1, 0, 0);
+			notch.BackgroundColor3 = darken(theme.ink, 0.1);
+			notch.BackgroundTransparency = 0.25;
+			notch.BorderSizePixel = 0;
+			notch.ZIndex = zIndex + 3;
+			notch.Parent = bg;
+		}
+	}
+	if (shine && theme.barStyle !== "segmented") barShine(handle);
 	return handle;
 }
 
@@ -2048,4 +2099,154 @@ export function acquirePop(target: GuiObject, gain?: string): void {
 	fxTween(pop, 0.22, { Scale: 1 }, Enum.EasingStyle.Back);
 	task.delay(0.6, () => pop.Destroy());
 	if (gain !== undefined) floatText(gain, target, theme.good, new UDim2(0.5, -40, 0, -10));
+}
+
+/**
+ * Celebration of a win, in the library's language: `confetti` (paper rectangles tumbling down),
+ * `coins` (gold discs arcing up), `sparks` (accent streaks flying out), `rays` (a light burst behind
+ * the panel) or `none` — a horror or military UI does not throw a party. `at` centres it; the default
+ * is the middle of the screen.
+ */
+export function celebrate(parent: GuiObject, at: UDim2 = new UDim2(0.5, 0, 0.5, 0), kind: UiCelebrate = theme.celebrate): void {
+	if (kind === "none" || theme.motion <= 0) return;
+	playEventSound("reward");
+	const count = kind === "confetti" ? 24 : kind === "coins" ? 12 : kind === "sparks" ? 16 : 8;
+	if (kind === "rays") {
+		// a burst of light behind the content
+		for (let i = 0; i < count; i++) {
+			const ray = new Instance("Frame");
+			ray.AnchorPoint = new Vector2(0.5, 1);
+			ray.Position = at;
+			ray.Size = new UDim2(0, 6, 0, 10);
+			ray.BackgroundColor3 = i % 2 === 0 ? theme.gold[0] : theme.accent;
+			ray.BackgroundTransparency = 0.35;
+			ray.BorderSizePixel = 0;
+			ray.Rotation = (i / count) * 360;
+			ray.ZIndex = 30;
+			ray.Parent = parent;
+			fxTween(ray, 0.45, { Size: new UDim2(0, 4, 0, 150), BackgroundTransparency: 1 });
+			task.delay(0.7, () => ray.Destroy());
+		}
+		return;
+	}
+	for (let i = 0; i < count; i++) {
+		const piece = new Instance("Frame");
+		const size = kind === "coins" ? 16 : kind === "sparks" ? 5 : 10;
+		piece.AnchorPoint = new Vector2(0.5, 0.5);
+		piece.Position = at;
+		piece.Size = new UDim2(0, size, 0, kind === "confetti" ? size * 1.6 : size);
+		piece.BackgroundColor3 = kind === "coins" ? theme.gold[0] : i % 3 === 0 ? theme.accent : i % 3 === 1 ? theme.primary[0] : theme.gold[0];
+		piece.BorderSizePixel = 0;
+		piece.ZIndex = 30;
+		if (kind === "coins") {
+			corner(piece, size / 2);
+			stroke(piece, darken(theme.gold[1], 0.2), 2);
+		} else if (kind === "sparks") {
+			corner(piece, 2);
+		}
+		piece.Rotation = math.random(0, 360);
+		piece.Parent = parent;
+		const angle = kind === "confetti" ? -math.pi / 2 + (math.random() - 0.5) * 1.2 : (i / count) * math.pi * 2;
+		const distance = kind === "confetti" ? 120 + math.random(0, 90) : 90 + math.random(0, 70);
+		const rise = at.add(new UDim2(0, math.cos(angle) * distance, 0, math.sin(angle) * distance));
+		fxTween(piece, 0.42, { Position: rise, Rotation: piece.Rotation + math.random(90, 320) }, Enum.EasingStyle.Quad);
+		// confetti and coins fall back down
+		task.delay(0.42 / math.max(0.35, theme.motion), () => {
+			if (!piece.Parent) return;
+			if (kind === "sparks") {
+				fxTween(piece, 0.3, { BackgroundTransparency: 1, Size: new UDim2(0, 1, 0, 1) });
+			} else {
+				fxTween(piece, 0.75, { Position: rise.add(new UDim2(0, math.random(-30, 30), 0, 260)), Rotation: piece.Rotation + 360, BackgroundTransparency: 1 }, Enum.EasingStyle.Quad);
+			}
+		});
+		task.delay(1.6, () => piece.Destroy());
+	}
+}
+
+/** A refusal: the control shakes and the error sound plays (server said no, missing ingredient…). */
+export function refuse(target: GuiObject): void {
+	playEventSound("error");
+	if (theme.motion <= 0) return;
+	const home = target.Position;
+	task.spawn(() => {
+		for (const offset of [6, -5, 4, -3, 0]) {
+			if (!target.Parent) return;
+			TweenService.Create(target, new TweenInfo(0.05), { Position: home.add(new UDim2(0, offset, 0, 0)) }).Play();
+			task.wait(0.05);
+		}
+		if (target.Parent) target.Position = home;
+	});
+}
+
+/**
+ * A soft glare that follows the cursor across a tile — the detail that makes a grid of items feel
+ * physical. Cheap: one frame per tile, moved on MouseMoved, hidden on leave.
+ */
+export function cursorGlare(target: GuiObject): void {
+	if (theme.motion <= 0) return;
+	const glare = new Instance("Frame");
+	glare.Size = new UDim2(0, 64, 0, 64);
+	glare.AnchorPoint = new Vector2(0.5, 0.5);
+	glare.BackgroundColor3 = new Color3(1, 1, 1);
+	glare.BackgroundTransparency = 1;
+	glare.BorderSizePixel = 0;
+	glare.ZIndex = target.ZIndex + 2;
+	corner(glare, 32);
+	glare.Parent = target;
+	// clip only while the glare is visible: a rarity ribbon, a promo badge or a stamp is meant to
+	// overflow the tile, and a permanent ClipsDescendants would cut it off
+	const clip = target.ClipsDescendants;
+	target.MouseEnter.Connect(() => {
+		target.ClipsDescendants = true;
+		fxTween(glare, 0.14, { BackgroundTransparency: 0.86 });
+	});
+	target.MouseMoved.Connect((x, y) => {
+		glare.Position = new UDim2(0, x - target.AbsolutePosition.X, 0, y - target.AbsolutePosition.Y);
+	});
+	target.MouseLeave.Connect(() => {
+		fxTween(glare, 0.18, { BackgroundTransparency: 1 });
+		task.delay(0.2, () => (target.ClipsDescendants = clip));
+	});
+}
+
+/** Idle motion for an icon: a coin spins when it is gained, a potion bobs, a crown glints. */
+export function idleIcon(icon: GuiObject, kind: "spin" | "bob" | "glint" = "bob"): void {
+	if (theme.motion <= 0) return;
+	if (kind === "spin") {
+		task.spawn(() => {
+			while (icon.Parent) {
+				fxTween(icon, 0.9, { Rotation: icon.Rotation + 360 });
+				task.wait(4 / math.max(0.4, theme.motion));
+			}
+		});
+		return;
+	}
+	if (kind === "glint") {
+		const shine = new Instance("Frame");
+		shine.Size = new UDim2(0, 3, 1.4, 0);
+		shine.Position = new UDim2(0, -6, -0.2, 0);
+		shine.BackgroundColor3 = new Color3(1, 1, 1);
+		shine.BackgroundTransparency = 0.5;
+		shine.BorderSizePixel = 0;
+		shine.Rotation = 16;
+		shine.ZIndex = icon.ZIndex + 2;
+		shine.Parent = icon;
+		task.spawn(() => {
+			while (shine.Parent) {
+				shine.Position = new UDim2(0, -6, -0.2, 0);
+				fxTween(shine, 0.55, { Position: new UDim2(1, 6, -0.2, 0) });
+				task.wait(3.4 / math.max(0.4, theme.motion));
+			}
+		});
+		return;
+	}
+	const home = icon.Position;
+	task.spawn(() => {
+		while (icon.Parent) {
+			fxTween(icon, 0.8, { Position: home.add(new UDim2(0, 0, 0, -3)) });
+			task.wait(1 / math.max(0.4, theme.motion));
+			fxTween(icon, 0.8, { Position: home });
+			task.wait(1 / math.max(0.4, theme.motion));
+		}
+	});
 }

@@ -1,7 +1,7 @@
 import { GameConfig } from "shared/config";
 import type { ProfileStateMsg } from "shared/net";
 import { QuestConfig } from "shared/quests";
-import { body, card, coinIcon, emptyIllustration, panel, progressBar, resourceIcon, sectionHeader, text, textOnGradient, theme, Window } from "./kit";
+import { body, card, celebrate, coinIcon, cursorGlare, emptyIllustration, panel, progressBar, resourceIcon, sectionHeader, text, textOnGradient, theme, Window } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -12,6 +12,9 @@ import { L } from "./strings.generated";
 export class Quests {
 	private win: Window;
 	private profile: ProfileStateMsg = { coins: 0, inventory: {}, owned: [], stats: {}, quests: {} };
+	/** quests already seen as done, so a completion celebrates exactly once */
+	private celebrated = new Set<string>();
+	private seeded = false;
 
 	constructor() {
 		this.win = new Window("Quests", L.quests, { width: 600, height: 560, displayOrder: 6 });
@@ -29,6 +32,15 @@ export class Quests {
 	setProfile(state: ProfileStateMsg): void {
 		this.profile = state;
 		this.win.setCoins(state.coins);
+		// a quest that just turned done is a win: the library celebrates it (once, and never for the
+		// quests that were already done when the player joined)
+		for (const quest of QuestConfig.quests) {
+			const done = state.quests[quest.id]?.done === true;
+			if (!done || this.celebrated.has(quest.id)) continue;
+			this.celebrated.add(quest.id);
+			if (this.seeded) celebrate(this.win.window, new UDim2(0.5, 0, 0.4, 0));
+		}
+		this.seeded = true;
 		if (this.win.open) this.render();
 	}
 

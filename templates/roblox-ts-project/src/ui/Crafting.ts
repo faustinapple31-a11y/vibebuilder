@@ -1,6 +1,6 @@
 import { Remotes, waitRemoteEvent, type ProfileStateMsg } from "shared/net";
 import { RecipeConfig, type RecipeDef } from "shared/recipes";
-import { body, button, card, darken, emptyIllustration, lighten, panel, prettyName, resourceIcon, stroke, text, theme, Window } from "./kit";
+import { acquirePop, body, button, card, darken, emptyIllustration, lighten, panel, playEventSound, prettyName, refuse, resourceIcon, stroke, text, theme, Window } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -92,8 +92,13 @@ export class Crafting {
 
 			const craft = button(L.craft, new UDim2(0, 128, 0, 48), new UDim2(1, -144, 0.5, -24), row, { colors: ok ? theme.primary : [lighten(theme.inkSoft, 0.15), darken(theme.inkSoft, 0.25)], size: 22, radius: math.min(12, theme.radius), zIndex: 7 });
 			craft.MouseButton1Click.Connect(() => {
-				if (!this.canCraft(recipe)) return;
+				if (!this.canCraft(recipe)) {
+					refuse(craft);
+					return;
+				}
 				this.action.FireServer("craft", recipe.id);
+				playEventSound("success");
+				acquirePop(tile);
 			});
 		}
 	}

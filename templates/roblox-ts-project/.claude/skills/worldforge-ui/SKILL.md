@@ -62,8 +62,12 @@ No external UI framework: keep it that way so the design / QA agents and Roblox'
   bar, plus a pulse when it completes), `staggerIn(container)` (rows sliding in when a screen opens),
   `emptyIllustration(size, parent)` (a drawn crate for an empty state), `acquirePop(tile, "+3")`
   (a tile popping when a stack grows), `stamp("OWNED", tile)` (a rotated stamp across a tile),
-  `abbreviate(n)` (**always** use it for a currency, a price or a score: 1 250 → "1.2K") and
-  `motion()`.
+  `abbreviate(n)` (**always** use it for a currency, a price or a score: 1 250 → "1.2K"),
+  `celebrate(parent, at?)` (the library's win: confetti / coins / sparks / rays / nothing — use it
+  for a purchase, a completed quest, a level, a legendary drop), `refuse(control)` (a shake + the
+  error sound when the server says no), `cursorGlare(tile)` (a glare following the cursor),
+  `idleIcon(icon, "spin" | "bob" | "glint")`, `playEventSound("hover" | "success" | "error" |
+  "reward")` and `motion()`.
 - **rarity**: `RARITY_COLORS` / `RARITY_NAMES` (common → legendary, derived from the library) and
   `rarityFrame(tile, tier)` which outlines a tile and adds a ribbon for epic / legendary. The
   inventory derives the tier from the item's price; a pet / egg / crate screen should do the same.

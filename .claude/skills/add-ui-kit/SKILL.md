@@ -78,6 +78,10 @@ game follows.
   - `rarityFx`: how loudly an item tile shows its tier — `glow` (breathing halo on epic+),
     `sparkle` (twinkles on legendary), `shine` (slow light sweep), `none`. The rarity colour, the
     fill tint and the epic/legendary ribbon are applied whatever the value.
+  - `celebrate`: what a win looks like — `confetti`, `coins`, `sparks`, `rays`, `none`. A horror,
+    military or noir library must use `none` (a test enforces those three).
+  - `barStyle`: `smooth` or `segmented` (a console or a field manual reads its bars in steps; the
+    test requires it for pixel retro, military stencil and mission control).
   - `motion`: 0…1.4, the animation budget. It scales every duration and amplitude, **and at 0 the
     looping effects never start** — that is how a pixel console, a field manual or a case file stays
     still (a test enforces `motion ≤ 0.4` for those and `≥ 1.2` for candy / kawaii / arcade, and
