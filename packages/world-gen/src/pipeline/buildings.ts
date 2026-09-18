@@ -1,6 +1,6 @@
 import { TERRAIN_MATERIAL_INDEX, deriveSeed, type Placement, type PrefabVariant, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
-import { progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
+import { layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
 import { flattenArea } from "./sites";
 import { carveRoad, refreshRoadDistance } from "./roads";
 
@@ -129,7 +129,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
       position,
       rotationY: rotY,
       scale,
-      layer: "midground",
+      layer: layerFor(ctx, position[0], position[2], true),
       zone: site.id,
       importance: 9,
     };
@@ -197,7 +197,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
       position: [cx, y, cz],
       rotationY: rng.float(0, Math.PI * 2),
       scale: 1,
-      layer: "midground",
+      layer: layerFor(ctx, cx, cz, true),
       zone: site.id,
       importance: 8,
     };
@@ -277,7 +277,7 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
     if (slopeAtWorld(ctx, x, z) > MAX_BUILDING_SLOPE) continue;
     const scale = 1 + (rng.next() * 2 - 1) * ctx.style.architecture.scaleVariance * 0.3;
     const position: Vec3 = [x, base, z];
-    const p: Placement = { id: `${site.id}_${pid}_${placed}`, prefab: pid, variant: vi, category: "building", position, rotationY: rotY, scale, layer: "midground", zone: site.id, importance: 9 };
+    const p: Placement = { id: `${site.id}_${pid}_${placed}`, prefab: pid, variant: vi, category: "building", position, rotationY: rotY, scale, layer: layerFor(ctx, position[0], position[2], true), zone: site.id, importance: 9 };
     ctx.placements.push(p);
     ctx.occupants.push({ position, radius: v.footprintRadius * scale, kind: "building" });
     placed++;

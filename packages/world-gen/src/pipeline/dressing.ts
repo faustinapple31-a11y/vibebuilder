@@ -1,6 +1,6 @@
 import { Rng, TERRAIN_MATERIAL_INDEX, deriveSeed, lerp, smootherstep, type Placement, type PrefabVariant, type Vec2 } from "@worldforge/core";
 import { WALL_SEGMENT } from "@worldforge/prefabs";
-import { inBounds, isWaterAt, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
+import { inBounds, isWaterAt, layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
 import { SpatialHash } from "../grid";
 import { roadMaterial } from "./roads";
 import { GROUND_STEP } from "./ground";
@@ -35,7 +35,7 @@ export function placeDressing(ctx: GenContext): void {
       position: [x, y, z],
       rotationY,
       scale: opts.scale ?? 1,
-      layer: "midground",
+      layer: layerFor(ctx, x, z, false),
       zone: opts.zone,
       importance: opts.importance ?? 8,
     };

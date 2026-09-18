@@ -28,6 +28,7 @@ import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
 import { buildGround, quantizeHeights, snapHeightsToLevels } from "./pipeline/ground";
+import { placeDetail } from "./pipeline/detail";
 import { defaultBudget, optimizeAndStats } from "./pipeline/optimize";
 
 export const GENERATOR_VERSION = "0.1.0";
@@ -228,6 +229,10 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   } else {
     for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_") && !p.fixed) ctx.placements.push({ ...p });
   }
+
+  // ---- near-field & horizon detail (verges, spawn apron, edge silhouettes)
+  // (on a partial regeneration the inherited detail_ placements come back with their own category above)
+  if (regenerate.has("props") || regenerate.has("vegetation") || !compatiblePrevious) placeDetail(ctx);
 
   // ---- locked placements survive the regeneration of their layer (manual inserts, hero meshes)
   if (compatiblePrevious) {

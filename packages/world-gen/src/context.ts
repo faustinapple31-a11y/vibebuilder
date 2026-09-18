@@ -186,6 +186,12 @@ export function layerFor(ctx: GenContext, x: number, z: number, big: boolean): P
   const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
   const near = Math.min(rd, ds);
   if (near < (big ? 26 : 18)) return "foreground";
+  // the places the player actually stands are near field too, even off the road network: a settlement,
+  // a gameplay zone, the paved ground of a landmark
+  for (const zone of ctx.zones) {
+    if (zone.kind !== "settlement" && zone.kind !== "gameplay") continue;
+    if (Math.hypot(x - zone.center[0], z - zone.center[1]) < zone.radius * 1.05) return "foreground";
+  }
   if (distanceToEdge(ctx, x, z) < Math.min(ctx.worldW, ctx.worldD) * 0.12) return "background";
   return "midground";
 }

@@ -1,7 +1,7 @@
 import { TERRAIN_MATERIAL_INDEX, deriveSeed, mixHex, type Placement, type PrefabVariant, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { PartListBuilder } from "@worldforge/prefabs";
-import { inBounds, progress, slopeAtWorld, type GenContext } from "../context";
+import { inBounds, layerFor, progress, slopeAtWorld, type GenContext } from "../context";
 import { carveRoad, refreshRoadDistance } from "./roads";
 import { flattenArea } from "./sites";
 
@@ -37,7 +37,7 @@ export function placeLayout(ctx: GenContext): void {
       const list = ctx.prefabs[prefab] ?? (ctx.prefabs[prefab] = []);
       const vi = list.length;
       list.push({ ...variant, id, prefab });
-      const p: Placement = { id: `layout_${api.n++}`, prefab, variant: vi, category: "building", position: pos, rotationY: rotY, scale: 1, layer: "midground", zone: zoneId, importance: 9.5 };
+      const p: Placement = { id: `layout_${api.n++}`, prefab, variant: vi, category: "building", position: pos, rotationY: rotY, scale: 1, layer: layerFor(ctx, pos[0], pos[2], true), zone: zoneId, importance: 9.5 };
       ctx.placements.push(p);
       ctx.occupants.push({ position: pos, radius: radius ?? variant.footprintRadius, kind: "building" });
       if (zoneId) ctx.zones.push({ id: zoneId, kind: "gameplay", polygon: [], center: [pos[0], pos[2]], radius: radius ?? variant.footprintRadius, y: pos[1], meta: { archetype: layout.archetype, ...(meta ?? {}) } });
@@ -453,7 +453,7 @@ function hangoutPlaza(api: LayoutApi, c: Vec2, R: number): void {
   // ring of benches / seats around a central feature (fountain landmark if the style has one)
   const fv = ctx.prefabs["fountain"];
   if (fv && fv.length) {
-    ctx.placements.push({ id: "layout_fountain", prefab: "fountain", variant: 0, category: "landmark", position: [c[0], base - fv[0]!.sinkDepth, c[1]], rotationY: 0, scale: 1, layer: "midground", zone: "plaza", importance: 9 });
+    ctx.placements.push({ id: "layout_fountain", prefab: "fountain", variant: 0, category: "landmark", position: [c[0], base - fv[0]!.sinkDepth, c[1]], rotationY: 0, scale: 1, layer: layerFor(ctx, c[0], c[1], true), zone: "plaza", importance: 9 });
     ctx.occupants.push({ position: [c[0], base, c[1]], radius: fv[0]!.footprintRadius, kind: "landmark" });
   }
 }

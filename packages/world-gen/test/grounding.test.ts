@@ -68,3 +68,39 @@ describe("placements meet the ground", () => {
     expect(off).toBe(0);
   });
 });
+
+describe("near-field and horizon detail", () => {
+  const spec = getWorldTemplate("moonlit_forest_village");
+  const style = getStylePreset(spec.stylePreset);
+
+  it("dresses the road verges, the spawn apron and the border band", () => {
+    const bake = generateWorld(spec, style);
+    const detail = bake.placements.filter((p) => p.id.startsWith("detail_"));
+    console.log("detail", detail.length, "layers", JSON.stringify(bake.stats.layerCounts));
+    expect(detail.length).toBeGreaterThan(60);
+    // verges: detail within a few studs of a road shoulder, on both sides of it
+    const road = bake.paths.find((p) => p.kind === "road")!;
+    const nearRoad = detail.filter((p) => {
+      let best = Infinity;
+      for (const [x, z] of road.points) best = Math.min(best, Math.hypot(p.position[0] - x, p.position[2] - z));
+      return best < road.width / 2 + 6;
+    });
+    expect(nearRoad.length).toBeGreaterThan(20);
+    // apron: something dressed within 34 studs of the spawn, and nothing inside the walkable circle
+    const [sx, , sz] = bake.spawn.position;
+    const apron = detail.filter((p) => Math.hypot(p.position[0] - sx, p.position[2] - sz) < 34);
+    expect(apron.length).toBeGreaterThan(4);
+    for (const p of apron) expect(Math.hypot(p.position[0] - sx, p.position[2] - sz)).toBeGreaterThan(8);
+    // horizon: silhouettes in the border band, and they are the oversized ones
+    const band = Math.min(bake.terrain.width * bake.terrain.cellSize, bake.terrain.depth * bake.terrain.cellSize) * 0.13;
+    const edge = (x: number, z: number) =>
+      Math.min(x - bake.terrain.origin[0], bake.terrain.origin[0] + bake.terrain.width * bake.terrain.cellSize - x, z - bake.terrain.origin[1], bake.terrain.origin[1] + bake.terrain.depth * bake.terrain.cellSize - z);
+    const horizon = detail.filter((p) => edge(p.position[0], p.position[2]) < band * 1.05);
+    // a world whose edge is already dense forest needs few: the pass fills the band, it does not flood it
+    expect(horizon.length).toBeGreaterThan(2);
+    expect(Math.max(...horizon.map((p) => p.scale))).toBeGreaterThan(1.2);
+    // the composition reads in the stats: both ends of the depth range are populated
+    expect(bake.stats.layerCounts.foreground / bake.placements.length).toBeGreaterThan(0.08);
+    expect(bake.stats.layerCounts.background / bake.placements.length).toBeGreaterThan(0.08);
+  });
+});
