@@ -15,7 +15,7 @@ officiels installés sur la machine (Claude Code, Codex, OpenCode, Gemini CLI, A
 |---|---|
 | **Home** | Projets (SQLite local), onboarding : détection OS/RAM/Docker/WSL, Node, Git, roblox-ts, Rojo, Roblox Studio, agents ; bouton *Install missing* (npm / release GitHub Rojo) |
 | **Swarm** | Panneaux d'agents (nombre libre, modèle + effort + rôle + permissions par agent), composer "décris ton idée", orchestrateur multi-rôles (design → world → assets → gameplay → UI → audio → intégration), validation par schéma + retry, régénération automatique du monde quand un agent modifie la WorldSpec |
-| **AI Workshop** | **34 styles** (moderne, urbain, industriel, militaire, post-apocalyptique, wasteland, sci-fi, cyberpunk, station spatiale, planète alien, médiéval, viking, Égypte, Grèce, Japon féodal, western, pirate, steampunk, fantasy, dark fantasy, elfique, cartoon, horreur gothique, tropical, jungle, désert, hiver, marais, sous-marin, candy, low-poly, voxel, réaliste, mystique) et **28 genres** (survie, obby, parkour, tycoon, simulator, clicker, pets, RPG, dungeon crawler, horreur, roleplay, hangout, battle, battle royale, FPS, tower defense, racing, sport, fighting, puzzle, story, sandbox, farming, mining, minigames, stratégie, rhythm, aventure) sélectionnables ou détectés dans le prompt — voir [TAXONOMY.md](TAXONOMY.md). Prompt → WorldSpec (interpréteur local instantané ou agent IA), image de référence → StyleBible (palette locale + agent vision), presets de style, sliders (terrain, végétation, bâtiments, props, fog, lighting, couleur, densité, échelle, randomness), GENERATE / REGENERATE par couche, locks |
+| **AI Workshop** | **34 styles** (moderne, urbain, industriel, militaire, post-apocalyptique, wasteland, sci-fi, cyberpunk, station spatiale, planète alien, médiéval, viking, Égypte, Grèce, Japon féodal, western, pirate, steampunk, fantasy, dark fantasy, elfique, cartoon, horreur gothique, tropical, jungle, désert, hiver, marais, sous-marin, candy, low-poly, voxel, réaliste, mystique) et **28 genres** (survie, obby, parkour, tycoon, simulator, clicker, pets, RPG, dungeon crawler, horreur, roleplay, hangout, battle, battle royale, FPS, tower defense, racing, sport, fighting, puzzle, story, sandbox, farming, mining, minigames, stratégie, rhythm, aventure) sélectionnables ou détectés dans le prompt — voir [docs/TAXONOMY.md](docs/TAXONOMY.md). Prompt → WorldSpec (interpréteur local instantané ou agent IA), image de référence → StyleBible (palette locale + agent vision), presets de style, sliders (terrain, végétation, bâtiments, props, fog, lighting, couleur, densité, échelle, randomness), GENERATE / REGENERATE par couche, locks |
 | **World** | Viewer 3D Three.js (orbit / fly / top / first-person), calques, wireframe, couleurs de biomes, sélection + lock / keep area, versions (restore), rapport du Visual Quality Critic + auto-fix, éditeur de WorldSpec |
 | **Assets** | Registre de prefabs procéduraux (50 prefabs, ~280 variantes par monde), preview 3D, favoris, placement dans le monde, export `.rbxmx`, **Hero 3D models** (texte ou image → mesh texturé PBR haute qualité, GLB + FBX, publié comme asset Roblox, placé dans le monde), génération IA (Gemini image, Roblox Studio 3D via MCP, ElevenLabs SFX/musique) |
 | **Game** | **Interfaces & shop** (catalogue d'items coins : upgrades permanents, potions consommables, effets multiplicateur/buff/grant ; fenêtre Shop in-game générée, achats validés serveur), **Gamepasses & dev products** (VIP, packs de coins/gems : créés sur Roblox via Open Cloud en un clic, ids injectés dans le jeu, `PromptGamePassPurchase` / `ProcessReceipt` idempotent), **Animations** (idle/walk/greet des PNJ, emotes du catalogue Roblox, animations custom par keyframes, preview sur un rig R15 dans Studio), **Music & sounds** (musique d'ambiance, ambiances par zone, SFX, lecteur avec waveform, upload audio Open Cloud) |
@@ -91,7 +91,7 @@ pyramide, fusée, OVNI, phare, galion…), chaque genre porte ses systèmes de j
 le template : combat, ennemis IA, checkpoints, tycoon, simulator, rounds/équipes, course, tower
 defense, farming, mining, pets, housing/jobs, …) et son archétype de map (parcours d'obby, arène,
 circuit, parcelles tycoon, lobby à portails, chemin de vagues, stade, plaza, donjon). Détails et
-listes complètes dans [TAXONOMY.md](TAXONOMY.md) ; `npx tsx scripts/demo-prompt.ts "<idée>" --build`
+listes complètes dans [docs/TAXONOMY.md](docs/TAXONOMY.md) ; `npx tsx scripts/demo-prompt.ts "<idée>" --build`
 produit un projet Roblox complet à partir de n'importe quel prompt.
 
 ### Terrain v5 : érosion, grottes, meshes, textures
@@ -109,13 +109,13 @@ selon le style (pierre crénelée, palissade, sacs de sable, ferraille, bambou, 
 énergétique, piquets, glace), champs cultivés, cimetière derrière l'église, parvis éclairés autour des
 landmarks, marquages routiers en ville, portes qui s'ouvrent, couleurs de terrain, nuages et météo
 (pluie, neige, cendres, pétales, lucioles…) dérivés du style et du mood. Détails dans
-[WORLD_GENERATION.md](WORLD_GENERATION.md) ; chaque projet généré embarque des skills Claude Code
+[docs/WORLD_GENERATION.md](docs/WORLD_GENERATION.md) ; chaque projet généré embarque des skills Claude Code
 (`.claude/skills/worldforge-*`) et un `CLAUDE.md` pour que les agents travaillent avec les bons repères.
 
 ## Architecture
 
-Voir [ARCHITECTURE.md](ARCHITECTURE.md), [WORLD_GENERATION.md](WORLD_GENERATION.md), [AGENT_SYSTEM.md](AGENT_SYSTEM.md),
-[ROBLOX_PIPELINE.md](ROBLOX_PIPELINE.md), [QUALITY_SYSTEM.md](QUALITY_SYSTEM.md).
+Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/WORLD_GENERATION.md](docs/WORLD_GENERATION.md), [docs/AGENT_SYSTEM.md](docs/AGENT_SYSTEM.md),
+[docs/ROBLOX_PIPELINE.md](docs/ROBLOX_PIPELINE.md), [docs/QUALITY_SYSTEM.md](docs/QUALITY_SYSTEM.md).
 
 ```
 packages/core           schémas Zod (WorldSpec, StyleBible, GameSpec…), PartList, bake, RNG, presets

@@ -292,7 +292,7 @@ matériaux, pitch des toits, weathering (planches manquantes, murs cassés).
 La StyleBible porte désormais `kits` (`vegetation`, `props[]`, `road`, `biomes`, `landmarks`,
 `settlement`) et `architecture.style` couvre 26 kits de bâtiments (`house`/`house_large`/
 `shop_building`/`apartment_block`/`skyscraper` sont générés avec le kit du style, intérieurs compris).
-`pipeline/kitProps.ts` place les props de chaque kit selon leurs tags (lumières et véhicules le long
+`pipeline/kit-props.ts` place les props de chaque kit selon leurs tags (lumières et véhicules le long
 des rues, murs tangents aux maisons, statues sur la plaza, dispersion dans les biomes qui conviennent,
 props de rivage). Les peuplements `town` / `city_district` / `base` utilisent une **grille** de rues
 carvées (asphalte, béton, métal…) dimensionnée au nombre de bâtiments. `pipeline/layout.ts` pose

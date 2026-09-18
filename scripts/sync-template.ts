@@ -7,7 +7,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildUiKitsTs, buildUiStringsTs } from "../packages/roblox-export/src/uiKitFiles";
+import { buildUiKitsTs, buildUiStringsTs } from "../packages/roblox-export/src/ui-kit-files";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");

@@ -39,4 +39,4 @@ on the terrain. Reuse existing systems and archetypes whenever they fit; add new
    validates every genre's ids). Generate a demo: `npx tsx scripts/demo-prompt.ts "<genre prompt>" --build`
    and `npx rbxtsc` must be clean in the generated project.
 7. **Play-test** in Studio (`studio-verify` skill) at least the core loop; note the zone ids the runtime uses.
-8. **Docs**: `TAXONOMY.md` genre table, README genre list, `ROBLOX_PIPELINE.md` systems paragraph.
+8. **Docs**: `docs/TAXONOMY.md` genre table, README genre list, `docs/ROBLOX_PIPELINE.md` systems paragraph.

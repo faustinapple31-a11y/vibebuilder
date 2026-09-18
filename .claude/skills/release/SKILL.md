@@ -16,9 +16,9 @@ description: "Finish a WorldForge change safely: sync the roblox-ts template int
 4. **Generated project compiles** — `npx tsx scripts/demo-prompt.ts "<prompt exercising the change>" --build --out demo-output/<name>`
    (runs `npm install`, `npx rbxtsc`, `rojo build`); fix template errors with the `roblox-ts-pitfalls` rules.
    `--open` opens the `.rbxl` in Studio for a look (`studio-verify` skill for a scripted check).
-5. **Docs** — `README.md` (features / lists), `WORLD_GENERATION.md` (pipeline), `TAXONOMY.md` (styles, kits,
-   genres, layouts, systems), `AGENT_SYSTEM.md` (roles, prompts, skills), `ROBLOX_PIPELINE.md` (template,
-   systems, Studio, Open Cloud), `QUALITY_SYSTEM.md` (critic). Keep them factual; update the tables you touched.
+5. **Docs** — `README.md` (features / lists), `docs/WORLD_GENERATION.md` (pipeline), `docs/TAXONOMY.md` (styles, kits,
+   genres, layouts, systems), `docs/AGENT_SYSTEM.md` (roles, prompts, skills), `docs/ROBLOX_PIPELINE.md` (template,
+   systems, Studio, Open Cloud), `docs/QUALITY_SYSTEM.md` (critic). Keep them factual; update the tables you touched.
 6. **Memory** — `~/.claude/projects/<project>/memory/worldforge-project-state.md` for durable facts (commit,
    what exists, how to run); `tooling-gotchas.md` / `studio-mcp-workflow.md` for new pitfalls.
 7. **Commit** — one commit per coherent change, imperative summary line, body listing the user-visible

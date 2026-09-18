@@ -1,12 +1,13 @@
 ---
 name: add-style
-description: "Add or tune a visual style family in WorldForge (packages/core/src/taxonomy/styles-a.ts / styles-b.ts): palette, materials, tree, architecture kit, vegetation / prop / road kits, biomes, landmarks, settlement type, lighting, fog, UI theme, audio mood, environment (weather, clouds, snow line, walls, terrain tint), keywords for prompt matching. Use when asked for a new style / theme / look (e.g. 'add a steampunk-victorian style', 'make the winter style snowier') or when a style renders wrong."
+description: "Add or tune a visual style family in WorldForge (packages/core/src/taxonomy/styles-fantasy.ts / styles-modern.ts / styles-nature.ts): palette, materials, tree, architecture kit, vegetation / prop / road kits, biomes, landmarks, settlement type, lighting, fog, UI theme, audio mood, environment (weather, clouds, snow line, walls, terrain tint), keywords for prompt matching. Use when asked for a new style / theme / look (e.g. 'add a steampunk-victorian style', 'make the winter style snowier') or when a style renders wrong."
 ---
 
 # Add / tune a style family
 
-A style is **data**: one `StyleFamilyDef` in `packages/core/src/taxonomy/styles-a.ts` (historical / fantasy)
-or `styles-b.ts` (modern / future / nature / stylized). `styleFamilyToBible` (taxonomy/index.ts) turns it into
+A style is **data**: one `StyleFamilyDef` in the file matching its `group` —
+`styles-fantasy.ts` (`fantasy`, `historical`), `styles-modern.ts` (`modern`, `future`, `apocalyptic`) or
+`styles-nature.ts` (`nature`, `themed`), all under `packages/core/src/taxonomy/`. `styleFamilyToBible` (taxonomy/index.ts) turns it into
 a StyleBible; every prefab, the generator, the interpreter and the agent prompts read it.
 
 ## Steps
@@ -24,7 +25,7 @@ a StyleBible; every prefab, the generator, the interpreter and the agent prompts
 3. **Kits**: if the style needs a building kit that does not exist, add it to `ARCHITECTURE_KITS` and a
    `case` in `buildingParams` (`packages/prefabs/src/kits/buildings.ts`, plus furniture set if new);
    a new prop kit → `PROP_KITS` + `PROP_KIT_PREFABS` (kits/index.ts) + `PROP_SETS` (world-spec.ts) + `KIT_BIOMES`
-   (world-gen/pipeline/kitProps.ts); a new vegetation kit → `VEGETATION_KITS` + `VEGETATION_KIT_SPECIES`;
+   (world-gen/pipeline/kit-props.ts); a new vegetation kit → `VEGETATION_KITS` + `VEGETATION_KIT_SPECIES`;
    a new road kit → `ROAD_KITS`, road type enum in world-spec.ts, `roadMaterial` (pipeline/roads.ts);
    a new wall kit → `WALL_KITS` + cases in `townWall` / `gateTower` (`packages/prefabs/src/kits/dressing.ts`).
 4. **Interpreter**: keywords drive `matchStyleFamily`; add prompt-specific landmarks / biomes to
@@ -35,7 +36,7 @@ a StyleBible; every prefab, the generator, the interpreter and the agent prompts
    then the whole suite.
 6. **Look**: `npx tsx scripts/demo-prompt.ts "<a prompt using the keywords>" --out demo-output/<id>` and
    check the viewer / Studio (`studio-verify` skill). Check terrain tint, weather, walls and the settlement kit.
-7. **Docs**: add the row to `TAXONOMY.md` (styles table) and the README style list.
+7. **Docs**: add the row to `docs/TAXONOMY.md` (styles table) and the README style list.
 
 ## Tuning guidance
 

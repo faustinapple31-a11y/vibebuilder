@@ -23,7 +23,7 @@ description: "Improve or debug WorldForge map generation (packages/world-gen): p
 | 10 | `layout.ts` | gameplay archetype structures + zones (`layout_*`, tag `layout`) |
 | 10b | `relief.ts` | `ctx.terrainOps` voxel ops (carve / fill balls, blocks, cylinders): cave tunnel + chamber behind `cave` landmarks (+ `fixed` interior placements, `cave_chamber` zone), overhang ledges, natural arches, lava lakes |
 | 11 | `vegetation.ts` | poisson scatter by biome density, kit species blend, clearings around sites / roads / water / occupants |
-| 12 | `props.ts`, `kitProps.ts` | rocks, kit props by tag (roadside lights, walls tangent to houses, shore, plaza…), waterside, ambience |
+| 12 | `props.ts`, `kit-props.ts` | rocks, kit props by tag (roadside lights, walls tangent to houses, shore, plaza…), waterside, ambience |
 | 12b | `detail.ts` | `detail_*`: road verges (tufts, pebbles, fence runs), the spawn apron (+ two trees framing the view corridor), the waterline (bank pebbles, reeds, driftwood, rocks breaking the surface), horizon silhouettes in the border band and sea stacks off an island's coast |
 | 13 | `lighting.ts` | Roblox Lighting + Atmosphere + effects + **terrain colors** (palette tint) + **clouds** + **weather** |
 | 14 | generator | spawn clearing, terrain snap / slope conform (`conformFactor`), `optimize.ts` budgets (`layout_*` and `dress_*` never trimmed) → stats |

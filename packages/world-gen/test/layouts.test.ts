@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorldSpecSchema, getStylePreset, type StylePresetId } from "@worldforge/core";
+import { LAYOUT_ARCHETYPES, WorldSpecSchema, getStylePreset, type StylePresetId } from "@worldforge/core";
 import { generateWorld } from "../src";
 
 /**
@@ -17,9 +17,21 @@ const cases: { style: StylePresetId; archetype: string; settlement: string; expe
   { style: "tropical", archetype: "hangout_plaza", settlement: "harbor", expectZones: ["plaza", "plaza_stage"] },
   { style: "dark_fantasy", archetype: "dungeon", settlement: "abandoned_village", expectZones: ["dungeon_room_1", "dungeon_boss"] },
   { style: "post_apocalyptic", archetype: "open_world", settlement: "abandoned_village", expectZones: [] },
+  { style: "feudal_japan", archetype: "linear_story", settlement: "village", expectZones: ["story_checkpoint_1", "story_checkpoint_8"] },
+  // the archetypes with no structures of their own still have to generate a playable world
+  { style: "modern_city", archetype: "city_grid", settlement: "city_district", expectZones: [] },
+  { style: "wild_west", archetype: "settlement", settlement: "town", expectZones: [] },
+  { style: "pirate", archetype: "island", settlement: "harbor", expectZones: [] },
+  { style: "sci_fi", archetype: "campus", settlement: "base", expectZones: [] },
 ];
 
 describe("gameplay layouts × styles", () => {
+  it("covers every archetype the schema allows", () => {
+    const covered = new Set(cases.map((c) => c.archetype));
+    const missing = LAYOUT_ARCHETYPES.filter((a) => !covered.has(a));
+    expect(missing, `archetypes with no case: ${missing.join(", ")}`).toEqual([]);
+  });
+
   for (const c of cases) {
     it(`${c.archetype} in ${c.style} (${c.settlement})`, () => {
       const style = getStylePreset(c.style);

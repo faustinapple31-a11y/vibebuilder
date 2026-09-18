@@ -3,7 +3,7 @@ import { Rng } from "@worldforge/core";
 import { SpatialHash } from "../grid";
 import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 import { poissonDisk } from "./vegetation";
-import { placeKitProps } from "./kitProps";
+import { placeKitProps } from "./kit-props";
 import { flattenArea } from "./sites";
 
 /**

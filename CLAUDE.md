@@ -12,9 +12,16 @@ packages/roblox-export template scaffolding, WorldBake export, Rojo project, gen
 packages/roblox-cloud  Open Cloud client (publish, assets, passes/products)
 packages/agents        roles, orchestrator, CLI providers (Claude Code, Codex, Gemini…), local rule-based interpreter
 packages/ai-providers  image / mesh / audio providers
+packages/textures      procedural tileable textures (14 programs), PNG encoder, MaterialVariants
 apps/desktop           Tauri app (React 19, Zustand, R3F viewer, Studio MCP bridge)
 templates/roblox-ts-project   the project every generated game starts from (synced into roblox-export by scripts/sync-template.ts)
+scripts/               CLI tools: sync-template, demo-prompt, audit-maps, preview-map, preview-ui-kits
+docs/                  ARCHITECTURE (the map of the code) + the five subsystem documents
 ```
+
+Module files are `kebab-case`, React components `PascalCase`, generated files end in `.generated.ts` and
+are never hand-edited. A large data file is split by a field of the model, not alphabetically (the 34 style
+families live in `styles-fantasy.ts` / `styles-modern.ts` / `styles-nature.ts` by their `group`).
 
 ## Commands
 
@@ -49,5 +56,5 @@ templates/roblox-ts-project   the project every generated game starts from (sync
 their own skills (`templates/roblox-ts-project/.claude/skills/`): `worldforge-world`, `worldforge-gameplay`,
 `worldforge-ui`, `worldforge-assets`, `worldforge-qa`, `worldforge-publish`, `roblox-ts-pitfalls`.
 
-Docs: `README.md`, `ARCHITECTURE.md`, `WORLD_GENERATION.md`, `TAXONOMY.md`, `AGENT_SYSTEM.md`,
-`ROBLOX_PIPELINE.md`, `QUALITY_SYSTEM.md`.
+Docs: `README.md`, `docs/ARCHITECTURE.md`, `docs/WORLD_GENERATION.md`, `docs/TAXONOMY.md`, `docs/AGENT_SYSTEM.md`,
+`docs/ROBLOX_PIPELINE.md`, `docs/QUALITY_SYSTEM.md`.

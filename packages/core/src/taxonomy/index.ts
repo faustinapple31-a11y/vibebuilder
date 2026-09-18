@@ -1,6 +1,7 @@
 import type { StyleBibleInput } from "../schemas/style-bible";
-import { STYLE_FAMILIES_A } from "./styles-a";
-import { STYLE_FAMILIES_B } from "./styles-b";
+import { STYLE_FAMILIES_FANTASY } from "./styles-fantasy";
+import { STYLE_FAMILIES_MODERN } from "./styles-modern";
+import { STYLE_FAMILIES_NATURE } from "./styles-nature";
 import type { GenreDef, StyleFamilyDef } from "./types";
 
 export * from "./types";
@@ -9,7 +10,7 @@ export * from "./kits";
 export * from "./ui-kits";
 export * from "./ui-strings";
 
-export const STYLE_FAMILIES: StyleFamilyDef[] = [...STYLE_FAMILIES_A, ...STYLE_FAMILIES_B];
+export const STYLE_FAMILIES: StyleFamilyDef[] = [...STYLE_FAMILIES_FANTASY, ...STYLE_FAMILIES_MODERN, ...STYLE_FAMILIES_NATURE];
 export const STYLE_FAMILY_INDEX: Record<string, StyleFamilyDef> = Object.fromEntries(STYLE_FAMILIES.map((s) => [s.id, s]));
 export const STYLE_FAMILY_IDS = STYLE_FAMILIES.map((s) => s.id);
 

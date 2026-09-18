@@ -1,7 +1,10 @@
 import type { StyleFamilyDef } from "./types";
 
-/** Fantasy, historical and nature style families. */
-export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
+/**
+ * Fantasy and historical style families: invented worlds and real eras.
+ * Grouped by the `group` field, so a new style has an obvious home.
+ */
+export const STYLE_FAMILIES_FANTASY: StyleFamilyDef[] = [
   {
     id: "stylized_mystical",
     name: "Stylized Mystical",
@@ -97,29 +100,6 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     uiAccent: "#9fd0a0",
     audio: "orchestral",
     weather: "petals", weatherIntensity: 0.3, clouds: 0.3, walls: "none", terrainTint: 0.6,
-  },
-  {
-    id: "cartoon",
-    name: "Cartoon",
-    description: "Saturated candy-like colours, rounded shapes, bright cheerful light.",
-    group: "themed",
-    keywords: ["cartoon", "toon", "mignon", "cute", "kawaii", "colore", "colorful", "enfant", "kids"],
-    geometry: "rounded",
-    palette: { primary: "#5ac05a", secondary: "#60b0ff", accent: "#ff7ab0", ground: "#8a6a40", stone: "#b0b0c0", wood: "#a06a40", foliage: "#5ad050", foliageAlt: "#a0f060", water: "#40c0ff", roof: "#ff6060", wall: "#fff0c0", mushroom: "#ff6060", mushroomAlt: "#ffb040", glow: "#ffff80", sky: "#80d0ff" },
-    tree: "round",
-    architecture: { kit: "timber_frame", roofPitch: 1.1, weathering: 0.1, chimneyChance: 0.8, interiors: true },
-    vegetationKit: "temperate",
-    vegetationDensity: 0.6,
-    propKits: ["village", "farm", "playground"],
-    roadKit: "cobblestone_road",
-    biomes: ["meadow", "forest", "beach"],
-    landmarks: ["windmill", "giant_tree", "well", "statue"],
-    lighting: { timeOfDay: 12, mood: "bright", ambient: "#a0a8b8", outdoorAmbient: "#b8c0d0", sunColor: "#ffffff", brightness: 2.5, exposure: 0.15, saturation: 0.35, contrast: 0.1, tint: "#ffffff" },
-    fog: { start: 300, end: 1800, color: "#c8e8ff", density: 0.1, haze: 0.3, glare: 0.4 },
-    ui: "cartoon",
-    uiAccent: "#ff7ab0",
-    audio: "cheerful",
-    weather: "none", clouds: 0.35, walls: "picket", terrainTint: 0.75,
   },
   {
     id: "medieval",
@@ -313,29 +293,5 @@ export const STYLE_FAMILIES_A: StyleFamilyDef[] = [
     uiAccent: "#c8963a",
     audio: "industrial",
     weather: "ash", weatherIntensity: 0.25, clouds: 0.7, walls: "none", terrainTint: 0.5,
-  },
-  {
-    id: "realistic",
-    name: "Realistic Nature",
-    description: "Natural palette, realistic proportions, subtle light — forests, lakes, mountains.",
-    group: "nature",
-    keywords: ["realiste", "realistic", "realism", "nature", "naturel", "photoreal", "montagne", "mountain", "lac", "lake", "randonnee"],
-    geometry: "smooth_low_poly",
-    palette: { primary: "#4a6a3a", secondary: "#7a7a78", accent: "#c08040", ground: "#5a4a34", stone: "#7a7874", wood: "#5a4030", foliage: "#3f6a34", foliageAlt: "#6a8a40", water: "#3a6a80", roof: "#5a4a40", wall: "#b0a088", glow: "#ffe0b0", sky: "#8ab8e0" },
-    tree: "conifer",
-    architecture: { kit: "modern_house", roofPitch: 0.7, weathering: 0.3, chimneyChance: 0.5, interiors: true },
-    vegetationKit: "conifer",
-    vegetationDensity: 0.7,
-    propKits: ["camp", "forest", "farm"],
-    roadKit: "dirt_path",
-    biomes: ["pine_forest", "forest", "meadow", "highlands", "rocky"],
-    landmarks: ["mountain_peak", "campfire", "tower", "well"],
-    settlementType: "hamlet",
-    lighting: { timeOfDay: 15, mood: "soft", ambient: "#8890a0", outdoorAmbient: "#a0a8b8", sunColor: "#fff4e4", brightness: 2.0, exposure: 0, saturation: -0.05, contrast: 0.06, tint: "#fbf8f4" },
-    fog: { start: 250, end: 2000, color: "#c0d0e0", density: 0.18, haze: 0.8, glare: 0.25 },
-    ui: "minimal",
-    uiAccent: "#c08040",
-    audio: "ambient_nature",
-    weather: "none", clouds: 0.45, walls: "none", terrainTint: 0.25,
   },
 ];

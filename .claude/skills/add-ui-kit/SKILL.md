@@ -57,7 +57,7 @@ game follows.
 - **ornament**: `none`, `rivets`, `scanlines`, `brackets`, `filigree`, `stripes`, `glow`, `grain`,
   `notch`, `stitch`, `chevrons`, `bubbles`, `grid` — drawn by `ornament()` in `kit.ts` on panels large
   enough to carry it. A new ornament means one more branch there (UI parts only: frames, strokes,
-  gradients — never an image asset) and the union in `packages/roblox-export/src/uiKitFiles.ts`; a
+  gradients — never an image asset) and the union in `packages/roblox-export/src/ui-kit-files.ts`; a
   test fails if a kit asks for an ornament `kit.ts` does not render.
 - **press**: `squash`, `pulse`, `slide`, `flicker`, `none`.
 - the **rarity ramp** (`RARITY_COLORS` in `kit.ts`) is derived from `inkSoft`, `primary[0]`,
@@ -110,5 +110,5 @@ matches the genre and the style's theme. So:
    screen in `demo-output/ui-kits.html` (same tokens and shape language as `kit.ts`) — open it, or
    screenshot it with Chromium, before shipping a palette.
 6. Build a project and compile it: `npx tsx scripts/demo-prompt.ts "<prompt with the keyword>" --out demo-output/kit` then `npx rbxtsc` inside it (validates the fonts against @rbxts/types).
-7. Docs: the table in `TAXONOMY.md`, the kit list in `ROBLOX_PIPELINE.md`, and
+7. Docs: the table in `docs/TAXONOMY.md`, the kit list in `docs/ROBLOX_PIPELINE.md`, and
    `templates/roblox-ts-project/.claude/skills/worldforge-ui/SKILL.md` if the renderer gained anything.

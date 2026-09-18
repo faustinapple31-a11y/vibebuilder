@@ -51,9 +51,18 @@ vibebuilder/
 ├── packages/                     9 packages TypeScript purs, testables en Node
 ├── templates/roblox-ts-project/  le projet dont part chaque jeu généré
 ├── scripts/                      outils en ligne de commande (sync, démo, audit, previews)
+├── docs/                         ce document et les cinq documents de sous-système
 ├── .claude/skills/               procédures pour un agent qui travaille *sur* WorldForge
-└── *.md                          docs d'architecture
+├── README.md                     ce que fait l'application, comment la lancer
+└── CLAUDE.md                     les commandes et les règles, pour un agent dans ce dépôt
 ```
+
+**Conventions de nommage.** Les modules sont en `kebab-case` (`kit-props.ts`, `game-files.ts`,
+`ui-kit-files.ts`) ; les composants React en `PascalCase` (`WorldViewer.tsx`) ; les fichiers générés
+portent `.generated.ts` et ne s'éditent jamais à la main. Un fichier de données volumineux se découpe
+selon un champ du modèle, pas par ordre alphabétique : les 34 styles vivent dans
+`styles-fantasy.ts` / `styles-modern.ts` / `styles-nature.ts` selon leur `group`, de sorte qu'un nouveau
+style a un emplacement évident.
 
 ### Graphe de dépendances des packages
 
@@ -284,13 +293,13 @@ chiffres *et* sur une image.
 
 ## 9. Tests
 
-18 fichiers, ~116 cas, tous en Node sans Tauri ni Roblox.
+18 fichiers, 122 cas, tous en Node sans Tauri ni Roblox.
 
 | Nature | Ce qui est gardé |
 |---|---|
 | Contrats | taxonomie complète (chaque style × genre résout un kit, une bible, une librairie d'UI), aller-retour de sérialisation d'un bake, primitives PartList |
 | Construction | **connectivité de chaque prefab dans les 34 styles** — aucune part détachée |
-| Génération | bake déterministe et complet, régénération partielle sans doublon d'id, ancrage au sol, passe de détail, archétypes de layout par style |
+| Génération | bake déterministe et complet, régénération partielle sans doublon d'id, ancrage au sol, passe de détail, **les 15 archétypes de layout** (un test refuse qu'un archétype du schéma n'ait pas de cas) |
 | Sortie | fichiers de jeu depuis une GameSpec, écrans d'UI, mise à niveau de template, **synchronisation template ↔ exporteur** |
 | Qualité | le critic ne se plaint ni d'une forêt complète ni d'un monde stérile, et se plaint encore d'une forêt à qui on a demandé des arbres |
 | Intégrations | Open Cloud et providers d'assets avec transport simulé |

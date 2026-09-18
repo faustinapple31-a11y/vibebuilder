@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GENRES } from "@worldforge/core";
 import { GameSpecSchema } from "@worldforge/core";
 import { TEMPLATE_FILES } from "../src/template-files.generated";
-import { buildUiKitsTs, buildUiStringsTs } from "../src/uiKitFiles";
+import { buildUiKitsTs, buildUiStringsTs } from "../src/ui-kit-files";
 import { UI_KITS, UI_LOCALES, UI_STRINGS_EN } from "@worldforge/core";
 
 /**

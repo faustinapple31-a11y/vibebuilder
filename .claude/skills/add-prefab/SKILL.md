@@ -44,7 +44,7 @@ primitive used when meshes are unavailable. Bounds / connectivity treat a mesh p
 
 | tag | effect |
 |---|---|
-| `light` | placed roadside by `kitProps`, around landmark grounds; `maxLights` cap |
+| `light` | placed roadside by `kit-props`, around landmark grounds; `maxLights` cap |
 | `vehicle`, `market` | roadside-big slots near settlements |
 | `wall` | tangent to houses (kit props) / settlement ring (`settlement_wall`) |
 | `water` | shore placement; `floating` sits on the water surface and is never terrain-snapped |
