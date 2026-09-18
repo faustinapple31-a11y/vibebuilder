@@ -1,7 +1,7 @@
 import { clamp, deriveSeed, smoothstep, type Placement, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { SpatialHash } from "../grid";
-import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
+import { baseRelief, biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 import { poissonDisk } from "./vegetation";
 import { placeKitProps } from "./kit-props";
 import { flattenArea } from "./sites";
@@ -39,6 +39,9 @@ export function placeRocksAndProps(ctx: GenContext): void {
     if (opts.category !== "path" && ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
     // step off a terrace lip / cliff edge so the base is not left hanging in the air
     if (!opts.onWater) {
+      // a prefab with a deep underside (a cliff block, a pier) buries it in the ground: on the lip of
+      // a terrace or a mesa the ground falls away and the buried part dangles in the open air
+      if (v.bounds.min[1] * scale < -2 && baseRelief(ctx, x, z, Math.max(3, v.footprintRadius * scale)) > 3) return false;
       const br = Math.max(1.5, (v.baseRadius ?? 0) * scale);
       const at = settleOnGround(ctx, x, z, br, Math.min(4, Math.max(2.2, br)));
       if (!at) return false;

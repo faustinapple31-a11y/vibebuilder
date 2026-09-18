@@ -92,6 +92,17 @@ Two tools, and a generator change is not finished until both have been run befor
 | night unreadable | `lighting.ts` night clamps (ambient mix, exposure +1.45) |
 | Studio hangs | > ~45 k parts or `Future` lighting with hundreds of lights — check `stats.partsEstimate`, `maxLights` |
 
+## Défaut connu, non corrigé
+
+Sur les îles mesa (`archipel`), le mur de falaise sous le rebord se lit comme une frange de lamelles
+verticales suspendues plutôt que comme une paroi continue. Ce n'est pas un trou du monde ni un artefact
+du rendu : ce sont bien les boîtes de mur de `buildGround` (`bands` de haut en bas, une par segment du
+contour), hautes d'une centaine de studs sur une mesa, qui ne se rejoignent pas aux angles convexes —
+chaque bande est insérée de `0.4 + k` studs vers l'intérieur, donc on voit entre elles. Vérifié : le sol
+couvre 99 % des cellules, et retirer `ground_block` du rendu fait disparaître la frange.
+Pistes : élargir le recouvrement (`len + t * 1.3`) en fonction de l'angle entre segments voisins, ou
+fermer les angles avec un poteau d'angle.
+
 ## Ground (parts, not voxels)
 
 - `pipeline/ground.ts`: heights are quantized to `GROUND_STEP` terraces (`quantizeHeights` after terrain

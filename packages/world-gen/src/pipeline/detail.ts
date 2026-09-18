@@ -49,7 +49,11 @@ export function placeDetail(ctx: GenContext): void {
     if (!inBounds(ctx, x, z, 4) || (!opts.allowWater && isWaterAt(ctx, x, z))) return false;
     const vi = rng.int(0, variants.length - 1);
     const v: PrefabVariant = variants[vi]!;
-    const scale = opts.scale ?? 1;
+    // silhouettes are scaled up, and a rock's underside scales with it: a cliff block at ×3.3 buries
+    // 20 studs, which on a mesa island — whose slab is a couple of studs over open sea — dangles out
+    // of the underside like a stalactite. Cap the scale at what burial can hide.
+    const under = -Math.min(0, v.bounds.min[1]);
+    const scale = under > 0.1 ? Math.min(opts.scale ?? 1, 6 / under) : (opts.scale ?? 1);
     const base = Math.max(1.5, (v.baseRadius ?? 0) * scale);
     // the base disc must clear the carriageway — `roadDistance` is measured from the road edge, so a
     // verge item may hug the kerb but never stand in it (and a crossing road counts too)

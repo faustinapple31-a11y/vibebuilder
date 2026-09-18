@@ -2,7 +2,7 @@ import { deriveSeed, type BiomeId, type Placement, type PropKit, type Vec2 } fro
 import { Rng } from "@worldforge/core";
 import { PREFAB_INDEX, PROP_KIT_PREFABS } from "@worldforge/prefabs";
 import { SpatialHash } from "../grid";
-import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
+import { baseRelief, biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 import { poissonDisk } from "./vegetation";
 
 /**
@@ -52,6 +52,9 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     const scale = opts.scale ?? 1;
     // never in the carriageway — except what belongs on it: a parked car on the verge is not a car
     if (!opts.onRoad && ctx.roadDistance.sample(x, z) < (v.baseRadius ?? 1) * scale + 1) return false;
+    // a prefab with a deep underside (a cliff block, a pier) buries it in the ground: on the lip of
+    // a terrace or a mesa the ground falls away and the buried part dangles in the open air
+    if (v.bounds.min[1] * scale < -2 && baseRelief(ctx, x, z, Math.max(3, v.footprintRadius * scale)) > 3) return false;
     const br = Math.max(1.5, (v.baseRadius ?? 0) * scale);
     const at = settleOnGround(ctx, x, z, br, Math.min(4, Math.max(2.2, br)));
     if (!at) return false;
