@@ -1,6 +1,6 @@
 import { jitterHex, lightenHex, mixHex, type PrefabVariant, type Vec3 } from "@worldforge/core";
 import { PartListBuilder, jitter, v3, type PrefabContext } from "../builder";
-import { branch, roots, trunkChain } from "../vegetation";
+import { branch, meshCanopy, meshCrowns, roots, trunkChain } from "../vegetation";
 
 /**
  * Vegetation for the non-temperate kits: jungle, savanna, alien, bamboo, cherry, burnt, candy,
@@ -13,11 +13,37 @@ function foliage(ctx: PrefabContext, base?: string): string {
   return jitterHex(b, jitter(rng, style.tree.hueJitterDeg), jitter(rng, 0.06), jitter(rng, 0.05));
 }
 
+/**
+ * One canopy mass. It used to be a single box the full width of the crown, which read as a flat green
+ * slab hanging in the air from anywhere but straight underneath — and every kit tree (jungle, baobab,
+ * acacia, cherry, alien, candy, snow pine…) is built out of these. Now it uses the same procedural
+ * canopy meshes as the core trees where the style has them, a ball for the rounded styles, and a small
+ * cluster of tilted boxes for the blocky ones. Part count is unchanged for the mesh and ball paths.
+ */
 function lump(b: PartListBuilder, ctx: PrefabContext, p: Vec3, s: number, sy: number, col: string, lod: 0 | 1 | 2): void {
   const { rng, style } = ctx;
-  const smooth = style.geometry === "rounded" || style.geometry === "smooth_low_poly";
-  if (smooth) b.sphere(p, s, col, { material: style.materials.canopy, collide: false, lod });
-  else b.box(p, [s, sy, s], col, { material: style.materials.canopy, rotation: [jitter(rng, 22), rng.float(0, 360), jitter(rng, 22)], collide: false, lod });
+  if (meshCrowns(ctx)) {
+    meshCanopy(b, ctx, rng.chance(0.5) ? "canopy_a" : "canopy_b", p, s, sy, col, lod);
+    return;
+  }
+  if (style.geometry === "rounded" || style.geometry === "smooth_low_poly") {
+    b.sphere(p, s, col, { material: style.materials.canopy, collide: false, lod });
+    return;
+  }
+  // blocky: three overlapping boxes around the centre instead of one slab
+  const boxes = lod === 0 ? 1 : 3;
+  for (let i = 0; i < boxes; i++) {
+    const k = i === 0 ? 0 : 1;
+    const a = rng.float(0, Math.PI * 2);
+    const r = s * 0.22 * k;
+    const w = s * (i === 0 ? 0.82 : rng.float(0.5, 0.7));
+    b.box([p[0] + Math.cos(a) * r, p[1] + jitter(rng, sy * 0.18), p[2] + Math.sin(a) * r], [w, sy * (i === 0 ? 1 : rng.float(0.7, 1)), w], i === 0 ? col : jitterHex(col, jitter(rng, 8), 0, jitter(rng, 0.05)), {
+      material: style.materials.canopy,
+      rotation: [jitter(rng, 18), rng.float(0, 360), jitter(rng, 18)],
+      collide: false,
+      lod: i === 0 ? lod : 0,
+    });
+  }
 }
 
 export function jungleTree(ctx: PrefabContext, variant: number): PrefabVariant {

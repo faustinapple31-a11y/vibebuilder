@@ -179,22 +179,37 @@ function cylinderTris(h: Vec3, seg = 10): Tri[] {
   return out;
 }
 
-/** Roblox wedge: the -Z/+Y edge is cut away (a ramp rising toward +Z). */
+/**
+ * Roblox WedgePart: vertical face at +Z, slope descending toward -Z. Same vertices and winding as the
+ * app's viewer (`apps/desktop/src/features/viewer/geometry.ts`) — get the winding wrong and every roof
+ * in the scene shows its inside faces, which reads as a dark, inward-folded roof.
+ */
 function wedgeTris(h: Vec3): Tri[] {
   const [x, y, z] = h;
-  const a: Vec3 = [-x, -y, -z];
-  const b: Vec3 = [x, -y, -z];
-  const c: Vec3 = [x, -y, z];
-  const d: Vec3 = [-x, -y, z];
-  const e: Vec3 = [-x, y, z];
-  const f: Vec3 = [x, y, z];
+  const A: Vec3 = [-x, -y, -z];
+  const B: Vec3 = [x, -y, -z];
+  const C: Vec3 = [x, -y, z];
+  const D: Vec3 = [-x, -y, z];
+  const H: Vec3 = [-x, y, z];
+  const G: Vec3 = [x, y, z];
   return [
-    [a, c, b], [a, d, c],
-    [d, e, f], [d, f, c],
-    [a, b, f], [a, f, e],
-    [b, c, f],
-    [a, e, d],
+    [A, C, B], [A, D, C], // bottom
+    [D, C, G], [D, G, H], // vertical face at +Z
+    [A, H, G], [A, G, B], // slope
+    [A, D, H], // left
+    [B, G, C], // right
   ];
+}
+
+/** CornerWedge: a quarter pyramid with its apex at (+x, +y, -z), as the viewer approximates it. */
+function cornerWedgeTris(h: Vec3): Tri[] {
+  const [x, y, z] = h;
+  const p0: Vec3 = [-x, -y, -z];
+  const p1: Vec3 = [x, -y, -z];
+  const p2: Vec3 = [x, -y, z];
+  const p3: Vec3 = [-x, -y, z];
+  const ap: Vec3 = [x, y, -z];
+  return [[p0, p2, p1], [p0, p3, p2], [p0, p1, ap], [p1, p2, ap], [p2, p3, ap], [p3, p0, ap]];
 }
 
 function meshTris(data: { trianglesB64: string; triangleCount: number; bounds: { min: Vec3; max: Vec3 } }, size: Vec3): Tri[] {
@@ -226,8 +241,9 @@ function partTris(part: Part, meshes: Record<string, { trianglesB64: string; tri
     case "cylinder":
       return cylinderTris(h, detail ? 10 : 5);
     case "wedge":
-    case "cornerWedge":
       return wedgeTris(h);
+    case "cornerWedge":
+      return cornerWedgeTris(h);
     case "mesh": {
       const data = part.mesh !== undefined ? meshes?.[part.mesh] : undefined;
       if (!data) return part.meshFallback === "box" ? boxTris(h) : sphereTris(h, 4, 7);

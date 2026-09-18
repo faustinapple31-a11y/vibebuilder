@@ -21,7 +21,7 @@ function trunkColor(ctx: PrefabContext): string {
 }
 
 /** Styles whose crowns are one procedural mesh (clustered blobs — faceted for the blocky / chunky styles) instead of a pile of boxes / spheres. */
-function meshCrowns(ctx: PrefabContext): boolean {
+export function meshCrowns(ctx: PrefabContext): boolean {
   return ctx.style.id !== "voxel" && ctx.meshes.canopy_a !== undefined && ctx.meshes.canopy_b !== undefined;
 }
 
@@ -29,7 +29,7 @@ function meshCrowns(ctx: PrefabContext): boolean {
  * One library canopy mesh (see meshes/library.ts) fitted to `width` studs across and `height` tall, centred on
  * `center` with a random yaw and a slight tilt. Non-uniform per-axis jitter keeps the two shared meshes varied.
  */
-function meshCanopy(b: PartListBuilder, ctx: PrefabContext, id: "canopy_a" | "canopy_b", center: Vec3, width: number, height: number, color: string, lod: 0 | 1 | 2, castShadow = true): void {
+export function meshCanopy(b: PartListBuilder, ctx: PrefabContext, id: "canopy_a" | "canopy_b", center: Vec3, width: number, height: number, color: string, lod: 0 | 1 | 2, castShadow = true): void {
   const { rng, style } = ctx;
   const data = ctx.meshes[id];
   if (!data) return;
@@ -492,17 +492,29 @@ export function palmTree(ctx: PrefabContext, variant: number): PrefabVariant {
   const h = rng.float(16, 26);
   const t = trunkChain(b, ctx, h, 2.2, 3, jitter(rng, 0.3), 0.08);
   const color = foliageColor(ctx);
-  const fronds = rng.int(5, 7);
+  // A frond used to be two wide planks, which read as a flat green slab from anywhere. It is a curve of
+  // three segments now — rising, levelling, drooping — narrowing and rolling toward the tip, so the crown
+  // reads as a fan of leaves. Three segments is the most a palm can afford: a tropical world plants
+  // hundreds of them and every part counts against the budget.
+  const fronds = rng.int(6, 8);
   for (let i = 0; i < fronds; i++) {
-    const yaw = (i / fronds) * Math.PI * 2 + jitter(rng, 0.25);
-    const len = rng.float(7, 10);
-    // frond rises then droops: two beams from the crown
-    const mid = v3.add(t.top, v3.scale(v3.fromAngles(yaw, rng.float(0.35, 0.6)), len * 0.45));
-    const tip = v3.add(mid, v3.scale(v3.fromAngles(yaw, rng.float(-0.55, -0.25)), len * 0.55));
-    b.beam(t.top, mid, 0.5, 2.2, color, { material: style.materials.canopy, collide: false, lod: i % 2 === 0 ? 2 : 0, overlap: 0.3 });
-    b.beam(mid, tip, 0.4, 2.6, lightenHex(color, 0.05), { material: style.materials.canopy, collide: false, lod: i % 2 === 0 ? 2 : 0, overlap: 0.3 });
+    const yaw = (i / fronds) * Math.PI * 2 + jitter(rng, 0.22);
+    const len = rng.float(8, 11);
+    const roll = rng.float(18, 38) * (rng.chance(0.5) ? 1 : -1);
+    const rise = rng.float(0.4, 0.62);
+    const p0 = t.top;
+    const p1 = v3.add(p0, v3.scale(v3.fromAngles(yaw, rise), len * 0.34));
+    const p2 = v3.add(p1, v3.scale(v3.fromAngles(yaw, rng.float(-0.05, 0.12)), len * 0.33));
+    const p3 = v3.add(p2, v3.scale(v3.fromAngles(yaw, -rng.float(0.5, 0.9)), len * 0.36));
+    const lit = lightenHex(color, 0.05);
+    const near: 0 | 1 | 2 = i % 2 === 0 ? 2 : 1;
+    b.beam(p0, p1, 0.5, 2.5, color, { material: style.materials.canopy, collide: false, lod: near, overlap: 0.35, roll });
+    b.beam(p1, p2, 0.42, 2.1, lit, { material: style.materials.canopy, collide: false, lod: near, overlap: 0.3, roll: roll * 0.7 });
+    b.beam(p2, p3, 0.34, 1.3, lit, { material: style.materials.canopy, collide: false, lod: 0, overlap: 0.3, roll: roll * 0.4 });
   }
   // coconuts
   for (let i = 0; i < 3; i++) b.sphere(v3.add(t.top, [jitter(rng, 0.8), -0.6, jitter(rng, 0.8)]), 0.9, "#6b4a2a", { collide: false, lod: 0 });
+  // the crown boss where the fronds meet, so the joint is not a hole
+  b.sphere(v3.add(t.top, [0, -0.2, 0]), 2.4, mixHex(color, ctx.style.palette.wood, 0.35), { material: style.materials.canopy, collide: false, lod: 1 });
   return b.build({ id: `palm/${variant}`, prefab: "palm", category: "vegetation", sinkDepth: 0.8, footprintRadius: 5, tags: ["tropical"] });
 }

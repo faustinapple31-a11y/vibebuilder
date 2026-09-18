@@ -103,6 +103,12 @@ function groundCover(ctx: GenContext, biome: BiomeId): string[] {
   return out.filter((id) => ctx.prefabs[id]?.length);
 }
 
+/**
+ * Small things that belong on a kerb rather than in a hedgerow. A city verge dressed with pebbles and
+ * tufts reads as a field with a road through it; these are what a street actually has on it.
+ */
+const STREET_ACCENTS = ["planter", "trash_can", "traffic_cone", "fire_hydrant", "road_barrier", "mailbox", "bus_stop", "vending_machine", "neon_sign", "supply_crate", "ammo_crate", "tank_trap", "sandbag_wall", "tire_pile", "rubble_pile", "oxygen_tank", "sci_crate", "hitching_post", "amphora", "beach_umbrella", "candy_cane", "gumdrop", "stone_lantern", "small_shrine", "bamboo_fence", "warning_sign", "pallet_stack"];
+
 // ---------------------------------------------------------------- verges
 function placeVerges(ctx: GenContext, rng: Rng, add: Add): void {
   const roads = ctx.paths.filter((p) => p.kind === "road");
@@ -113,6 +119,8 @@ function placeVerges(ctx: GenContext, rng: Rng, add: Add): void {
     if (!c) cover.set(biome, (c = groundCover(ctx, biome)));
     return c;
   };
+  // what this world's own prop kits offer for a kerb (a city wants a planter, not a pebble)
+  const street = STREET_ACCENTS.filter((id) => ctx.prefabs[id]?.length);
   let placed = 0;
   // longest roads first: the main arteries get their verge even when the budget runs out
   const ordered = [...roads].sort((a, b) => b.points.length * b.width - a.points.length * a.width);
@@ -155,12 +163,13 @@ function placeVerges(ctx: GenContext, rng: Rng, add: Add): void {
         if (fenceRun > 0) fenceRun--;
         else if (fenceRun < 0) fenceRun++;
         // a rarer accent: a fallen log, a patch of flowers or a milestone at the roadside
-        if (rng.chance(0.06)) {
+        if (rng.chance(0.085)) {
           const sgn = rng.chance(0.5) ? 1 : -1;
           const off = road.width / 2 + rng.float(2.6, 5);
           const accent = rng.weighted([
             { item: "log", weight: ctx.prefabs["log"]?.length && ctx.style.kits.vegetation !== "none" ? 1 : 0 },
             { item: "flower_patch", weight: ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" ? 1 : 0 },
+            { item: street.length > 0 ? street[rng.int(0, street.length - 1)]! : "stone", weight: street.length > 0 ? 1.6 : 0 },
             { item: "stone", weight: 1 },
           ]);
           if (add(accent, px - tz * sgn * off, pz + tx * sgn * off, { scale: accent === "stone" ? rng.float(0.6, 1.1) : rng.float(0.85, 1.2), importance: 7.2, margin: 0.2 })) placed++;

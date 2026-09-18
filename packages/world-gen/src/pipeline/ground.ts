@@ -152,6 +152,25 @@ export function flattenToLevel(ctx: GenContext, center: Vec2, radius: number, ta
     if (!Number.isNaN(ctx.water.data[i]!)) continue;
     h.data[i] = base;
   }
+  // graded apron: a pad cut into a hillside used to leave the player in a pit with a wall of terrace
+  // on every side. The ring outside it is pulled to within one level of the pad, then one more per
+  // 40% of the radius, so the ground steps down to the pad instead of dropping into it.
+  const outer = radius * 1.9;
+  const ro = Math.ceil(outer / ctx.cellSize) + 1;
+  for (let dz = -ro; dz <= ro; dz++) for (let dx = -ro; dx <= ro; dx++) {
+    const x = Math.round(ccx) + dx;
+    const z = Math.round(ccz) + dz;
+    if (x < 0 || z < 0 || x >= ctx.width || z >= ctx.depth) continue;
+    const [wx, wz] = h.toWorld(x, z);
+    const d = Math.hypot(wx - center[0], wz - center[1]);
+    if (d <= radius || d > outer) continue;
+    const i = z * ctx.width + x;
+    if (!Number.isNaN(ctx.water.data[i]!)) continue;
+    const allowed = 1 + Math.floor((d - radius) / (radius * 0.4));
+    const delta = Math.round((h.data[i]! - base) / step);
+    if (Math.abs(delta) <= allowed) continue;
+    h.data[i] = base + Math.sign(delta) * allowed * step;
+  }
   return base;
 }
 
