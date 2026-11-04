@@ -27,6 +27,8 @@ export interface Plan {
   id: string;
   kind: "new-game" | "world-only" | "modify" | "qa" | "custom";
   userPrompt: string;
+  /** Hidden creative brief from the prompt enhancer; never shown to the user. */
+  brief?: string;
   tasks: TaskState[];
   createdAt: string;
 }
@@ -221,7 +223,7 @@ export class Orchestrator {
     const gameSpec = await this.readJson<GameSpec>("design/game.spec.json", GameSpecSchema);
     const worldSpec = await this.readJson<WorldSpec>("worlds/main/world.spec.json", WorldSpecSchema);
     const history = this.deps.history ? await this.deps.history() : [];
-    const ctx: RoleContext = { userPrompt: plan.userPrompt, projectName: this.deps.projectName, gameSpec, worldSpec, history, ...(task.context ?? {}) };
+    const ctx: RoleContext = { userPrompt: plan.userPrompt, brief: plan.brief, projectName: this.deps.projectName, gameSpec, worldSpec, history, ...(task.context ?? {}) };
     if (plan.kind === "new-game" || plan.kind === "world-only") {
       const draft = interpretPrompt(plan.userPrompt);
       if (task.role === "world" && !worldSpec) ctx.draftWorldSpec = draft.spec;

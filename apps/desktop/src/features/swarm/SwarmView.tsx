@@ -55,7 +55,7 @@ export function SwarmView() {
       const world = panes.find((p) => p.role === "world") ?? panes.find((p) => p.status !== "running") ?? panes[0];
       if (world) {
         useAgents.getState().updatePane(world.id, { role: "world", title: "World design" });
-        await send(world.id, text);
+        await send(world.id, text, { enhance: true });
       } else await runSwarm(text, "world-only");
       return;
     }

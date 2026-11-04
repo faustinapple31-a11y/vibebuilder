@@ -4,11 +4,15 @@ import {
   Orchestrator,
   PROVIDER_META,
   ROLES,
+  composeBriefedRequest,
+  enhancePrompt,
+  pickEnhancerProvider,
   planModify,
   planNewGame,
   planQA,
   planWorldOnly,
   roleSystemPrompt,
+  shouldEnhance,
   summarizeToolInput,
   type AgentEvent,
   type AgentProviderId,
@@ -75,7 +79,8 @@ interface AgentState {
   removePane: (id: string) => void;
   updatePane: (id: string, patch: Partial<Pane>) => void;
   clearPane: (id: string) => void;
-  send: (paneId: string, text: string) => Promise<void>;
+  /** `enhance`: the text is a map request, so the agent also gets a hidden brief written from it. */
+  send: (paneId: string, text: string, options?: { enhance?: boolean }) => Promise<void>;
   stop: (paneId: string) => Promise<void>;
   stopAll: () => Promise<void>;
   ensurePanes: (count?: number) => void;
@@ -86,7 +91,13 @@ interface AgentState {
 }
 
 let orchestrator: Orchestrator | null = null;
-const entry = (kind: LogEntry["kind"], text: string, extra: Partial<LogEntry> = {}): LogEntry => ({ id: newId("log", 8), kind, text, ts: Date.now(), ...extra });
+/** Briefs being written, by pane id or PLAN_BRIEF, so stopping a pane or a plan also stops its brief. */
+const briefs = new Map<string, AbortController>();
+const PLAN_BRIEF = "plan";
+const cancelBriefs = (key?: string) => {
+  for (const [k, controller] of briefs) if (!key || k === key) controller.abort();
+};
+const entry =(kind: LogEntry["kind"], text: string, extra: Partial<LogEntry> = {}): LogEntry => ({ id: newId("log", 8), kind, text, ts: Date.now(), ...extra });
 
 function appendEvent(pane: Pane, ev: AgentEvent): Pane {
   const log = pane.log.slice();
@@ -132,6 +143,27 @@ function appendEvent(pane: Pane, ev: AgentEvent): Pane {
 function defaultsFor(providerId: AgentProviderId) {
   const d = useSettings.getState().defaults;
   return { model: d.models[providerId] ?? "", effort: d.efforts[providerId] ?? "", permissionMode: d.permissionMode };
+}
+
+function wantsBrief(text: string): boolean {
+  return useSettings.getState().defaults.promptEnhancer.enabled && shouldEnhance(text);
+}
+
+/** Writes the hidden brief for a request. Only the outcome reaches the activity log, never the brief. */
+async function prepareBrief(key: string, text: string, cwd: string): Promise<{ brief?: string; cancelled: boolean }> {
+  const { defaults, providers } = useSettings.getState();
+  const providerId = pickEnhancerProvider(defaults.provider, providers);
+  const controller = new AbortController();
+  briefs.set(key, controller);
+  useAgents.setState((s) => ({ activity: [...s.activity, "Preparing the brief…"] }));
+  try {
+    const result = await enhancePrompt(text, { provider: providerId ? getProvider(providerId) : undefined, cwd, model: defaults.promptEnhancer.model, signal: controller.signal });
+    const outcome = result.source === "model" ? `written by ${result.model}` : `${result.source}${result.reason ? ` (${result.reason.slice(0, 80)})` : ""}`;
+    useAgents.setState((s) => ({ activity: [...s.activity, `Brief ${outcome}`] }));
+    return { brief: result.brief, cancelled: result.source === "cancelled" };
+  } finally {
+    briefs.delete(key);
+  }
 }
 
 export const useAgents = create<AgentState>((set, get) => ({
@@ -187,7 +219,7 @@ export const useAgents = create<AgentState>((set, get) => ({
     while (get().panes.length < n) get().addPane(preferred);
   },
 
-  async send(paneId, text) {
+  async send(paneId, text, options) {
     const pane = get().panes.find((p) => p.id === paneId);
     const cur = useProjects.getState().current;
     if (!pane || !cur || !text.trim()) return;
@@ -207,15 +239,24 @@ export const useAgents = create<AgentState>((set, get) => ({
       session.options.role = pane.role;
       session.options.systemPrompt = roleSystemPrompt(pane.role);
     }
+    get().updatePane(paneId, { session, status: "running", statusText: ROLES[pane.role].activity, startedAt: Date.now(), input: "", log: [...pane.log, entry("user", text)] });
+    let agentText = text;
+    if (options?.enhance && wantsBrief(text)) {
+      get().updatePane(paneId, { statusText: "Preparing the brief…" });
+      const { brief, cancelled } = await prepareBrief(paneId, text, cur.path);
+      if (cancelled) return;
+      if (brief) agentText = composeBriefedRequest(text, brief);
+      get().updatePane(paneId, { statusText: ROLES[pane.role].activity });
+    }
     const runId = await runsRepo.startAgent({ projectId: cur.row.id, provider: pane.providerId, role: pane.role, model: pane.model || null, prompt: text });
     const histId = await historyRepo.add(cur.row.id, pane.role, pane.providerId, text);
-    get().updatePane(paneId, { session, status: "running", statusText: ROLES[pane.role].activity, startedAt: Date.now(), runId, input: "", log: [...pane.log, entry("user", text)] });
+    get().updatePane(paneId, { runId });
     const specPath = path.join(cur.path, "worlds", cur.meta.currentWorld, "world.spec.json");
     const before = JSON.stringify(await readJsonFile<unknown>(specPath));
     let result: string | undefined;
     let failed = false;
     try {
-      for await (const ev of provider.sendPrompt(session, text)) {
+      for await (const ev of provider.sendPrompt(session, agentText)) {
         if (ev.type === "raw") continue;
         if (ev.type === "done") result = ev.result;
         set((s) => ({ panes: s.panes.map((p) => (p.id === paneId ? appendEvent(p, ev) : p)) }));
@@ -272,11 +313,13 @@ export const useAgents = create<AgentState>((set, get) => ({
 
   async stop(paneId) {
     const pane = get().panes.find((p) => p.id === paneId);
+    cancelBriefs(paneId);
     if (pane?.session) await getProvider(pane.providerId).stop(pane.session);
     get().updatePane(paneId, { status: "idle", statusText: "Stopped" });
   },
   async stopAll() {
     orchestrator?.cancel();
+    cancelBriefs(PLAN_BRIEF);
     for (const p of get().panes) if (p.status === "running") await get().stop(p.id);
   },
 
@@ -285,6 +328,12 @@ export const useAgents = create<AgentState>((set, get) => ({
     if (!cur) return;
     if (get().planStatus === "running") return;
     const plan = kind === "new-game" ? planNewGame(userPrompt, roles) : kind === "world-only" ? planWorldOnly(userPrompt) : planModify(userPrompt, roles ?? ["world"]);
+    if (kind !== "modify" && wantsBrief(userPrompt)) {
+      set({ planStatus: "running" }); // a second submit must not start while the brief is being written
+      const { brief, cancelled } = await prepareBrief(PLAN_BRIEF, userPrompt, cur.path);
+      if (cancelled) return;
+      plan.brief = brief;
+    }
     await runPlan(plan, userPrompt);
   },
 
@@ -295,11 +344,13 @@ export const useAgents = create<AgentState>((set, get) => ({
 
   cancelPlan() {
     orchestrator?.cancel();
+    cancelBriefs(PLAN_BRIEF);
     set({ planStatus: "cancelled" });
   },
 
   resetForProject() {
     orchestrator?.cancel();
+    cancelBriefs();
     set({ panes: [], plan: null, planStatus: "idle", activity: [], composer: "" });
   },
 }));

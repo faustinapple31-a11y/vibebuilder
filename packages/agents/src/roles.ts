@@ -1,4 +1,5 @@
 import { AssetManifestSchema, AudioManifestSchema, GENRES, GameSpecSchema, QAReportSchema, STYLE_FAMILIES, WorldSpecSchema, z, type GameSpec, type WorldSpec } from "@worldforge/core";
+import { briefSection } from "./prompt-enhancer";
 import type { AgentRole } from "./types";
 
 export interface RoleDefinition {
@@ -226,6 +227,8 @@ ${schemaText(def.schema)}`;
 
 export interface RoleContext {
   userPrompt: string;
+  /** Hidden creative brief from the prompt enhancer. */
+  brief?: string;
   projectName: string;
   gameSpec?: GameSpec;
   worldSpec?: WorldSpec;
@@ -244,6 +247,7 @@ export function buildRolePrompt(role: AgentRole, ctx: RoleContext): string {
   const parts: string[] = [];
   parts.push(`# Task (${def.title}) — project "${ctx.projectName}"`);
   parts.push(`User request:\n"""\n${ctx.userPrompt}\n"""`);
+  if (ctx.brief && role !== "qa" && role !== "vision" && role !== "integration") parts.push(briefSection(ctx.brief));
   if (ctx.history && ctx.history.length) {
     parts.push(`Recent conversation (most recent last):\n${ctx.history.slice(-8).map((h) => `- user: ${h.prompt}${h.summary ? `\n  agent: ${h.summary}` : ""}`).join("\n")}`);
   }
@@ -251,7 +255,7 @@ export function buildRolePrompt(role: AgentRole, ctx: RoleContext): string {
     parts.push(`Write the JSON to ${def.outputFile} with your file tools (do not paste it in chat). It must validate against the OUTPUT CONTRACT schema in your instructions.`);
   }
   if (role === "world") {
-    if (ctx.draftWorldSpec) parts.push(`Draft produced by WorldForge's local interpreter — refine it (keep ids, improve composition, adjust to the request):\n${JSON.stringify(ctx.draftWorldSpec, null, 1)}`);
+    if (ctx.draftWorldSpec) parts.push(`Draft produced by WorldForge's local interpreter — refine it (keep ids, improve composition, adjust to the request${ctx.brief ? " and the creative brief" : ""}):\n${JSON.stringify(ctx.draftWorldSpec, null, 1)}`);
     else if (ctx.worldSpec) parts.push(`Current WorldSpec (modify only what the request needs; keep locks):\n${JSON.stringify(ctx.worldSpec, null, 1)}`);
     if (ctx.gameSpec) parts.push(`GameSpec summary: genre ${ctx.gameSpec.genre}, systems ${ctx.gameSpec.systems.map((s) => s.id).join(", ")}, world brief: ${ctx.gameSpec.worldBrief}`);
   }

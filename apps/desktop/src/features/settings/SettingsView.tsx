@@ -1,6 +1,6 @@
 import { BookOpen, CheckCircle2, Circle, Download, KeyRound, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { CLAUDE_EFFORTS, CLAUDE_MODELS, CODEX_EFFORTS, CODEX_MODELS, GEMINI_MODELS, OPENCODE_MODELS, PROVIDER_META, PROVIDER_ORDER, type AgentProviderId, type PermissionMode } from "@worldforge/agents";
+import { CLAUDE_EFFORTS, CLAUDE_MODELS, CODEX_EFFORTS, CODEX_MODELS, GEMINI_MODELS, OPENCODE_MODELS, PROVIDER_META, PROVIDER_ORDER, type AgentProviderId, type EnhancerModel, type PermissionMode } from "@worldforge/agents";
 import { Button, Input, Label, Select, Switch } from "@/components/ui";
 import { listSkills, type SkillInfo } from "@/lib/skills";
 import { cn } from "@/lib/utils";
@@ -118,6 +118,17 @@ export function SettingsView() {
                 </option>
               ))}
             </Select>
+          </div>
+          <div>
+            <Label>Prompt enhancer</Label>
+            <div className="flex items-center gap-2">
+              <Switch checked={s.defaults.promptEnhancer.enabled} onChange={(enabled) => void s.setDefaults({ promptEnhancer: { ...s.defaults.promptEnhancer, enabled } })} />
+              <Select value={s.defaults.promptEnhancer.model} disabled={!s.defaults.promptEnhancer.enabled} onChange={(e) => void s.setDefaults({ promptEnhancer: { ...s.defaults.promptEnhancer, model: e.target.value as EnhancerModel } })} className="flex-1">
+                <option value="haiku">Haiku (fastest)</option>
+                <option value="sonnet">Sonnet (richer briefs)</option>
+              </Select>
+            </div>
+            <p className="mt-1 text-[11px] text-muted">Short map requests are rewritten into a detailed brief for the agents. Runs on your Claude Code account.</p>
           </div>
         </div>
       </section>

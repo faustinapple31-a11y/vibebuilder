@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { PROVIDER_ORDER, type AgentDetection, type AgentProviderId, type PermissionMode } from "@worldforge/agents";
+import { PROVIDER_ORDER, type AgentDetection, type AgentProviderId, type EnhancerModel, type PermissionMode } from "@worldforge/agents";
 import { settingsRepo } from "@/lib/db";
 import { getProviders, initProviders } from "@/lib/agents";
 import { fs, proc, secrets, tools, type AppPaths, type SecretSource, type ToolsReport } from "@/lib/tauri";
@@ -22,6 +22,8 @@ export interface AgentDefaults {
   swarmSize: number;
   concurrency: number;
   qa: { maxIterations: 3 | 5 | 10; autoFix: boolean; useVision: boolean; stopOnScore: number };
+  /** Hidden rewrite of short map requests into a creative brief for the agents. */
+  promptEnhancer: { enabled: boolean; model: EnhancerModel };
   onboardingDone: boolean;
 }
 
@@ -34,6 +36,7 @@ const DEFAULTS: AgentDefaults = {
   swarmSize: 3,
   concurrency: 3,
   qa: { maxIterations: 3, autoFix: true, useVision: true, stopOnScore: 85 },
+  promptEnhancer: { enabled: true, model: "haiku" },
   onboardingDone: false,
 };
 

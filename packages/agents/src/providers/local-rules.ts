@@ -110,7 +110,7 @@ function extractUserRequest(prompt: string): string {
   return m ? m[1]!.trim() : prompt.trim();
 }
 
-function isModification(prompt: string): boolean {
+export function isModification(prompt: string): boolean {
   const t = prompt.toLowerCase();
   return /^(plus|moins|ajoute|ajouter|enleve|enlève|supprime|remplace|change|modifie|rends|met|more|less|fewer|add|remove|replace|make it|change|regenerate|régénère|regenere|reroll)\b/.test(t) || /\b(plus|moins)\s+(de|d')/.test(t);
 }

@@ -38,6 +38,7 @@ families live in `styles-fantasy.ts` / `styles-modern.ts` / `styles-nature.ts` b
   composition split, relief, vegetation, parts and the geometry defects the critic cannot see (footprints
   left hanging over an edge). Run it before and after any generator change.
 - `npx tsx scripts/demo-prompt.ts "<prompt>" [--build --open --size N --out dir]` — prompt → full project in `demo-output/`.
+- `npx tsx scripts/enhance-prompt.ts "<prompt>" [--model sonnet --local]` — prints the hidden brief the agents would get (`docs/AGENT_SYSTEM.md` §4b).
 - `npm run dev` — sync template + `tauri dev` (see `.claude/skills/studio-verify` to drive the app and Studio headlessly).
 
 ## Rules

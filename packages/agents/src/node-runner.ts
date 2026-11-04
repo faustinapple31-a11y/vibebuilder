@@ -10,7 +10,8 @@ export function createNodeProcessRunner(): ProcessRunner {
   const exitListeners = new Map<string, Set<(code: number) => void>>();
   const resolveProgram = (program: string): string | null => {
     if (isAbsolute(program) && existsSync(program)) return program;
-    const exts = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+    // extensions first: on Windows npm also installs an extensionless shell shim that cannot be spawned
+    const exts = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
     const dirs = (process.env.PATH ?? "").split(delimiter);
     const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
     dirs.push(join(process.env.LOCALAPPDATA ?? "", "WorldForge", "tools", "rojo"), join(process.env.APPDATA ?? "", "npm"), join(home, ".rokit", "bin"), join(home, ".cargo", "bin"), join(home, ".local", "bin"));

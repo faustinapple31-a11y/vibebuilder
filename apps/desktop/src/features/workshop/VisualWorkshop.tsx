@@ -65,7 +65,7 @@ export function VisualWorkshop() {
       const pane = useAgents.getState().panes.find((p) => p.role === "world" && p.status !== "running") ?? addPane(agentAvailable.includes(defaults.provider) ? defaults.provider : agentAvailable[0]!, "world");
       useAgents.getState().updatePane(pane.id, { role: "world", title: "World design" });
       setTab("swarm");
-      await send(pane.id, prompt.trim());
+      await send(pane.id, prompt.trim(), { enhance: true });
       return;
     }
     if (spec && /^(plus|moins|ajoute|enl[eè]ve|supprime|change|modifie|rends|more|less|fewer|add|remove|make|regen)/i.test(prompt.trim())) {

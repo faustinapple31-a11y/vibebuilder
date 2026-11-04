@@ -122,6 +122,30 @@ outils utilisés, usage.
 
 ---
 
+### 4b. Prompt enhancer (brief caché)
+
+Une demande courte (« fait moi un village ») donne une map pauvre, parce que l'agent n'a rien à quoi se
+raccrocher. Avant de lancer les agents, `enhancePrompt` (`prompt-enhancer.ts`) fait réécrire la demande par un
+petit modèle (Haiku par défaut, Sonnet en option, Réglages → Agents) en un brief structuré. Il s'appuie sur
+`prompt-library.ts` : règles de prompting, direction artistique de map, exemples et prompts de référence.
+
+- **L'utilisateur ne voit jamais le brief.** Les panneaux, l'historique et les runs gardent ses mots ; le journal
+  d'activité dit seulement qui a écrit le brief.
+- **Le brief s'ajoute à la demande, il ne la remplace pas** (`Plan.brief` → `RoleContext.brief`, ou
+  `composeBriefedRequest` pour `send`). La demande reste la référence si les deux divergent, et `interpretPrompt`
+  comme `local-rules` continuent de lire la demande d'origine.
+- **Quand il tourne** : `runSwarm` (nouveau jeu, monde seul) et `send(..., { enhance: true })` (mode World only,
+  atelier). Jamais sur une modification (« plus médiéval »), ni au-delà de 1 200 caractères, ni sur le chat d'un panneau.
+- **Quel agent** : seuls Claude Code et Codex, car ils reçoivent le prompt sur stdin (le prompt de ~10 000 caractères
+  dépasse la limite de `cmd.exe`). L'appel Claude Code se fait sans outils, ni MCP, ni skills.
+- **Si le modèle échoue** (timeout de 45 s, pas de compte, réponse sans `<brief>` complet) : `buildLocalBrief` produit un
+  brief depuis l'interpréteur local. Le lancement n'est jamais bloqué.
+- **Pour lire un brief** : `npx tsx scripts/enhance-prompt.ts "<demande>" [--model sonnet] [--local]`.
+
+Le brief ne décrit que ce qu'un WorldSpec peut exprimer. Il améliore les choix de l'agent (style, focal, composition,
+ambiance), pas la qualité des prefabs. `BLENDER_STUD_MAP_PROMPT` y sert de référence de niveau d'exigence, car les
+agents n'ont ni Blender, ni rendu, ni export GLB.
+
 ## 5. Mémoire de prompts
 
 Toutes les requêtes et réponses (résumé) sont stockées en SQLite (`prompt_history`) et injectées dans le
