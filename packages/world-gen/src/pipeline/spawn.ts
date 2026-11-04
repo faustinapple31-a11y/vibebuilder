@@ -99,6 +99,9 @@ export function clearViewAxis(ctx: GenContext): void {
   const [lx, , lz] = ctx.spawn.lookAt;
   const heading = Math.atan2(lz - sz, lx - sx);
   const reach = Math.min(220, Math.hypot(lx - sx, lz - sz) * 0.9);
+  // a low plant takes the place of a nearby tree, so the foreground keeps its dressing (the critic counts it)
+  const low = ["bush", "fern", "flower_patch", "grass_tuft"].find((id) => ctx.prefabs[id]?.length);
+  const replacements: typeof ctx.placements = [];
   ctx.placements = ctx.placements.filter((p) => {
     if (p.category !== "vegetation" || p.locked || p.fixed) return true;
     const d = Math.hypot(p.position[0] - sx, p.position[2] - sz);
@@ -106,8 +109,11 @@ export function clearViewAxis(ctx: GenContext): void {
     const a = Math.atan2(p.position[2] - sz, p.position[0] - sx) - heading;
     if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > VIEW_AXIS_HALF_ANGLE) return true;
     const v = ctx.prefabs[p.prefab]?.[p.variant] ?? ctx.prefabs[p.prefab]?.[0];
-    return !v || p.position[1] + v.bounds.max[1] * p.scale < sy + 6;
+    if (!v || p.position[1] + v.bounds.max[1] * p.scale < sy + 6) return true;
+    if (low && d < 120) replacements.push({ ...p, id: `${p.id}_low`, prefab: low, variant: 0, scale: 1, layer: "foreground" });
+    return false;
   });
+  ctx.placements.push(...replacements);
 }
 
 /** Matches the vegetation stage's exclusion cone. */
