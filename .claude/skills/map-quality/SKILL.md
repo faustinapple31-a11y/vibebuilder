@@ -62,6 +62,12 @@ Two tools, and a generator change is not finished until both have been run befor
 
 ## Invariants with a test behind them
 
+- **the first view is open** (`packages/quality/test/first-view.test.ts`): `chooseSpawn` scores candidates by a
+  terrain fan toward the target and keeps the plaza outside a settlement's wall ring (`radius × 1.12 + 75`); an
+  explicit `cameraComposition.spawnPosition` is only a wish searched around (`nearestClearView`, up to 120 studs);
+  vegetation avoids a ±0.3 rad axis toward `spawn.lookAt`, and `clearViewAxis` removes any tall vegetation left in
+  it by later stages (dressing plants trees too). The critic measures it with `measureFirstView`.
+
 - **nothing hangs over an edge**: every scattered placement goes through `settleOnGround` (`context.ts`),
   which measures every heightmap cell its base disc touches (a ring of samples aliases past the one cell a
   terrace lower), steps away from the drop and gives up rather than leaving an object in the air. A settled

@@ -28,6 +28,10 @@ Package : `@worldforge/quality` + rôle QA de `@worldforge/agents` + commandes R
 Le critic combine :
 1. **Métriques du bake** (déterministes, sans IA) :
    - Composition : présence foreground/midground/background, point focal, corridors de vue valides.
+   - **Première vue** (`measureFirstView`, `first-view.ts`) : 9 rayons à hauteur d'œil (±20°) depuis le spawn vers
+     sa cible. Moins de 60 % ouverts sur 60 studs → `first_view_blocked` (haut) ; cible invisible (visée à 60 % de la
+     hauteur du landmark) → `first_view_target_hidden` (moyen). Les structures de gameplay `layout_*` ne comptent pas.
+     Ajouté le 4 novembre 2026 : un spawn face à un rempart ou à un tronc obtenait 100/100.
    - Terrain : variance de hauteur, ratio de pentes, présence de features de la spec.
    - Végétation : densité vs cible, indice de répétition (variantes utilisées / disponibles), clustering (Ripley K simplifié), clairières.
    - Architecture : nombre de bâtiments, variance d'échelle/rotation, distance au centre, présence d'un landmark de village.

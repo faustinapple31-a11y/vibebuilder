@@ -267,6 +267,18 @@ export const PROMPTING_KNOWLEDGE: KnowledgeEntry[] = [
     core: true,
   },
   {
+    id: "p_wf_brief_results",
+    domain: "prompting",
+    topic: "worldforge",
+    title: "What the brief changed so far",
+    summary: "Real World agent runs (Sonnet), one per arm, on 4 Nov 2026: village tied at 100, pirate island 99 → 100, horror map 95 → 99. Without the brief the horror map hid its target from the spawn, over-fogged and put buildings on steep slopes.",
+    rules: ["Measure before claiming: run scripts/brief-ab.ts on several requests and look at the renders.", "Treat single runs as anecdotes; repeat 3–5 times before drawing conclusions."],
+    tags: ["brief", "results", "evaluation", "ab", "comparison"],
+    sources: [],
+    reliability: "worldforge",
+    audience: ["human"],
+  },
+  {
     id: "p_wf_copying",
     domain: "prompting",
     topic: "worldforge",

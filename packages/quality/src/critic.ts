@@ -11,6 +11,7 @@ import {
   type WorldBake,
   type WorldSpec,
 } from "@worldforge/core";
+import { measureFirstView } from "./first-view";
 
 /**
  * Visual Quality Critic — deterministic metrics over a WorldBake.
@@ -74,6 +75,19 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     composition -= 1;
     problems.push({ id: "village_no_landmark", severity: "medium", message: "village lacks a central landmark (well, statue, campfire)", layer: "buildings" });
     fixes.push({ type: "spec_patch", path: "props.sets", op: "add", value: "village" });
+  }
+  // the player's first frame: blocked views went unnoticed while every score stayed at 100
+  const view = measureFirstView(bake);
+  if (view.openness < 0.6) {
+    // something right in front of the camera: a trunk, a rampart, a terrace wall
+    composition -= view.openness < 0.35 ? 2.5 : 1.5;
+    const top = [...new Set(view.blockers)].slice(0, 3).join(", ") || "terrain";
+    problems.push({ id: "first_view_blocked", severity: "high", message: `the view from the spawn is blocked (${Math.round(view.openness * 100)}% open within 60 studs; blocked by ${top})`, layer: "composition", location: bake.spawn.position });
+    fixes.push({ type: "spec_patch", path: "cameraComposition.spawnZone", op: "set", value: "clearing" });
+  } else if (!view.targetVisible) {
+    // open foreground, but what the spawn faces is hidden further away
+    composition -= 0.5;
+    problems.push({ id: "first_view_target_hidden", severity: "medium", message: "the spawn faces its target but cannot see it (hidden by terrain or objects on the way)", layer: "composition", location: bake.spawn.position });
   }
 
   // ---------------- terrain

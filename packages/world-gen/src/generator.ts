@@ -18,7 +18,7 @@ import { generateWater } from "./pipeline/water";
 import { generateBiomes } from "./pipeline/biomes";
 import { selectSettlementSites, flattenArea } from "./pipeline/sites";
 import { placeLandmarks, LANDMARK_PREFAB } from "./pipeline/landmarks";
-import { chooseSpawn } from "./pipeline/spawn";
+import { chooseSpawn, clearViewAxis } from "./pipeline/spawn";
 import { generateRoads } from "./pipeline/roads";
 import { placeBuildings } from "./pipeline/buildings";
 import { placeLayout } from "./pipeline/layout";
@@ -257,6 +257,8 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     const big = (v?.bounds.max[1] ?? 0) * p.scale > 6 || p.category === "building";
     return !(big && d < 36) && !(d < 8);
   });
+  // ---- and keep the first view open: no tree standing in its axis, whichever stage planted it
+  clearViewAxis(ctx);
 
   // ---- parts mode: the ground is built from terrace levels, so put the heightmap back on them before
   // snapping (flattened pads, carved roads and levelled discs left heights between two levels)

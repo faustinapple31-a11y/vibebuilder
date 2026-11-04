@@ -77,6 +77,9 @@ function treeMix(ctx: GenContext, biome: BiomeId, allowed: Set<VegetationSpecies
 /** Biomes whose flora is dictated by the ground itself, whatever the style's vegetation kit. */
 const HARSH_BIOMES = new Set<BiomeId>(["volcanic", "wasteland", "moon", "ocean_floor"]);
 const UNDERGROWTH = new Set<VegetationSpecies>(["bush", "fern", "grass", "flower", "log", "small_mushroom", "seaweed"]);
+/** Half-width of the tree-free view axis from the spawn; the apron's framing trees stand at ±0.75 rad. */
+const VIEW_HALF_ANGLE = 0.3;
+const angleDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 /** Prefab id for a species. */
 export const SPECIES_PREFAB: Record<VegetationSpecies, string> = {
@@ -131,6 +134,10 @@ export function placeVegetation(ctx: GenContext): void {
 
   const spawnClear = 42;
   const edgeMargin = 6;
+  const [sx, , sz] = ctx.spawn.position;
+  const [lx, , lz] = ctx.spawn.lookAt;
+  const viewAngle = Math.atan2(lz - sz, lx - sx);
+  const viewReach = Math.min(220, Math.hypot(lx - sx, lz - sz) * 0.9);
 
   const densityAt = (x: number, z: number, biome: BiomeId, big: boolean): number => {
     const b = spec.biomes.find((bb) => bb.id === biome);
@@ -154,6 +161,8 @@ export function placeVegetation(ctx: GenContext): void {
     const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
     if (big && ds < spawnClear) return 0;
     if (big) d *= smoothstep(spawnClear, spawnClear + 30, ds);
+    // the first view: no tree in the axis between the spawn and what it looks at (the apron frames it from the sides)
+    if (big && ds < viewReach && Math.abs(angleDiff(Math.atan2(z - ctx.spawn.position[2], x - ctx.spawn.position[0]), viewAngle)) < VIEW_HALF_ANGLE) return 0;
     // settlements sit in a clearing: no trees inside, thinning ring around (houses stay readable)
     for (const site of ctx.sites) {
       const dv = Math.hypot(x - site.center[0], z - site.center[1]);
