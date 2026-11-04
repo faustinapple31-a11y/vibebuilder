@@ -8,6 +8,8 @@ import {
   CREATIVE_ANGLES,
   pickCreativeAngle,
   repairBriefIds,
+  drawVariation,
+  describeVariation,
   ClaudeCodeProvider,
   LocalRulesProvider,
   Orchestrator,
@@ -32,6 +34,17 @@ import {
 import { createNodeProcessRunner } from "@worldforge/agents/node";
 
 const BRIEF = BRIEF_EXAMPLES[0]!.brief;
+
+/** Small seeded generator so the draws are reproducible. */
+function mulberry(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 /** Provider that answers with fixed events and records how it was called. */
 function fakeProvider(answer: (signal?: AbortSignal) => AsyncIterable<AgentEvent>) {
@@ -177,12 +190,32 @@ describe("enhancer knowledge", () => {
     for (const common of ["fait moi un village", "un village", "une ville", "une île", "une map"]) expect(BRIEF_EXAMPLES.map((e) => e.request)).not.toContain(common);
   });
 
-  it("varies the brief with a creative angle the request can overrule", async () => {
-    expect(buildEnhancerPrompt("un village", CREATIVE_ANGLES[0])).toContain(`consider this angle: ${CREATIVE_ANGLES[0]}`);
+  it("draws concrete choices for what the request leaves open", async () => {
+    // four Haiku briefs for "fait moi un village" were the same medieval church at golden hour
+    const draws = Array.from({ length: 40 }, (_, i) => drawVariation("fait moi un village", mulberry(i + 1)));
+    expect(new Set(draws.map((d) => d.style)).size).toBeGreaterThanOrEqual(4);
+    expect(new Set(draws.map((d) => d.mood)).size).toBeGreaterThanOrEqual(4);
+    for (const d of draws) {
+      expect(STYLE_FAMILY_INDEX[d.style], d.style).toBeDefined();
+      expect(BRIEF_MOODS).toContain(d.mood);
+      expect(["well", "campfire", "bridge", "fountain"]).not.toContain(d.focal);
+    }
     expect(pickCreativeAngle(() => 0.999)).toBe(CREATIVE_ANGLES[CREATIVE_ANGLES.length - 1]);
     const { provider, calls } = replying(`<brief>${BRIEF}</brief>`);
     await enhancePrompt("un village", { provider, cwd: tmpdir() });
-    expect(calls[0]!.prompt).toContain("<creative_angle>");
+    expect(calls[0]!.prompt).toContain("<variation>");
+    expect(buildEnhancerPrompt("un village")).not.toContain("<variation>");
+  });
+
+  it("keeps what the player named out of the draw", () => {
+    for (let i = 1; i < 20; i++) {
+      const cyber = drawVariation("une ville cyberpunk", mulberry(i));
+      expect(cyber).toMatchObject({ style: "cyberpunk", styleNamed: true });
+      expect(describeVariation(cyber)).not.toContain("style ");
+      const horror = drawVariation("un manoir hanté la nuit", mulberry(i));
+      expect(horror.moodNamed).toBe(true);
+      expect(describeVariation(horror)).not.toContain("mood ");
+    }
   });
 
   it("replaces the ids a model invents and keeps the valid ones", async () => {

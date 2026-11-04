@@ -48,8 +48,8 @@ export interface EnhanceOptions {
   model?: EnhancerModel;
   timeoutMs?: number;
   signal?: AbortSignal;
-  /** Defaults to a random creative angle; fixed by tests and comparisons. */
-  angle?: string;
+  /** The variation draw sent with the request; defaults to `drawVariation(request)`. Fixed by tests. */
+  variation?: string;
 }
 
 /** Modifications ("plus médiéval") act on an existing world, and a long request needs no rewriting. */
@@ -72,8 +72,59 @@ settlements: ${SETTLEMENT_TYPES.join(", ")}
 terrain: ${TERRAIN_FEATURES.join(", ")}
 moods: ${BRIEF_MOODS.join(", ")}`;
 
-/** `angle`: a creative angle from CREATIVE_ANGLES, so that one request does not always give one map. */
-export function buildEnhancerPrompt(request: string, angle?: string): string {
+const OPEN_MOODS = ["bright", "soft", "golden", "overcast", "dusk", "dawn", "moonlit"] as const;
+const DARK_WORDS = /nuit|night|horreur|horror|sombre|dark|hant|haunt|zombie|peur|scary|gothi|orage|storm|brume|fog|mist/;
+/** Landmarks too small to anchor a first view from hundreds of studs away. */
+const SMALL_LANDMARKS = new Set(["well", "campfire", "bridge", "fountain"]);
+/** Styles a vague request can take when its genre suggests nothing more specific. */
+const OPEN_STYLES = ["medieval", "fantasy", "viking", "feudal_japan", "wild_west", "stylized_mystical", "cartoon", "tropical", "winter", "elven", "ancient_greece", "steampunk"];
+
+export interface Variation {
+  style: string;
+  styleNamed: boolean;
+  focal: string;
+  mood: string;
+  moodNamed: boolean;
+  angle: string;
+}
+
+/**
+ * Concrete draws for the choices a short request leaves open. Tested on Haiku: an abstract "creative angle"
+ * was ignored and four "fait moi un village" briefs came out as the same medieval church at golden hour.
+ * What the player named (a style, a dark mood) is kept as is.
+ */
+export function drawVariation(request: string, random: () => number = Math.random): Variation {
+  const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+  const { detected, game, spec } = interpretPrompt(request);
+  const styleNamed = !detected.some((d) => d.startsWith("style:") && d.includes("(from genre)"));
+  const genre = GENRE_INDEX[game.genre];
+  const pool = [...new Set([...(genre?.defaultStyles ?? []), ...((genre?.defaultStyles.length ?? 0) < 4 ? OPEN_STYLES : [])])].filter((id) => id in STYLE_FAMILY_INDEX);
+  const style = styleNamed ? spec.stylePreset : pick(pool.length ? pool : [spec.stylePreset]);
+  const landmarks = (STYLE_FAMILY_INDEX[style]?.landmarks ?? []).filter((l) => (LANDMARK_TYPES as readonly string[]).includes(l) && !SMALL_LANDMARKS.has(l));
+  const text = request.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const moodNamed = DARK_WORDS.test(text);
+  return {
+    style,
+    styleNamed,
+    focal: landmarks.length ? pick(landmarks) : "the most fitting tall landmark",
+    mood: moodNamed ? spec.lighting.mood : pick(OPEN_MOODS),
+    moodNamed,
+    angle: pickCreativeAngle(random),
+  };
+}
+
+export function describeVariation(v: Variation): string {
+  const parts = [
+    v.styleNamed ? null : `style ${v.style}`,
+    `focal landmark ${v.focal}`,
+    v.moodNamed ? null : `mood ${v.mood}`,
+    `angle: ${v.angle}`,
+  ].filter(Boolean);
+  return parts.join("; ");
+}
+
+/** `variation`: the draw for the choices the request leaves open (see drawVariation). */
+export function buildEnhancerPrompt(request: string, variation?: string): string {
   const detected = interpretPrompt(request).detected.join(", ");
   const references = REFERENCE_PROMPTS.map((r) => `<reference title="${r.title}">\n<how_to_use>${r.use}</how_to_use>\n<text>\n${r.text}\n</text>\n</reference>`).join("\n");
   const examples = BRIEF_EXAMPLES.map((e) => `<example>\n<user_request>${e.request}</user_request>\n<brief>\n${e.brief}\n</brief>\n</example>`).join("\n");
@@ -107,7 +158,7 @@ ${examples}
 <keyword_analysis>
 A keyword matcher read the request and found: ${detected}. It is often wrong on short requests; follow it only when it fits.
 </keyword_analysis>
-${angle ? `\n<creative_angle>\nSo that two maps from the same request do not look alike, consider this angle: ${angle}. Use it only where it fits the request, and drop it if it contradicts anything the player said.\n</creative_angle>\n` : ""}
+${variation ? `\n<variation>\nThe player left some choices open. So that two maps from the same words do not look alike, build this one from this draw: ${variation}. Drop any part of it that contradicts what the player said; otherwise use it, even if another choice feels more obvious.\n</variation>\n` : ""}
 <user_request>
 ${request}
 </user_request>
@@ -217,7 +268,7 @@ export async function enhancePrompt(input: string, options: EnhanceOptions): Pro
   let reason: string;
   try {
     const answer = await Promise.race([
-      provider.startSession({ cwd: options.cwd, ...defaults }).then((session) => askModel(provider, session, buildEnhancerPrompt(request, options.angle ?? pickCreativeAngle()), controller.signal)),
+      provider.startSession({ cwd: options.cwd, ...defaults }).then((session) => askModel(provider, session, buildEnhancerPrompt(request, options.variation ?? describeVariation(drawVariation(request))), controller.signal)),
       stopped,
     ]);
     const brief = parseBrief(answer);
