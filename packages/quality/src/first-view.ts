@@ -5,6 +5,8 @@ export interface FirstView {
   openness: number;
   /** Whether the central ray reaches the look target (or 160 studs) unobstructed. */
   targetVisible: boolean;
+  /** What hides the target, when it is hidden. */
+  targetBlocker?: string;
   /** What stops each blocked ray first, e.g. "terrain", "round_tree", "ground_block". */
   blockers: string[];
 }
@@ -33,7 +35,9 @@ export function measureFirstView(bake: WorldBake): FirstView {
     .filter((p) => p.prefab !== "spawn_plaza" && !p.id.startsWith("layout_") && Math.hypot(p.position[0] - sx, p.position[2] - sz) < FAR + 20)
     .map((p) => {
       const v = bake.prefabs[p.prefab]?.[p.variant] ?? bake.prefabs[p.prefab]?.[0];
-      return v ? { prefab: p.prefab, x: p.position[0], z: p.position[2], r: Math.max(0.5, v.footprintRadius * p.scale * 0.7), top: p.position[1] + v.bounds.max[1] * p.scale } : null;
+      // a signpost or a lantern post is seen around, not through: thin props do not block a view
+      if (!v || (p.category === "prop" && v.footprintRadius * p.scale <= 2.2)) return null;
+      return { prefab: p.prefab, x: p.position[0], z: p.position[2], r: Math.max(0.5, v.footprintRadius * p.scale * 0.7), top: p.position[1] + v.bounds.max[1] * p.scale };
     })
     .filter((o): o is NonNullable<typeof o> => !!o && o.top > eyeY - 1);
 
@@ -62,7 +66,7 @@ export function measureFirstView(bake: WorldBake): FirstView {
   const landmark = bake.placements.find((p) => p.category === "landmark" && Math.hypot(p.position[0] - lx, p.position[2] - lz) < 15);
   const lv = landmark ? bake.prefabs[landmark.prefab]?.[landmark.variant] ?? bake.prefabs[landmark.prefab]?.[0] : undefined;
   const aimY = ly + Math.max(4, lv && landmark ? lv.bounds.max[1] * landmark.scale * 0.6 : 0);
-  const targetVisible = castRay(heading, Math.min(FAR, targetDist * 0.9), aimY, targetDist) === null;
-  return { openness: open / RAYS, targetVisible, blockers };
+  const targetBlocker = castRay(heading, Math.min(FAR, targetDist * 0.9), aimY, targetDist) ?? undefined;
+  return { openness: open / RAYS, targetVisible: !targetBlocker, targetBlocker, blockers };
 }
 

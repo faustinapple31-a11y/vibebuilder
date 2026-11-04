@@ -87,7 +87,7 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
   } else if (!view.targetVisible) {
     // open foreground, but what the spawn faces is hidden further away
     composition -= 0.5;
-    problems.push({ id: "first_view_target_hidden", severity: "medium", message: "the spawn faces its target but cannot see it (hidden by terrain or objects on the way)", layer: "composition", location: bake.spawn.position });
+    problems.push({ id: "first_view_target_hidden", severity: "medium", message: `the spawn faces its target but cannot see it (hidden by ${view.targetBlocker ?? "terrain"})`, layer: "composition", location: bake.spawn.position });
   }
 
   // ---------------- terrain

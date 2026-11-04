@@ -186,6 +186,8 @@ export function layerFor(ctx: GenContext, x: number, z: number, big: boolean): P
   const ds = Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]);
   const near = Math.min(rd, ds);
   if (near < (big ? 26 : 18)) return "foreground";
+  // the spawn apron (27–41 studs, around the 24-stud walkable circle) is the first frame's foreground
+  if (ds < 45) return "foreground";
   // the places the player actually stands are near field too, even off the road network: a settlement,
   // a gameplay zone, the paved ground of a landmark
   for (const zone of ctx.zones) {
