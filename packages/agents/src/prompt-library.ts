@@ -1,6 +1,6 @@
 /**
- * What the prompt enhancer knows: prompting rules, map art direction, worked examples and reference
- * prompts. It ships with the app, so it is plain data here, not files read at runtime.
+ * What the prompt enhancer knows besides the knowledge base (./knowledge): writing rules, worked examples
+ * and reference prompts. It ships with the app, so it is plain data here, not files read at runtime.
  */
 
 /** Lighting moods a WorldSpec accepts (a test keeps this list in step with the schema). */
@@ -14,16 +14,6 @@ export const PROMPT_CRAFT = `- Write for a brilliant colleague who has never see
 - Decide. A brief full of "maybe" or "could" leaves the agent with the same blank page.
 - Stay short: every line must change what the agent builds.`;
 
-export const MAP_ART_DIRECTION = `- One focal landmark per map, visible from the spawn, larger or brighter than everything around it. It attracts without blocking the way.
-- Design the player's first view on purpose: two trees or rocks framing it, a road leading the eye, a readable skyline behind.
-- Fill three planes: foreground detail near paths, buildings and trees in the middle, silhouettes on the horizon.
-- Give each place one sentence of story (who lives here, what happened) and let the settlement type and landmarks tell it.
-- Density belongs to zones, not to the whole map: dense clumps, real clearings, calm areas next to busy ones.
-- Nothing lines up like a grid unless it was built that way. Vary size and rotation.
-- Palette: 5 to 7 base colours plus one strong accent kept for the focal point. Ground and buildings must not share a value, or they merge.
-- Depth comes from coloured haze: one colour near, another far. Plain fog looks milky.
-- Use the map's edges: mountains or coast close the horizon so the world does not just stop.
-- Hide one thing to discover away from the main road.`;
 
 export interface BriefExample {
   id: string;

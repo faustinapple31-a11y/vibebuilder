@@ -6,6 +6,7 @@ export * from "./registry";
 export * from "./local/interpreter";
 export * from "./prompt-enhancer";
 export * from "./prompt-library";
+export * from "./knowledge";
 export { BaseCliProvider, summarizeToolInput, tryJson } from "./providers/base";
 export { ClaudeCodeProvider, CLAUDE_MODELS, CLAUDE_EFFORTS } from "./providers/claude-code";
 export { CodexProvider, CODEX_MODELS, CODEX_EFFORTS } from "./providers/codex";

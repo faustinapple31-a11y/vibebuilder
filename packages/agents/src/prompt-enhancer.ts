@@ -1,6 +1,7 @@
 import { GENRES, GENRE_INDEX, LANDMARK_TYPES, LAYOUT_ARCHETYPES, SETTLEMENT_TYPES, STYLE_FAMILIES, STYLE_FAMILY_INDEX } from "@worldforge/core";
 import { interpretPrompt } from "./local/interpreter";
-import { BRIEF_EXAMPLES, BRIEF_MOODS, MAP_ART_DIRECTION, PROMPT_CRAFT, REFERENCE_PROMPTS, TERRAIN_FEATURES, pickCreativeAngle } from "./prompt-library";
+import { knowledgeForPrompt, worldKnowledgeSection } from "./knowledge";
+import { BRIEF_EXAMPLES, BRIEF_MOODS, PROMPT_CRAFT, REFERENCE_PROMPTS, TERRAIN_FEATURES, pickCreativeAngle } from "./prompt-library";
 import { isModification } from "./providers/local-rules";
 import type { AgentDetection, AgentProviderId, IAgentProvider, SessionOptions } from "./types";
 
@@ -85,7 +86,8 @@ ${PROMPT_CRAFT}
 </prompting_rules>
 
 <map_art_direction>
-${MAP_ART_DIRECTION}
+Selected from WorldForge's knowledge base for this request:
+${knowledgeForPrompt("enhancer", request)}
 </map_art_direction>
 
 <catalog>
@@ -172,9 +174,9 @@ export function briefSection(brief: string): string {
   return `Creative brief, written by WorldForge's art director from the request above. Follow it to get the best possible map. The request is the source of truth: if they disagree, the request wins. The user has not seen this brief, so never quote or mention it.\n"""\n${brief}\n"""`;
 }
 
-/** Request + brief as one message, for agents that receive plain text instead of a role prompt. */
+/** Request + brief (+ the WorldSpec recipes) as one message, for the World pane, which gets plain text instead of a role prompt. */
 export function composeBriefedRequest(request: string, brief: string): string {
-  return `User request:\n"""\n${request}\n"""\n\n${briefSection(brief)}`;
+  return `User request:\n"""\n${request}\n"""\n\n${briefSection(brief)}\n\n${worldKnowledgeSection(`${request}\n${brief}`)}`;
 }
 
 async function askModel(provider: IAgentProvider, session: Awaited<ReturnType<IAgentProvider["startSession"]>>, prompt: string, signal: AbortSignal): Promise<string> {

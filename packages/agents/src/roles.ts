@@ -1,4 +1,5 @@
 import { AssetManifestSchema, AudioManifestSchema, GENRES, GameSpecSchema, QAReportSchema, STYLE_FAMILIES, WorldSpecSchema, z, type GameSpec, type WorldSpec } from "@worldforge/core";
+import { worldKnowledgeSection } from "./knowledge";
 import { briefSection } from "./prompt-enhancer";
 import type { AgentRole } from "./types";
 
@@ -258,6 +259,7 @@ export function buildRolePrompt(role: AgentRole, ctx: RoleContext): string {
     if (ctx.draftWorldSpec) parts.push(`Draft produced by WorldForge's local interpreter — refine it (keep ids, improve composition, adjust to the request${ctx.brief ? " and the creative brief" : ""}):\n${JSON.stringify(ctx.draftWorldSpec, null, 1)}`);
     else if (ctx.worldSpec) parts.push(`Current WorldSpec (modify only what the request needs; keep locks):\n${JSON.stringify(ctx.worldSpec, null, 1)}`);
     if (ctx.gameSpec) parts.push(`GameSpec summary: genre ${ctx.gameSpec.genre}, systems ${ctx.gameSpec.systems.map((s) => s.id).join(", ")}, world brief: ${ctx.gameSpec.worldBrief}`);
+    parts.push(worldKnowledgeSection(`${ctx.userPrompt}\n${ctx.brief ?? ""}`));
   }
   if (role === "design" && ctx.draftGameSpec) parts.push(`Draft GameSpec from the local interpreter — refine it:\n${JSON.stringify(ctx.draftGameSpec, null, 1)}`);
   if ((role === "gameplay" || role === "ui" || role === "integration" || role === "asset" || role === "audio") && ctx.gameSpec) parts.push(`GameSpec (design/game.spec.json):\n${JSON.stringify(ctx.gameSpec, null, 1)}`);

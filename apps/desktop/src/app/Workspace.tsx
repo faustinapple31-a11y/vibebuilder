@@ -1,4 +1,4 @@
-import { Bell, Bot, Box, ChevronDown, Crown, FolderOpen, Grid2X2, Home, Layers, Library, Pause, Play, Plus, Search, Settings2, ShoppingBag, Sparkles, Upload } from "lucide-react";
+import { Bell, BookOpen, Bot, Box, ChevronDown, Crown, FolderOpen, Grid2X2, Home, Layers, Library, Pause, Play, Plus, Search, Settings2, ShoppingBag, Sparkles, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PROVIDER_META, type AgentProviderId } from "@worldforge/agents";
 import { Button, Dropdown, IconButton, Pill, Tip } from "@/components/ui";
@@ -16,6 +16,7 @@ import { RobloxView } from "@/features/roblox/RobloxView";
 import { GameView } from "@/features/game/GameView";
 import { ToolboxView } from "@/features/toolbox/ToolboxView";
 import { SettingsView } from "@/features/settings/SettingsView";
+import { KnowledgeView } from "@/features/knowledge/KnowledgeView";
 
 const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
   { id: "swarm", label: "Swarm", icon: <Grid2X2 size={14} /> },
@@ -24,6 +25,7 @@ const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
   { id: "assets", label: "Assets", icon: <Layers size={14} /> },
   { id: "game", label: "Game", icon: <ShoppingBag size={14} /> },
   { id: "toolbox", label: "Toolbox", icon: <Library size={14} /> },
+  { id: "knowledge", label: "Knowledge", icon: <BookOpen size={14} /> },
   { id: "roblox", label: "Roblox", icon: <Play size={14} /> },
   { id: "settings", label: "Settings", icon: <Settings2 size={14} /> },
 ];
@@ -167,6 +169,7 @@ export function Workspace() {
         {tab === "assets" && <AssetsView />}
         {tab === "game" && <GameView />}
         {tab === "toolbox" && <ToolboxView />}
+        {tab === "knowledge" && <KnowledgeView />}
         {tab === "roblox" && <RobloxView />}
         {tab === "settings" && <SettingsView />}
       </main>

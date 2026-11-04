@@ -146,6 +146,26 @@ Le brief ne décrit que ce qu'un WorldSpec peut exprimer. Il améliore les choix
 ambiance), pas la qualité des prefabs. `BLENDER_STUD_MAP_PROMPT` y sert de référence de niveau d'exigence, car les
 agents n'ont ni Blender, ni rendu, ni export GLB.
 
+### 4c. Base de connaissances
+
+`packages/agents/src/knowledge/` : environ 60 fiches sur le prompting et la création de maps, avec leurs sources
+(docs Anthropic, OpenAI, Google, Roblox ; articles de recherche ; conférences GDC, Level Design Book, 80.lv…).
+Chaque fiche porte un résumé, des règles applicables, des mots-clés FR/EN, sa fiabilité et son public :
+
+- `enhancer` : injectée dans le prompt du brief (`knowledgeForPrompt("enhancer", demande)`) ;
+- `world` : injectée dans le prompt du rôle Monde et dans `composeBriefedRequest` (`worldKnowledgeSection`). Les
+  fiches `recipes.ts` traduisent une idée de brief en champs du WorldSpec (bosquets → `vegetation.clustering`,
+  église dans le village → `preferredZone "village"`, première vue → `cameraComposition`…) ;
+- `human` : consultable seulement dans l'onglet **Knowledge** de l'app.
+
+Les fiches `core` sont toujours envoyées ; les autres sont choisies par mots-clés (5 au plus). La base est livrée
+avec l'app, sous forme de données versionnées et testées : elle ne passe pas par SQLite. Un test vérifie que chaque
+valeur citée dans une recette existe dans le schéma. Pour ajouter une fiche, voir les exemples des fichiers
+`prompting.ts`, `mapping.ts` et `recipes.ts`, puis lancer `npx vitest run packages/agents`.
+
+Premier effet mesuré (« fait moi un village », Sonnet, un essai) : avec les recettes, l'agent règle enfin la
+végétation en bosquets, les champs, la caméra du spawn et la palette, avec ou sans brief.
+
 ## 5. Mémoire de prompts
 
 Toutes les requêtes et réponses (résumé) sont stockées en SQLite (`prompt_history`) et injectées dans le

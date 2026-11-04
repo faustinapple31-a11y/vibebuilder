@@ -63,7 +63,7 @@ export interface Pane {
   runId?: string;
 }
 
-export type WorkspaceTab = "swarm" | "workshop" | "world" | "assets" | "game" | "toolbox" | "roblox" | "settings";
+export type WorkspaceTab = "swarm" | "workshop" | "world" | "assets" | "game" | "toolbox" | "knowledge" | "roblox" | "settings";
 
 interface AgentState {
   panes: Pane[];
