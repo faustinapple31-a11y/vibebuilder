@@ -286,7 +286,10 @@ function tycoonPlots(api: LayoutApi, c: Vec2, extent: number, plots: number): vo
   const hubY = flattenArea(ctx, c, 30, 1.0);
   flattenArea(ctx, c, (R + 46) * 1.4, 1.0, hubY);
   paint(ctx, c, 22, TERRAIN_MATERIAL_INDEX.Cobblestone);
-  ctx.spawn = { position: [c[0], hubY + 3, c[1] + 10], lookAt: [c[0], hubY + 3, c[1] - 30] };
+  // face the first plot down its graded path: a fixed -z view fell between two plots, onto the terrace
+  // stairs and the forest beyond (first view 56% open on the audit's farm map)
+  const a0 = Math.PI / plots;
+  ctx.spawn = { position: [c[0] - Math.cos(a0) * 10, hubY + 3, c[1] - Math.sin(a0) * 10], lookAt: [c[0] + Math.cos(a0) * R, hubY + 3, c[1] + Math.sin(a0) * R] };
   api.zone("tycoon_hub", c[0], c[1], 22, { kind: "hub" }, hubY);
   const palette = ["#e05050", "#e0a040", "#60d060", "#40b0e0", "#8060e0", "#e060c0", "#e0e050", "#40d0c0"];
   for (let i = 0; i < plots; i++) {
@@ -327,7 +330,8 @@ function lobbyPortals(api: LayoutApi, c: Vec2, portals: number): void {
   const R = 34 + portals * 3;
   const base = flattenArea(ctx, c, R + 10, 1.0);
   paint(ctx, c, R + 6, ctx.style.kits.road === "asphalt_road" ? TERRAIN_MATERIAL_INDEX.Pavement : TERRAIN_MATERIAL_INDEX.Cobblestone);
-  ctx.spawn = { position: [c[0], base + 3, c[1]], lookAt: [c[0], base + 3, c[1] - 40] };
+  // face the first portal (angle 0): a fixed -z view only met a portal when their count was a multiple of 4
+  ctx.spawn = { position: [c[0], base + 3, c[1]], lookAt: [c[0] + R, base + 3, c[1]] };
   api.zone("lobby", c[0], c[1], R, { kind: "lobby" }, base);
   const palette = ["#e05050", "#e0a040", "#60d060", "#40b0e0", "#8060e0", "#e060c0", "#e0e050", "#40d0c0"];
   for (let i = 0; i < portals; i++) {
