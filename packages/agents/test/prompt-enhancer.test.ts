@@ -5,6 +5,9 @@ import {
   BLENDER_STUD_MAP_PROMPT,
   BRIEF_EXAMPLES,
   BRIEF_MOODS,
+  CREATIVE_ANGLES,
+  pickCreativeAngle,
+  repairBriefIds,
   ClaudeCodeProvider,
   LocalRulesProvider,
   Orchestrator,
@@ -75,6 +78,11 @@ describe("prompt enhancer", () => {
     const bad = await enhancePrompt("un village", { provider: replying("Failed to authenticate: OAuth session expired").provider, cwd: tmpdir() });
     expect(bad.source).toBe("local");
     expect(bad.brief).toContain("INTENT: un village");
+    expect(bad.reason).toContain("OAuth session expired");
+
+    const cutOff = await enhancePrompt("un village", { provider: replying(`<brief>${BRIEF}`).provider, cwd: tmpdir() });
+    expect(cutOff.source).toBe("local");
+    expect(cutOff.reason).not.toContain("INTENT");
 
     const broken = fakeProvider(async function* () {
       yield { type: "done", exitCode: 0 };
@@ -161,6 +169,32 @@ describe("enhancer knowledge", () => {
     expect(prompt).toContain(BLENDER_STUD_MAP_PROMPT);
     for (const e of BRIEF_EXAMPLES) expect(prompt).toContain(e.brief);
     expect(prompt.lastIndexOf("<user_request>")).toBeGreaterThan(prompt.indexOf("</examples>"));
+    expect(prompt).not.toContain("<creative_angle>");
+  });
+
+  it("never shows an example whose request a player would type as is", () => {
+    // a model copies an example whose request matches the player's word for word: every village came out identical
+    for (const common of ["fait moi un village", "un village", "une ville", "une île", "une map"]) expect(BRIEF_EXAMPLES.map((e) => e.request)).not.toContain(common);
+  });
+
+  it("varies the brief with a creative angle the request can overrule", async () => {
+    expect(buildEnhancerPrompt("un village", CREATIVE_ANGLES[0])).toContain(`consider this angle: ${CREATIVE_ANGLES[0]}`);
+    expect(pickCreativeAngle(() => 0.999)).toBe(CREATIVE_ANGLES[CREATIVE_ANGLES.length - 1]);
+    const { provider, calls } = replying(`<brief>${BRIEF}</brief>`);
+    await enhancePrompt("un village", { provider, cwd: tmpdir() });
+    expect(calls[0]!.prompt).toContain("<creative_angle>");
+  });
+
+  it("replaces the ids a model invents and keeps the valid ones", async () => {
+    const invented = BRIEF.replace("MOOD: dawn", "MOOD: dark").replace("STYLE: feudal_japan", "STYLE: zen_garden");
+    const fixed = repairBriefIds(invented, "un coin tranquille");
+    expect(BRIEF_MOODS).toContain(field(fixed, "MOOD"));
+    expect(STYLE_FAMILY_INDEX[field(fixed, "STYLE")!]).toBeDefined();
+    expect(field(fixed, "GENRE")).toBe("hangout");
+    expect(field(fixed, "LAYOUT")).toBe("hangout_plaza");
+    expect(repairBriefIds(BRIEF, "un coin tranquille")).toBe(BRIEF);
+    const r = await enhancePrompt("un coin tranquille", { provider: replying(`<brief>${invented}</brief>`).provider, cwd: tmpdir() });
+    expect(r.brief).not.toContain("MOOD: dark");
   });
 
   it("builds a local brief that passes the same check as a model brief", () => {

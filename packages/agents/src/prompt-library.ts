@@ -33,21 +33,21 @@ export interface BriefExample {
 
 export const BRIEF_EXAMPLES: BriefExample[] = [
   {
-    id: "vague_village",
-    request: "fait moi un village",
-    brief: `INTENT: A village to explore. Nothing else was asked for, so every choice below only serves that village.
-GENRE: adventure | STYLE: medieval | LAYOUT: settlement
-SETTING: A lived-in hill-country farming village the morning after market day.
-FIRST VIEW: From the spawn a road climbs between two big oaks toward the square, with the church tower rising behind the roofs.
-FOCAL: church, on the high side of the village so it can be seen from the spawn and from the whole road.
-SECONDARY: well on the square as a meeting point; windmill on a hill outside the walls; ruins hidden at the forest edge as the thing to discover.
-SETTLEMENTS: village, 12 buildings around a paved square, houses turned at slightly different angles.
-TERRAIN AND WATER: hills at medium intensity, a valley holding the village, mountains on the north and west edges for the skyline, one river crossed by the road on a bridge.
-VEGETATION: forest in clumps with clearings, open meadow around the houses, sparse near the square.
-MOOD: golden
-PALETTE: #6F8F3C meadow, #4B6B35 forest, #9A8F7E stone, #B98B52 timber, #7C4A32 roof, accent #C8452F on the church banners.
-ATMOSPHERE: light haze, warm cream near the village, blue-grey on the mountains.
-AVOID: a flat map; a uniform forest hiding the village from the spawn.`,
+    id: "vague_calm_place",
+    request: "un coin tranquille",
+    brief: `INTENT: A calm place. The player asked only for calm, so the whole map is quiet, slow and safe, with nothing to fight.
+GENRE: hangout | STYLE: feudal_japan | LAYOUT: hangout_plaza
+SETTING: A lakeside hamlet at dawn where fishermen mend nets before the mist lifts.
+FIRST VIEW: The spawn sits on a wooden jetty; across still water a red gate stands on a small headland, mirrored in the lake.
+FOCAL: torii_gate, on the headland facing the spawn, the only saturated colour in a soft scene.
+SECONDARY: temple half-hidden in the cedars above the hamlet; waterfall_cliff at the far end of the lake as the place to discover.
+SETTLEMENTS: hamlet, 5 buildings along the shore with a small plaza by the water, no two facing the same way.
+TERRAIN AND WATER: a valley holding one large lake, gentle hills around it, mountains on the north edge.
+VEGETATION: cedars in dark groups on the slopes, open grass and a few flowering trees by the water.
+MOOD: dawn
+PALETTE: #A9B8A0 sage grass, #2F4A3C cedar, #B7C4CC lake, #8C7B6A wood, #D9D2C5 paper and stone, accent #D2402F on the gate.
+ATMOSPHERE: thick low mist, pale pink near the water, grey-blue on the mountains.
+AVOID: dense forest around the plaza; anything loud or crowded near the spawn.`,
   },
   {
     id: "themed_obby",
@@ -84,6 +84,29 @@ ATMOSPHERE: rain, dense haze, violet near the streets, deep blue at the horizon.
 AVOID: dark corners on the circuit; neon so even that the track stops standing out.`,
   },
 ];
+
+/**
+ * One is drawn at random for each brief: the same request ("un village") would otherwise always
+ * give the same map. The model drops it when it contradicts the request.
+ */
+export const CREATIVE_ANGLES = [
+  "set it in a different season than usual",
+  "an unusual time of day",
+  "built on uneven ground: a slope, a ridge or terraces",
+  "organised around water: a lake, a river bend or a coast",
+  "a place with a recent event that the layout shows",
+  "seen from a high spawn looking down over the whole map",
+  "a strong contrast between a calm area and a wild one",
+  "a less obvious focal landmark than the first one that comes to mind",
+  "a colder palette than the theme suggests",
+  "a warmer palette than the theme suggests",
+  "a compact map with tight, dense areas",
+  "a wide map with long views to the horizon",
+] as const;
+
+export function pickCreativeAngle(random: () => number = Math.random): string {
+  return CREATIVE_ANGLES[Math.floor(random() * CREATIVE_ANGLES.length)]!;
+}
 
 export interface ReferencePrompt {
   id: string;
