@@ -10,7 +10,10 @@ export const CLAUDE_MODELS = [
 ];
 export const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
-const PERMISSION_FLAG: Record<PermissionMode, string> = { safe: "manual", acceptEdits: "acceptEdits", bypass: "bypassPermissions" };
+/** Above this a system prompt goes on stdin: the whole command line must stay under Windows' 32 767 characters. */
+const SYSTEM_PROMPT_ARG_LIMIT = 16_000;
+
+const PERMISSION_FLAG: Record<PermissionMode, string> ={ safe: "manual", acceptEdits: "acceptEdits", bypass: "bypassPermissions" };
 
 /**
  * Claude Code provider — `claude -p --output-format stream-json`.
@@ -54,12 +57,16 @@ export class ClaudeCodeProvider extends BaseCliProvider {
     args.push("--permission-mode", PERMISSION_FLAG[o.permissionMode ?? "acceptEdits"]);
     if ((o.permissionMode ?? "acceptEdits") === "bypass") args.push("--dangerously-skip-permissions");
     if (o.allowedTools && o.allowedTools.length) args.push("--allowedTools", ...o.allowedTools);
-    if (o.systemPrompt) args.push("--append-system-prompt", o.systemPrompt);
+    // Windows refuses command lines over 32 767 characters, and the world / design system prompts carry
+    // their JSON schema (~42 000 / ~31 000): those go on stdin, once per native session.
+    const inline = !!o.systemPrompt && o.systemPrompt.length <= SYSTEM_PROMPT_ARG_LIMIT;
+    if (inline) args.push("--append-system-prompt", o.systemPrompt!);
     if (o.maxBudgetUsd) args.push("--max-budget-usd", String(o.maxBudgetUsd));
     if (opts.jsonSchema) args.push("--json-schema", JSON.stringify(opts.jsonSchema));
-    if (opts.resume !== false && session.nativeSessionId) args.push("--resume", session.nativeSessionId);
+    const resuming = opts.resume !== false && !!session.nativeSessionId;
+    if (resuming) args.push("--resume", session.nativeSessionId!);
     if (o.extraArgs) args.push(...o.extraArgs);
-    let text = prompt;
+    let text = o.systemPrompt && !inline && !resuming ? `<system_instructions>\n${o.systemPrompt}\n</system_instructions>\n\n${prompt}` : prompt;
     if (opts.images && opts.images.length) text += `\n\nImages to analyze (use the Read tool on each path):\n${opts.images.map((p) => `- ${p}`).join("\n")}`;
     return { args, stdin: text };
   }

@@ -39,6 +39,7 @@ families live in `styles-fantasy.ts` / `styles-modern.ts` / `styles-nature.ts` b
   left hanging over an edge). Run it before and after any generator change.
 - `npx tsx scripts/demo-prompt.ts "<prompt>" [--build --open --size N --out dir]` — prompt → full project in `demo-output/`.
 - `npx tsx scripts/enhance-prompt.ts "<prompt>" [--model sonnet --local]` — prints the hidden brief the agents would get (`docs/AGENT_SYSTEM.md` §4b).
+- `npx tsx scripts/brief-ab.ts "<prompt>" [--model sonnet]` — runs the real World agent without then with the brief on fresh projects and scores both; render them with `preview-map.ts --spec <dir>/worlds/main/world.spec.json` (repeatable).
 - `npm run dev` — sync template + `tauri dev` (see `.claude/skills/studio-verify` to drive the app and Studio headlessly).
 
 ## Rules

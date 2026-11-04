@@ -5,19 +5,21 @@
  *   npx tsx scripts/preview-map.ts "village médiéval dans une forêt"      # 1 world, 4 views + plan
  *   npx tsx scripts/preview-map.ts --panel                                # the audit panel, 1 view each
  *   npx tsx scripts/preview-map.ts "<prompt>" --width 1600 --out demo-output/look
+ *   npx tsx scripts/preview-map.ts --spec a/worlds/main/world.spec.json --spec b/worlds/main/world.spec.json
  *
  * No Roblox, no browser: a small software rasterizer (z-buffer, flat-shaded oriented boxes for every
  * prefab part, triangles for the terrain, height fog and a sky gradient from the bake's own lighting).
  * It renders what the bake says, so a floating rock or a bare verge shows up exactly as Studio would
  * show it. Writes `index.html` next to the images as a contact sheet.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { interpretPrompt } from "../packages/agents/src/local/interpreter";
 import {
   STYLE_FAMILY_INDEX,
   StyleBibleSchema,
   TERRAIN_MATERIALS,
+  WorldSpecSchema,
   base64ToF32,
   eulerXYZToMatrix,
   mat3Apply,
@@ -529,18 +531,24 @@ async function main(): Promise<void> {
   const width = Number.parseInt(flag("width", panel ? "960" : "1280"), 10);
   const height = Math.round(width * 0.5625);
   const outDir = flag("out", "demo-output/map-preview");
-  const prompts = panel
+  // --spec <world.spec.json> (repeatable): render worlds an agent wrote instead of interpreting a prompt
+  const specFiles = args.flatMap((a, i) => (a === "--spec" && args[i + 1] ? [args[i + 1]!] : []));
+  const prompts = specFiles.length
+    ? specFiles
+    : panel
     ? ["village médiéval dans une forêt avec un château", "île tropicale de survie avec un village de pêcheurs", "ville cyberpunk néon la nuit", "désert avec une pyramide et une oasis", "montagne enneigée avec un chalet", "ferme cozy au bord d'un lac"]
     : [args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1]?.startsWith("--") !== true) ?? "village médiéval dans une forêt avec un château"];
   mkdirSync(outDir, { recursive: true });
   const cards: string[] = [];
   for (const prompt of prompts) {
-    const { spec } = interpretPrompt(prompt);
+    const spec = specFiles.length ? WorldSpecSchema.parse(JSON.parse(readFileSync(prompt, "utf8"))) : interpretPrompt(prompt).spec;
     const fam = STYLE_FAMILY_INDEX[spec.stylePreset] ?? STYLE_FAMILY_INDEX.stylized_mystical!;
     const style = StyleBibleSchema.parse(styleFamilyToBible(fam));
     const bake = generateWorld(spec, style);
     const report = critiqueBake(bake, spec, style);
-    const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+    // a spec is named after its project folder (…/<project>/worlds/main/world.spec.json)
+    const label = specFiles.length ? basename(resolve(dirname(prompt), "..", "..")) : prompt;
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
     const views = panel ? cameras(bake).slice(0, 1) : cameras(bake);
     const imgs: string[] = [];
     for (const { name, cam, far } of views) {
@@ -551,11 +559,11 @@ async function main(): Promise<void> {
       console.log(`  ${file}`);
     }
     cards.push(
-      `<section><h2>${prompt}</h2><p>${spec.stylePreset} · score ${report.score}/100 · ${bake.placements.length} placements · σ ${bake.stats.heightStd.toFixed(0)} · ${report.problems.map((p) => p.id).join(", ") || "no complaints"}</p>` +
+      `<section><h2>${label}</h2><p>${spec.stylePreset} · score ${report.score}/100 · ${bake.placements.length} placements · σ ${bake.stats.heightStd.toFixed(0)} · ${report.problems.map((p) => p.id).join(", ") || "no complaints"}</p>` +
         imgs.map((f) => `<figure><img src="${f}" alt="${f}"><figcaption>${f.replace(`${slug}-`, "").replace(".png", "")}</figcaption></figure>`).join("") +
         `</section>`,
     );
-    console.log(`${report.score}/100  ${prompt}`);
+    console.log(`${report.score}/100  ${label}`);
   }
   writeFileSync(
     join(outDir, "index.html"),
