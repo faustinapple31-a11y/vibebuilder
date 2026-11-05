@@ -55,7 +55,7 @@ export function chooseSpawn(ctx: GenContext): void {
       const seesLandmark = focal ? hasLineOfSight(ctx, [x, y, z], [focal.position[0], focal.position[1] + 40, focal.position[2]]) : false;
       const seesTarget = viewTarget ? hasLineOfSight(ctx, [x, y, z], viewTarget) : false;
       const looks = viewTarget ?? [site.center[0], site.baseHeight + 8, site.center[1]];
-      const score = (seesVillage ? 2 : 0) + (seesLandmark ? 2.5 : 0) + (seesTarget ? 3 : 0) + terrainFan(ctx, x, z, looks) * 2 - s * 2 - attempt * 0.03;
+      const score = (seesVillage ? 2 : 0) + (seesLandmark ? 2.5 : 0) + (seesTarget ? 3 : 0) + terrainFan(ctx, x, z, looks) * 2 - (landmarkInFace(ctx, x, z, looks) ? 4 : 0) - s * 2 - attempt * 0.03;
       if (score > bestScore) {
         bestScore = score;
         best = [x, z];
@@ -138,6 +138,20 @@ function terrainFan(ctx: GenContext, x: number, z: number, target: Vec3): number
 }
 
 /**
+ * A landmark standing within 90 studs in the view: a church a few steps ahead fills the first frame with
+ * a wall (0% open on a real agent map), even when it is the target itself.
+ */
+function landmarkInFace(ctx: GenContext, x: number, z: number, target: Vec3): boolean {
+  const heading = Math.atan2(target[2] - z, target[0] - x);
+  return ctx.landmarks.some((l) => {
+    const d = Math.hypot(l.position[0] - x, l.position[2] - z);
+    if (d > 90) return false;
+    const a = Math.atan2(l.position[2] - z, l.position[0] - x) - heading;
+    return Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.6;
+  });
+}
+
+/**
  * An explicit spawn position is a wish, not a coordinate: at the foot of a terrace wall it looks at the
  * wall. Search rings around the wish (up to 60 studs) for the closest flat, dry point that sees the target.
  */
@@ -159,7 +173,7 @@ function nearestClearView(ctx: GenContext, wish: Vec2, target: Vec3 | null): Vec
       // inside a settlement or near its wall ring (radius × 1.12 + 10, see dressing.ts) the first frame is
       // a rampart or a house front: stand far enough back that the wall reads as a skyline, not a screen
       const walled = ctx.sites.some((site) => Math.hypot(x - site.center[0], z - site.center[1]) < site.radius * 1.12 + 75);
-      const score = (sees ? 3 : 0) + terrainFan(ctx, x, z, target) * 2 - (walled ? 4 : 0) - s * 2 - r * 0.02;
+      const score = (sees ? 3 : 0) + terrainFan(ctx, x, z, target) * 2 - (walled ? 4 : 0) - (landmarkInFace(ctx, x, z, target) ? 4 : 0) - s * 2 - r * 0.02;
       if (score > bestScore) {
         bestScore = score;
         best = [x, z];

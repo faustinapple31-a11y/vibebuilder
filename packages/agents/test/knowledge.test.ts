@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BIOME_IDS, PROP_SETS, SETTLEMENT_TYPES, VEGETATION_SPECIES, ZONE_HINTS } from "@worldforge/core";
-import { KNOWLEDGE, buildEnhancerPrompt, buildRolePrompt, composeBriefedRequest, knowledgeForPrompt, searchKnowledge, worldKnowledgeSection } from "@worldforge/agents";
+import { BRIEF_MOODS, KNOWLEDGE, buildEnhancerPrompt, buildRolePrompt, composeBriefedRequest, knowledgeForPrompt, searchKnowledge, worldKnowledgeSection } from "@worldforge/agents";
 
 describe("knowledge base", () => {
   it("has unique ids, real links and sources for every outside claim", () => {
@@ -16,7 +16,7 @@ describe("knowledge base", () => {
   });
 
   it("only names WorldSpec values that exist in its recipes", () => {
-    const known = new Set<string>([...ZONE_HINTS, ...BIOME_IDS, ...VEGETATION_SPECIES, ...PROP_SETS, ...SETTLEMENT_TYPES, "spawn", "edge", "hidden", "focal", "secondary", "sparse", "medium", "dense", "none"]);
+    const known = new Set<string>([...ZONE_HINTS, ...BIOME_IDS, ...VEGETATION_SPECIES, ...PROP_SETS, ...SETTLEMENT_TYPES, ...BRIEF_MOODS, "spawn", "edge", "hidden", "focal", "secondary", "sparse", "medium", "dense", "none"]);
     for (const e of KNOWLEDGE.filter((k) => k.audience.includes("world")))
       for (const rule of e.rules) for (const [, value] of rule.matchAll(/"([a-z_]+)"/g)) expect(known, `${e.id}: "${value}"`).toContain(value);
   });

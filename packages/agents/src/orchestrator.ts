@@ -1,4 +1,5 @@
 import { GameSpecSchema, WorldSpecSchema, newId, nowIso, type GameSpec, type WorldSpec } from "@worldforge/core";
+import { reviewGameDesign } from "./game-review";
 import { interpretPrompt } from "./local/interpreter";
 import { buildRolePrompt, ROLES, roleSystemPrompt, validateRoleOutput, type RoleContext } from "./roles";
 import type { AgentEvent, AgentProviderId, AgentRole, AgentSession, FileIO, IAgentProvider } from "./types";
@@ -240,6 +241,12 @@ export class Orchestrator {
       const content = await this.deps.files.readText(path);
       const v = validateRoleOutput(task.role, content);
       if (!v.ok) return v;
+      // a game with impossible quests or pressure wording goes back once; on the last attempt it passes,
+      // since a failed design task would take the whole plan down with it
+      if (task.role === "design" && task.attempts < task.maxAttempts) {
+        const blocking = reviewGameDesign(v.data as GameSpec).filter((p) => p.severity === "high");
+        if (blocking.length) return { ok: false, errors: blocking.map((p) => `- ${p.message}`).join("\n") };
+      }
       if (task.role === "world" && this.deps.bakeCheck) {
         try {
           await this.deps.bakeCheck(v.data as WorldSpec);

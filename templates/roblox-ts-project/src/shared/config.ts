@@ -12,7 +12,7 @@ export const GameConfig = {
 	collectibles: {
 		enabled: true,
 		/** Prefab names (attribute "Prefab") that can be collected. */
-		prefabs: ["small_mushroom"],
+		prefabs: ["small_mushroom", "flower_patch", "crate", "barrel", "stone"],
 		rewardCoins: 5,
 		respawnSeconds: 90,
 		promptText: "Pick mushroom",

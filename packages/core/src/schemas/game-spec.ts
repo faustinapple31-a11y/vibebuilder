@@ -121,7 +121,7 @@ export type ShopItem = z.infer<typeof ShopItemSchema>;
 export const ShopBundleSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  description: z.string().default("One-time offer — everything you need to start strong!"),
+  description: z.string().default("A good set of upgrades to start with."),
   items: z.array(z.object({ itemId: z.string().min(1), count: z.number().int().min(1).default(1) })).min(1),
   /** Coins price of the pack. */
   price: z.number().int().min(0),

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const DOMAINS: { id: KnowledgeEntry["domain"] | "all"; label: string }[] = [
   { id: "all", label: "All" },
   { id: "mapping", label: "Mapping" },
+  { id: "game-design", label: "Game design" },
   { id: "prompting", label: "Prompting" },
 ];
 
@@ -18,7 +19,7 @@ const RELIABILITY: Record<KnowledgeEntry["reliability"], { label: string; dot: "
   worldforge: { label: "Learned on WorldForge", dot: "busy" },
 };
 
-const AUDIENCE: Record<KnowledgeEntry["audience"][number], string> = { enhancer: "Brief writer", world: "World agent", human: "Reference" };
+const AUDIENCE: Record<KnowledgeEntry["audience"][number], string> = { enhancer: "Brief writer", world: "World agent", design: "Design agent", human: "Reference" };
 
 /** Browse the knowledge base the agents draw from: principles, WorldSpec recipes and their sources. */
 export function KnowledgeView() {
@@ -36,7 +37,7 @@ export function KnowledgeView() {
           <BookOpen size={15} className="text-brand" /> Knowledge
         </div>
         <p className="text-xs text-muted">
-          {KNOWLEDGE.length} entries and {sourceCount} sources on prompting and map making. Entries marked “Brief writer” or “World agent” are sent to the agents with every matching request.
+          {KNOWLEDGE.length} entries and {sourceCount} sources on game design, map making and prompting. Entries marked with an agent are sent to the agents with every matching request.
         </p>
         <div className="flex overflow-hidden rounded-md border border-line text-xs">
           {DOMAINS.map((d) => (

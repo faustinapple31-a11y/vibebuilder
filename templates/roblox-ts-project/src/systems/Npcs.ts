@@ -3,6 +3,7 @@ import { loadAnimation } from "shared/anim/keyframes";
 import { AnimationConfig } from "shared/animations";
 import { NpcConfig } from "shared/npcs";
 import { getRemoteEvent, Remotes } from "shared/net";
+import * as Progression from "./Progression";
 
 /**
  * Villager NPCs: real R15 avatars (HumanoidDescription), idle / walk animations, a wander loop between
@@ -83,6 +84,7 @@ function spawnNpc(def: (typeof NpcConfig.npcs)[number], index: number, position:
 			npc.walk.Stop();
 			npc.greet.Play();
 			talk.FireClient(player, def.name, line);
+			Progression.progressQuest(player, "talk", def.id, 1);
 			task.delay(3, () => (npc.busy = false));
 		});
 	}

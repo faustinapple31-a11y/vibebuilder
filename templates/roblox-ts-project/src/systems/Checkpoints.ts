@@ -3,6 +3,7 @@ import { GameConfig } from "shared/config";
 import { getRemoteEvent, Remotes } from "shared/net";
 import { findZones, sortedZones, type ZoneInfo } from "shared/zones";
 import * as PlayerData from "./PlayerData";
+import * as Progression from "./Progression";
 
 /**
  * Checkpoints: obby stages (`obby_stage_N`), story checkpoints (`story_checkpoint_N`) and race
@@ -32,6 +33,8 @@ function reach(player: Player, index: number): void {
 	if (index <= cur) return;
 	PlayerData.setStat(player, "Stage", index);
 	hudValue.FireClient(player, "stage", "Stage", `${index} / ${stages.size()}`);
+	const zone = stages[index - 1];
+	if (zone) Progression.progressQuest(player, "reach", zone.id, 1);
 	if (index === finishIndex) {
 		PlayerData.addCoins(player, GameConfig.obby.finishReward);
 		PlayerData.addStat(player, "Wins", 1);

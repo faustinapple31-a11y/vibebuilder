@@ -2,6 +2,7 @@ import { Players, ReplicatedStorage, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { getRemoteEvent, Remotes } from "shared/net";
 import * as PlayerData from "./PlayerData";
+import * as Progression from "./Progression";
 
 /**
  * Combat & weapons: server-authoritative damage. Every player gets a starter melee Tool
@@ -50,6 +51,7 @@ export function damage(target: Humanoid, amount: number, attacker?: Player, knoc
 	if (target.Health <= 0 && attacker) {
 		PlayerData.addCoins(attacker, cfg.killReward);
 		PlayerData.addStat(attacker, "Kills", 1);
+		Progression.progressQuest(attacker, "defeat", victim ? "player" : "enemy", 1);
 		if (GameConfig.systems.includes("progression")) PlayerData.addStat(attacker, "xp", GameConfig.progression.xpPerAction * 4);
 		if (victim) PlayerData.addStat(victim, "Deaths", 1);
 	}

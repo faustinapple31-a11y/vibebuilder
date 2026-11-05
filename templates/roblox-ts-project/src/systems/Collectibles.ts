@@ -2,6 +2,7 @@ import { CollectionService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { getRemoteEvent, Remotes } from "shared/net";
 import { addCoins, multiplierFor } from "./PlayerData";
+import * as Progression from "./Progression";
 import { feed } from "./Survival";
 import { playSfx } from "./Audio";
 
@@ -30,6 +31,7 @@ function makeCollectible(model: Model): void {
 		feed(player, multiplierFor(player, "food"));
 		playSfx(player, "collect");
 		notify.FireClient(player, `+${granted} ${GameConfig.currency.name}`);
+		Progression.progressQuest(player, "collect", (model.GetAttribute("Prefab") as string | undefined) ?? "item", 1);
 		const parts = model.GetDescendants().filter((d): d is BasePart => d.IsA("BasePart"));
 		const original = parts.map((p) => p.Transparency);
 		for (const p of parts) p.Transparency = 1;
@@ -40,16 +42,30 @@ function makeCollectible(model: Model): void {
 	});
 }
 
+const MAX_COLLECTIBLES = 60;
+
 export function start(): void {
 	if (!GameConfig.collectibles.enabled) return;
 	const world = Workspace.WaitForChild("World", 60);
 	if (!world) return;
+	let scanned = false;
 	const scan = () => {
+		if (scanned) return;
+		scanned = true;
+		const found: Model[] = [];
 		for (const child of world.GetDescendants()) {
 			if (!child.IsA("Model")) continue;
 			const prefab = child.GetAttribute("Prefab") as string | undefined;
-			if (prefab !== undefined && (GameConfig.collectibles.prefabs as readonly string[]).includes(prefab)) makeCollectible(child);
+			if (prefab !== undefined && (GameConfig.collectibles.prefabs as readonly string[]).includes(prefab)) found.push(child);
 		}
+		// common prefabs (stones) can number hundreds: keep a few dozen prompts, spread at random over the map
+		for (let i = found.size() - 1; i > 0; i--) {
+			const j = math.random(0, i);
+			const swap = found[i];
+			found[i] = found[j];
+			found[j] = swap;
+		}
+		for (let i = 0; i < math.min(found.size(), MAX_COLLECTIBLES); i++) makeCollectible(found[i]);
 	};
 	if (Workspace.GetAttribute("WorldReady") === true) scan();
 	Workspace.GetAttributeChangedSignal("WorldReady").Connect(() => {

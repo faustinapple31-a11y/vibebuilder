@@ -378,9 +378,15 @@ export function interpretGame(prompt: string, spec: WorldSpec, genreIn?: GenreDe
   if (hints.includes("combat")) ids.add("combat"), ids.add("weapons"), ids.add("enemies");
   if (hints.includes("quests")) ids.add("quests"), ids.add("npcs");
   if (hints.includes("vehicles")) ids.add("vehicles");
+  // goals are shown and tracked in every genre; open worlds need something to pick up for them
+  ids.add("quests");
+  const fixedGoals = ["obby_course", "arena", "race_track", "base_defense", "dungeon"].includes(genre.layout) || ids.has("tycoon") || ids.has("building");
+  if (!fixedGoals && !["collectibles", "simulator_loop", "farming", "mining", "pets"].some((s) => ids.has(s))) ids.add("collectibles");
+  // playing together is a discovery signal and the main long-term lever: never ship a game with nothing social
+  if (!["leaderboards", "trading", "teams", "matchmaking", "rounds", "capture_points", "minigames", "housing"].some((s) => ids.has(s))) ids.add("leaderboards");
   const systems: GameSpec["systems"] = [...ids].map((id) => ({ id: id as never, description: SYSTEM_DESCRIPTIONS[id] ?? id, params: {} }));
   // a prompt can ask for a UI library directly ("UI rétro", "interface néon") — otherwise the style decides
-  const ui: GameSpec["ui"] = { screens: genre.screens as never, style: fam.ui as never, accentColor: fam.uiAccent, kit: pickUiKit(prompt, fam.ui, genre.id), locale: detectLocale(prompt) };
+  const ui: GameSpec["ui"] = { screens: [...new Set([...genre.screens, "quests", ...(ids.has("leaderboards") ? ["leaderboard"] : [])])] as never, style: fam.ui as never, accentColor: fam.uiAccent, kit: pickUiKit(prompt, fam.ui, genre.id), locale: detectLocale(prompt) };
   const base = defaultGameContent();
   const currencyName = genre.currency.charAt(0).toUpperCase() + genre.currency.slice(1);
   const enemies = genre.enemies || ids.has("enemies");
@@ -398,10 +404,10 @@ export function interpretGame(prompt: string, spec: WorldSpec, genreIn?: GenreDe
     targetAudience: t.includes("enfant") || t.includes("kids") ? "kids" : genre.id === "horror" || zombie ? "teens" : "all",
     coreLoop: coreLoopFor(genre),
     systems,
-    currencies: [{ id: genre.currency, name: currencyName, icon: "coin", startingAmount: 0 }],
+    currencies: [{ id: genre.currency, name: currencyName, icon: "coin", startingAmount: 50 }],
     items: itemsFor(genre, fam),
     npcs,
-    quests: questsFor(genre, spec),
+    quests: questsFor(genre, spec, ids),
     ui,
     monetization: base.monetization,
     shop: { ...base.shop, title: genre.id === "survival" ? "Trader" : genre.id === "tycoon" || genre.id === "simulator" ? "Upgrades" : "Shop" },
@@ -421,23 +427,34 @@ function itemsFor(genre: GenreDef, fam: StyleFamilyDef): GameSpec["items"] {
   return items;
 }
 
-function questsFor(genre: GenreDef, spec: WorldSpec): GameSpec["quests"] {
-  const cur = genre.currency;
-  switch (genre.layout) {
-    case "obby_course":
-      return [{ id: "first_stages", title: "Warm-up", description: "Reach stage 3.", objective: { type: "reach", target: "obby_stage_3", count: 1 }, reward: { currency: cur, amount: 50 } }];
+/**
+ * Short, mid and long goals, as Roblox's onboarding guidance asks. Every objective is one the runtime
+ * really fires (QUEST_EVENTS in game-review.ts): most of the previous ones could never be completed.
+ */
+function questsFor(genre: GenreDef, spec: WorldSpec, systems: Set<string>): GameSpec["quests"] {
+  const q = (id: string, title: string, description: string, type: GameSpec["quests"][number]["objective"]["type"], target: string, count: number, amount: number): GameSpec["quests"][number] => ({ id, title, description, objective: { type, target, count }, reward: { currency: genre.currency, amount } });
+  if (systems.has("building")) return [q("first_blocks", "First blocks", "Place 5 blocks.", "build", "block", 5, 50), q("builder", "Builder", "Place 50 blocks.", "build", "block", 50, 150), q("architect", "Architect", "Place 300 blocks.", "build", "block", 300, 500)];
+  switch (systems.has("tycoon") || genre.layout !== "tycoon_plots" ? genre.layout : "open_world") {
+    case "obby_course": {
+      const stages = Math.max(6, spec.layout.count);
+      const mid = Math.ceil(stages / 2) + 1;
+      return [q("first_stages", "Warm-up", "Reach stage 3.", "reach", "obby_stage_3", 1, 50), q("halfway", "Halfway there", `Reach stage ${mid}.`, "reach", `obby_stage_${mid}`, 1, 150), q("summit", "The final stage", `Reach stage ${stages}.`, "reach", `obby_stage_${stages}`, 1, 500)];
+    }
     case "tycoon_plots":
-      return [{ id: "first_plot", title: "Own a plot", description: "Claim a plot and buy your first dropper.", objective: { type: "build", target: "tycoon_plot", count: 1 }, reward: { currency: cur, amount: 100 } }];
+      return [q("first_plot", "Own a plot", "Claim a plot.", "build", "tycoon_plot", 1, 50), q("first_dropper", "First dropper", "Buy your first dropper.", "build", "dropper", 1, 100), q("full_line", "Full production", "Buy 4 droppers.", "build", "dropper", 4, 500)];
     case "arena":
-      return [{ id: "first_blood", title: "First blood", description: "Defeat 3 opponents in the arena.", objective: { type: "defeat", target: "player", count: 3 }, reward: { currency: cur, amount: 100 } }];
+      return [q("first_blood", "First blood", "Defeat 3 opponents.", "defeat", "any", 3, 100), q("veteran", "Veteran", "Defeat 25 opponents.", "defeat", "any", 25, 300), systems.has("rounds") ? q("champion", "Champion", "Win 10 rounds.", "win_rounds", "any", 10, 800) : q("champion", "Champion", "Defeat 100 opponents.", "defeat", "any", 100, 800)];
     case "race_track":
-      return [{ id: "first_lap", title: "First lap", description: "Complete a lap of the track.", objective: { type: "reach", target: "race_start", count: 1 }, reward: { currency: cur, amount: 80 } }];
+      return [q("first_lap", "First lap", "Complete a lap.", "reach", "race_start", 1, 75), q("regular", "Regular", "Complete 10 laps.", "reach", "race_start", 10, 250), q("road_legend", "Road legend", "Complete 50 laps.", "reach", "race_start", 50, 800)];
     case "base_defense":
-      return [{ id: "wave_5", title: "Hold the line", description: "Survive 5 waves.", objective: { type: "survive", target: "wave", count: 5 }, reward: { currency: cur, amount: 150 } }];
+      return [q("wave_5", "Hold the line", "Survive 5 waves.", "survive", "wave", 5, 150), q("wave_15", "Stand firm", "Survive 15 waves.", "survive", "wave", 15, 400), q("wave_40", "Unbroken", "Survive 40 waves.", "survive", "wave", 40, 1000)];
     case "dungeon":
-      return [{ id: "boss", title: "Into the dark", description: "Reach the boss room.", objective: { type: "reach", target: "dungeon_boss", count: 1 }, reward: { currency: cur, amount: 200 } }];
-    default:
-      return [{ id: "first_light", title: "First steps", description: `Collect 5 items and visit ${spec.landmarks[0]?.id ?? "the landmark"}.`, objective: { type: "collect", target: "any", count: 5 }, reward: { currency: cur, amount: 50 } }];
+      return [q("first_fight", "Into the dark", "Defeat 3 enemies.", "defeat", "any", 3, 100), q("delver", "Delver", "Defeat 25 enemies.", "defeat", "any", 25, 300), q("slayer", "Slayer", "Defeat 100 enemies.", "defeat", "any", 100, 800)];
+    default: {
+      const landmark = spec.landmarks.find((l) => l.role === "focal")?.type.replace(/_/g, " ");
+      const goals = [q("first_light", "First steps", `Collect 5 items${landmark ? ` on your way to the ${landmark}` : ""}.`, "collect", "any", 5, 50), q("gatherer", "Gatherer", "Collect 30 items.", "collect", "any", 30, 150), q("collector", "Master collector", "Collect 150 items.", "collect", "any", 150, 500)];
+      return systems.has("npcs") && spec.settlements.length ? [q("say_hello", "Say hello", "Talk to someone in town.", "talk", "any", 1, 25), ...goals] : goals;
+    }
   }
 }
 

@@ -127,6 +127,7 @@ function hookGate(zone: ZoneInfo, index: number): void {
 			const best = PlayerData.getStat(player, "best_lap");
 			if (best === 0 || t < best) PlayerData.setStat(player, "best_lap", math.floor(t * 100) / 100);
 			PlayerData.addCoins(player, cfg.lapReward);
+			Progression.progressQuest(player, "reach", "race_start", 1);
 			Progression.grantXp(player, GameConfig.progression.xpPerAction * 3);
 			notify.FireClient(player, `Lap ${pr.lap} — ${string.format("%.2f", t)}s`);
 			if (pr.lap >= cfg.laps) {

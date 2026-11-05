@@ -142,7 +142,7 @@ export const GameConfig = {
 \tcollectibles: {
 \t\tenabled: ${collectibles ? "true" : "false"},
 \t\t/** Prefab names (attribute "Prefab") that can be collected. */
-\t\tprefabs: ${JSON.stringify(typeof collectibles?.params.prefabs === "string" ? String(collectibles.params.prefabs).split(",").map((s) => s.trim()) : ["small_mushroom"])},
+\t\tprefabs: ${JSON.stringify(typeof collectibles?.params.prefabs === "string" ? String(collectibles.params.prefabs).split(",").map((s) => s.trim()) : ["small_mushroom", "flower_patch", "crate", "barrel", "stone"])},
 \t\trewardCoins: ${num(collectibles?.params.reward, 5)},
 \t\trespawnSeconds: ${num(collectibles?.params.respawnSeconds, 90)},
 \t\tpromptText: ${JSON.stringify(typeof collectibles?.params.promptText === "string" ? collectibles.params.promptText : "Pick up")},

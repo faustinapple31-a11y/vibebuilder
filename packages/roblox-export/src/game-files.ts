@@ -218,14 +218,14 @@ export function defaultGameContent(): Pick<GameSpec, "shop" | "monetization" | "
         { id: "potions", title: "Potions" },
       ],
       items: [
-        { id: "x2_coins", name: "x2 Coins", description: "Permanently DOUBLE all the coins you earn!", section: "upgrades", price: 250, consumable: false, effect: { type: "multiplier", stat: "coins", value: 2, durationSeconds: 0 }, color: "#c9a24a" },
-        { id: "x2_food", name: "x2 Food", description: "Permanently DOUBLE the food you collect!", section: "upgrades", price: 180, consumable: false, effect: { type: "multiplier", stat: "food", value: 2, durationSeconds: 0 }, color: "#d9743a" },
-        { id: "fast_hands", name: "Fast Hands", description: "Collect twice as fast!", section: "upgrades", price: 320, consumable: false, effect: { type: "multiplier", stat: "speed", value: 2, durationSeconds: 0 }, color: "#5b4a8f" },
-        { id: "luck_boost", name: "Luck Boost", description: "Doubles ALL your luck for 15 minutes — rarer finds and drops.", section: "potions", price: 32, consumable: true, effect: { type: "buff", stat: "luck", value: 2, durationSeconds: 900 }, color: "#4a9a4a" },
-        { id: "ultra_luck", name: "Ultra Luck Boost", description: "Quadruples ALL your luck (x4) for 10 minutes — the strongest luck surge.", section: "potions", price: 60, consumable: true, effect: { type: "buff", stat: "luck", value: 4, durationSeconds: 600 }, color: "#8a3fbf" },
+        { id: "x2_coins", name: "x2 Coins", description: "Doubles the coins you earn, for good.", section: "upgrades", price: 250, consumable: false, effect: { type: "multiplier", stat: "coins", value: 2, durationSeconds: 0 }, color: "#c9a24a" },
+        { id: "x2_food", name: "x2 Food", description: "Doubles the food you collect, for good.", section: "upgrades", price: 180, consumable: false, effect: { type: "multiplier", stat: "food", value: 2, durationSeconds: 0 }, color: "#d9743a" },
+        { id: "fast_hands", name: "Fast Hands", description: "Collect twice as fast.", section: "upgrades", price: 320, consumable: false, effect: { type: "multiplier", stat: "speed", value: 2, durationSeconds: 0 }, color: "#5b4a8f" },
+        { id: "luck_boost", name: "Luck Boost", description: "Doubles your luck for 15 minutes: rarer finds and drops.", section: "potions", price: 32, consumable: true, effect: { type: "buff", stat: "luck", value: 2, durationSeconds: 900 }, color: "#4a9a4a" },
+        { id: "ultra_luck", name: "Ultra Luck Boost", description: "Multiplies your luck by 4 for 10 minutes.", section: "potions", price: 60, consumable: true, effect: { type: "buff", stat: "luck", value: 4, durationSeconds: 600 }, color: "#8a3fbf" },
       ],
-      bundles: [{ id: "starter", name: "Starter Pack", description: "One-time offer — everything you need to start strong!", items: [{ itemId: "x2_coins", count: 1 }, { itemId: "fast_hands", count: 1 }, { itemId: "luck_boost", count: 3 }, { itemId: "ultra_luck", count: 1 }], price: 99, badge: "-85%" }],
-      featured: { itemId: "luck_boost", headline: "BOOST Your Luck!", note: "Lasts for 15 minutes, stackable" },
+      bundles: [{ id: "starter", name: "Starter Pack", description: "A good set of upgrades to start with.", items: [{ itemId: "x2_coins", count: 1 }, { itemId: "fast_hands", count: 1 }, { itemId: "luck_boost", count: 3 }, { itemId: "ultra_luck", count: 1 }], price: 99, badge: "-85%" }],
+      featured: { itemId: "luck_boost", headline: "Luck Boost", note: "Lasts for 15 minutes, stackable" },
     },
     monetization: {
       gamepasses: [{ id: "vip", name: "VIP", description: "VIP tag, +25% coins and a golden lantern.", priceRobux: 199, effect: { type: "multiplier", stat: "coins", value: 1.25, durationSeconds: 0 } }],
@@ -236,7 +236,7 @@ export function defaultGameContent(): Pick<GameSpec, "shop" | "monetization" | "
     },
     npcs: [
       { id: "elder", name: "Elder Maren", role: "quest_giver", location: "village", dialogue: ["The mushrooms glow brighter every night… something stirs in the old ruins.", "Bring me twenty glowing caps and I will tell you about the giant tree."] },
-      { id: "merchant", name: "Tobin the Trader", role: "merchant", location: "village", dialogue: ["Potions, charms, lanterns — take a look at the shop!", "Luck potions are on sale tonight."] },
+      { id: "merchant", name: "Tobin the Trader", role: "merchant", location: "village", dialogue: ["Potions, charms, lanterns — take a look at the shop!", "Luck potions make rare finds more likely."] },
       { id: "villager", name: "Pip", role: "villager", location: "village", dialogue: ["Don't wander past the stone walls after dark.", "I saw lights dancing over the lake!"] },
     ],
     animations: {

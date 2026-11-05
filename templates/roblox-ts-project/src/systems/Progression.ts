@@ -76,8 +76,10 @@ export function progressQuest(player: Player, objectiveType: string, target: str
 		if (q.objective.type !== objectiveType) continue;
 		if (q.objective.target !== "any" && q.objective.target !== target) continue;
 		if (PlayerData.getStat(player, `quest_${q.id}`) === 1) continue;
-		const cur = (map.get(q.id) ?? 0) + n;
+		// saved in the profile: a long goal must survive leaving and coming back
+		const cur = (map.get(q.id) ?? PlayerData.getStat(player, `questp_${q.id}`)) + n;
 		map.set(q.id, cur);
+		PlayerData.setStat(player, `questp_${q.id}`, cur);
 		if (cur >= q.objective.count) {
 			PlayerData.setStat(player, `quest_${q.id}`, 1);
 			PlayerData.addCoins(player, q.reward.amount);
@@ -96,7 +98,7 @@ function questSnapshot(player: Player): Record<string, QuestProgress> {
 	const out: Record<string, QuestProgress> = {};
 	for (const q of QuestConfig.quests) {
 		const done = PlayerData.getStat(player, `quest_${q.id}`) === 1;
-		out[q.id] = { progress: done ? q.objective.count : (map?.get(q.id) ?? 0), done };
+		out[q.id] = { progress: done ? q.objective.count : (map?.get(q.id) ?? PlayerData.getStat(player, `questp_${q.id}`)), done };
 	}
 	return out;
 }

@@ -85,6 +85,7 @@ export const WORLD_RECIPES: KnowledgeEntry[] = [
     rules: [
       "colorPalette: ground, foliage, stone, wood, water from the brief's palette; accent = the brief's accent.",
       "atmosphere.fogColor = the near haze colour, skyTint = the far one; haze 0.25–0.45 for depth.",
+      "Mood \"eerie\" or \"stormy\" already thickens the fog: keep atmosphere.fogDensity at 0.45 or less there, or landmarks vanish (0.6 failed on every test map).",
       "lighting.timeOfDay matches the mood: dawn 6–7, golden 16–18, dusk 19, moonlit 22–2.",
     ],
     tags: ["palette", "colour", "couleur", "haze", "fog", "brume", "atmosphere", "mood", "lighting"],

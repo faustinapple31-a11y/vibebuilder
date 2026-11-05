@@ -251,7 +251,7 @@ export const MAPPING_KNOWLEDGE: KnowledgeEntry[] = [
     topic: "mood",
     title: "Horror maps: shape the dark",
     summary: "Dread comes from limited sight, one pale focal point and silence, not from uniform darkness.",
-    rules: ["Low eerie light, dense low haze, a single pale or red accent.", "Close the horizon with hills or cliffs.", "Keep the path readable: darkness must have shape."],
+    rules: ["Low eerie light, moderate haze (the mood already thickens it), a single pale or red accent.", "Close the horizon with hills or cliffs.", "Keep the path readable: darkness must have shape."],
     tags: ["horror", "horreur", "peur", "scary", "effrayant", "sombre", "dark", "eerie", "gothic", "zombie", "hante"],
     sources: [],
     reliability: "worldforge",

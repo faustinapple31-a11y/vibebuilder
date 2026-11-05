@@ -163,6 +163,12 @@ avec l'app, sous forme de données versionnées et testées : elle ne passe pas 
 valeur citée dans une recette existe dans le schéma. Pour ajouter une fiche, voir les exemples des fichiers
 `prompting.ts`, `mapping.ts` et `recipes.ts`, puis lancer `npx vitest run packages/agents`.
 
+Le domaine `game-design` (`game-design.ts`) va au rôle Design (`designKnowledgeSection`) : boucle, première session,
+objectifs, monétisation saine, social, et la table `QUEST_EVENTS` des objectifs que le runtime déclenche vraiment.
+`reviewGameDesign` (`game-review.ts`) vérifie chaque GameSpec : l'orchestrateur renvoie une fois au rôle Design tout
+défaut « high » (quête impossible, texte pressant, pas d'objectifs), puis laisse passer pour ne pas bloquer le plan.
+Tout nouveau type d'objectif doit être déclenché dans `templates/` **et** ajouté à `QUEST_EVENTS`.
+
 Premier effet mesuré (« fait moi un village », Sonnet, un essai) : avec les recettes, l'agent règle enfin la
 végétation en bosquets, les champs, la caméra du spawn et la palette, avec ou sans brief.
 

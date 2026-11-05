@@ -1,5 +1,5 @@
 import { AssetManifestSchema, AudioManifestSchema, GENRES, GameSpecSchema, QAReportSchema, STYLE_FAMILIES, WorldSpecSchema, z, type GameSpec, type WorldSpec } from "@worldforge/core";
-import { worldKnowledgeSection } from "./knowledge";
+import { designKnowledgeSection, worldKnowledgeSection } from "./knowledge";
 import { briefSection } from "./prompt-enhancer";
 import type { AgentRole } from "./types";
 
@@ -262,6 +262,7 @@ export function buildRolePrompt(role: AgentRole, ctx: RoleContext): string {
     parts.push(worldKnowledgeSection(`${ctx.userPrompt}\n${ctx.brief ?? ""}`));
   }
   if (role === "design" && ctx.draftGameSpec) parts.push(`Draft GameSpec from the local interpreter — refine it:\n${JSON.stringify(ctx.draftGameSpec, null, 1)}`);
+  if (role === "design") parts.push(designKnowledgeSection(`${ctx.userPrompt}\n${ctx.brief ?? ""}`));
   if ((role === "gameplay" || role === "ui" || role === "integration" || role === "asset" || role === "audio") && ctx.gameSpec) parts.push(`GameSpec (design/game.spec.json):\n${JSON.stringify(ctx.gameSpec, null, 1)}`);
   if (role === "qa" && ctx.diagnostics) parts.push(`Diagnostics to fix:\n${ctx.diagnostics}`);
   if ((role === "qa" || role === "vision") && ctx.critique) parts.push(`Metrics-based world critique:\n${ctx.critique}`);

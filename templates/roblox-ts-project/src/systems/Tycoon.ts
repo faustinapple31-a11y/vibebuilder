@@ -3,6 +3,7 @@ import { GameConfig } from "shared/config";
 import { getRemoteEvent, Remotes } from "shared/net";
 import { sortedZones, zoneModel, type ZoneInfo } from "shared/zones";
 import * as PlayerData from "./PlayerData";
+import * as Progression from "./Progression";
 
 /**
  * Tycoon: plots laid out by the world generator (`tycoon_plot_N` zones + plot models with a
@@ -63,6 +64,7 @@ function setupPlot(plot: Plot): void {
 			plot.tier = PlayerData.getStat(player, `tycoon_${plot.zone.id}_tier`);
 			billboard(claim, `${player.DisplayName}'s plot`, Color3.fromRGB(160, 255, 180));
 			notify.FireClient(player, "Plot claimed! Buy your first dropper.");
+			Progression.progressQuest(player, "build", "tycoon_plot", 1);
 			refreshButtons(plot);
 			startProduction(plot);
 		});
@@ -86,6 +88,7 @@ function setupPlot(plot: Plot): void {
 			PlayerData.setStat(player, `tycoon_${plot.zone.id}_tier`, i);
 			PlayerData.replicate(player);
 			notify.FireClient(player, `Dropper ${i} built!`);
+			Progression.progressQuest(player, "build", "dropper", 1);
 			refreshButtons(plot);
 			buildDropper(plot, i);
 		});

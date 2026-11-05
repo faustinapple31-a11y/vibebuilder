@@ -29,6 +29,7 @@ export const BRIEF_EXAMPLES: BriefExample[] = [
 GENRE: hangout | STYLE: feudal_japan | LAYOUT: hangout_plaza
 SETTING: A lakeside hamlet at dawn where fishermen mend nets before the mist lifts.
 FIRST VIEW: The spawn sits on a wooden jetty; across still water a red gate stands on a small headland, mirrored in the lake.
+FIRST GOAL: a fishing spot on the jetty, right beside the spawn: nothing to learn, a first catch in seconds.
 FOCAL: torii_gate, on the headland facing the spawn, the only saturated colour in a soft scene.
 SECONDARY: temple half-hidden in the cedars above the hamlet; waterfall_cliff at the far end of the lake as the place to discover.
 SETTLEMENTS: hamlet, 5 buildings along the shore with a small plaza by the water, no two facing the same way.
@@ -46,6 +47,7 @@ AVOID: dense forest around the plaza; anything loud or crowded near the spawn.`,
 GENRE: obby | STYLE: tropical | LAYOUT: obby_course
 SETTING: A small volcanic island where an old lighthouse keeper left a trail of platforms up to the light.
 FIRST VIEW: From a beach spawn the first stages rise over the lagoon, and the lighthouse at the top shows the goal at once.
+FIRST GOAL: stage 1 starts a few steps from the spawn, so the first jump comes within seconds.
 FOCAL: lighthouse, on the highest coast point, so the finish is in sight from the first jump.
 SECONDARY: pirate_ship wrecked on the far beach, seen from the upper stages; campfire at the spawn.
 SETTLEMENTS: camp, 3 buildings by the spawn, nothing else competing with the course.
@@ -63,6 +65,7 @@ AVOID: vegetation on the jumps; stages hidden behind palms.`,
 GENRE: racing | STYLE: cyberpunk | LAYOUT: race_track
 SETTING: An illegal street race run through a district that never sleeps, around the broadcast tower that films it.
 FIRST VIEW: The start line faces down a long avenue of neon towers with the antenna straight ahead on the skyline.
+FIRST GOAL: the start line is at the spawn: the first race begins at once.
 FOCAL: radio_tower, in the centre of the city as requested, visible from most of the circuit so drivers keep their bearings.
 SECONDARY: skyscraper blocks along the straights; gas_station on the outer loop as a landmark for the hard corner.
 SETTLEMENTS: city_district, dense blocks, the circuit following the streets.

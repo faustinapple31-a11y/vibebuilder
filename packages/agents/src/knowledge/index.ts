@@ -1,3 +1,4 @@
+import { GAME_DESIGN_KNOWLEDGE } from "./game-design";
 import { MAPPING_KNOWLEDGE } from "./mapping";
 import { PROMPTING_KNOWLEDGE } from "./prompting";
 import { WORLD_RECIPES } from "./recipes";
@@ -6,7 +7,7 @@ import type { KnowledgeEntry } from "./types";
 export type { KnowledgeEntry } from "./types";
 
 /** WorldForge's built-in knowledge base: shipped with the app, browsed in the Knowledge tab, injected into prompts. */
-export const KNOWLEDGE: KnowledgeEntry[] = [...PROMPTING_KNOWLEDGE, ...MAPPING_KNOWLEDGE, ...WORLD_RECIPES];
+export const KNOWLEDGE: KnowledgeEntry[] = [...PROMPTING_KNOWLEDGE, ...MAPPING_KNOWLEDGE, ...WORLD_RECIPES, ...GAME_DESIGN_KNOWLEDGE];
 
 const fold = (text: string) => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 /** Words that appear in almost every request and say nothing about which entry fits. */
@@ -23,7 +24,7 @@ export interface KnowledgeQuery {
   text?: string;
   domain?: KnowledgeEntry["domain"];
   topic?: string;
-  audience?: "enhancer" | "world" | "human";
+  audience?: KnowledgeEntry["audience"][number];
 }
 
 /** Entries matching the filters, best keyword match first (all of them when there is no text). */
@@ -39,7 +40,7 @@ export function searchKnowledge(query: KnowledgeQuery = {}): KnowledgeEntry[] {
 }
 
 /** Every core entry for the audience plus up to `extra` best matches for the request, as compact prompt lines. */
-export function knowledgeForPrompt(audience: "enhancer" | "world", text: string, extra = 5): string {
+export function knowledgeForPrompt(audience: "enhancer" | "world" | "design", text: string, extra = 5): string {
   const core = KNOWLEDGE.filter((e) => e.core && e.audience.includes(audience));
   const matched = searchKnowledge({ text, audience }).filter((e) => !e.core).slice(0, extra);
   return [...core, ...matched].map((e) => `- ${e.title}: ${e.rules.join(" ")}`).join("\n");
@@ -48,6 +49,11 @@ export function knowledgeForPrompt(audience: "enhancer" | "world", text: string,
 /** The World agent's view of the knowledge base: how to express a request and its brief in WorldSpec fields. */
 export function worldKnowledgeSection(text: string): string {
   return `WorldSpec recipes from WorldForge's knowledge base (they say which fields express each idea; the request and the brief decide what to build):\n${knowledgeForPrompt("world", text)}`;
+}
+
+/** The Design agent's view of the knowledge base: what keeps players, and what the runtime can really do. */
+export function designKnowledgeSection(text: string): string {
+  return `Game design rules from WorldForge's knowledge base (Roblox's own guidance and what this runtime supports; a review checks them on your output):\n${knowledgeForPrompt("design", text, 3)}`;
 }
 
 export const KNOWLEDGE_TOPICS = [...new Set(KNOWLEDGE.map((e) => e.topic))];
