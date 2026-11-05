@@ -7,6 +7,8 @@ export interface FirstView {
   targetVisible: boolean;
   /** What hides the target, when it is hidden. */
   targetBlocker?: string;
+  /** Objects within 45 studs of the spawn, ground and road pieces aside: what dresses the first frame. */
+  dressing: number;
   /** What stops each blocked ray first, e.g. "terrain", "round_tree", "ground_block". */
   blockers: string[];
 }
@@ -67,6 +69,10 @@ export function measureFirstView(bake: WorldBake): FirstView {
   const lv = landmark ? bake.prefabs[landmark.prefab]?.[landmark.variant] ?? bake.prefabs[landmark.prefab]?.[0] : undefined;
   const aimY = ly + Math.max(4, lv && landmark ? lv.bounds.max[1] * landmark.scale * 0.6 : 0);
   const targetBlocker = castRay(heading, Math.min(FAR, targetDist * 0.9), aimY, targetDist) ?? undefined;
-  return { openness: open / RAYS, targetVisible: !targetBlocker, targetBlocker, blockers };
+  const dressing = bake.placements.filter((p) => {
+    if (p.prefab === "spawn_plaza" || p.category === "path" || bake.prefabs[p.prefab]?.[p.variant]?.tags.includes("ground")) return false;
+    return Math.hypot(p.position[0] - sx, p.position[2] - sz) < 45;
+  }).length;
+  return { openness: open / RAYS, targetVisible: !targetBlocker, targetBlocker, dressing, blockers };
 }
 

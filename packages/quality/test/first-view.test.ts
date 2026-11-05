@@ -40,6 +40,23 @@ describe("first view from the spawn", () => {
     expect(inAxis.map((p) => p.prefab)).toEqual([]);
   });
 
+  it("counts the dressing around the player, not a share of the map", () => {
+    const bake = generateWorld(base, style);
+    expect(measureFirstView(bake).dressing).toBeGreaterThanOrEqual(15);
+    expect(critiqueBake(bake, base, style).problems.map((p) => p.id)).not.toContain("foreground_empty");
+    const [sx, , sz] = bake.spawn.position;
+    // a bare clearing in the middle of a full map: the share of foreground objects barely moves
+    bake.placements = bake.placements.filter((p) => Math.hypot(p.position[0] - sx, p.position[2] - sz) >= 45);
+    expect(measureFirstView(bake).dressing).toBe(0);
+    expect(critiqueBake(bake, base, style).problems.map((p) => p.id)).toContain("foreground_empty");
+  });
+
+  it("dresses the spawn of a world where nothing grows with the style's props", () => {
+    const { spec } = interpretPrompt("ville cyberpunk néon la nuit");
+    const city = getStylePreset(spec.stylePreset);
+    expect(measureFirstView(generateWorld(spec, city)).dressing).toBeGreaterThanOrEqual(15);
+  });
+
   it("is flagged by the critic when something stands right in front of the camera", () => {
     const bake = generateWorld(base, style);
     const [sx, sy, sz] = bake.spawn.position;

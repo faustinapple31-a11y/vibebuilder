@@ -44,11 +44,13 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     }
   }
   const total = Math.max(1, bake.placements.length);
-  const fg = s.layerCounts.foreground / total;
   const bg = s.layerCounts.background / total;
-  if (fg < 0.08) {
+  // counted around the player, not as a share of the map: a forest world drowned a well-dressed spawn
+  // (72 objects, "3%") while a city of street-side placements hid a bare one (4 objects, "90%")
+  const view = measureFirstView(bake);
+  if (view.dressing < 15) {
     composition -= 2;
-    problems.push({ id: "foreground_empty", severity: "medium", message: `foreground is empty (${(fg * 100).toFixed(0)}% of placements near paths/spawn)`, layer: "composition" });
+    problems.push({ id: "foreground_empty", severity: "medium", message: `foreground is empty (${view.dressing} objects within 45 studs of the spawn)`, layer: "composition" });
     fixes.push({ type: "spec_patch", path: "props.density", op: "set", value: clamp(spec.props.density + 0.2, 0, 1) });
   }
   // silhouettes stand in the border band, and on an island or an archipelago most of that band is open
@@ -77,7 +79,6 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     fixes.push({ type: "spec_patch", path: "props.sets", op: "add", value: "village" });
   }
   // the player's first frame: blocked views went unnoticed while every score stayed at 100
-  const view = measureFirstView(bake);
   if (view.openness < 0.6) {
     // something right in front of the camera: a trunk, a rampart, a terrace wall
     composition -= view.openness < 0.35 ? 2.5 : 1.5;

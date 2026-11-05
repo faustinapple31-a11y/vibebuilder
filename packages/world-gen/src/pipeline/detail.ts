@@ -1,5 +1,5 @@
-import { Rng, deriveSeed, smoothstep, type BiomeId, type Placement, type PrefabVariant, type VegetationSpecies } from "@worldforge/core";
-import { VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
+import { Rng, deriveSeed, smoothstep, type BiomeId, type Placement, type PrefabVariant, type PropKit, type VegetationSpecies } from "@worldforge/core";
+import { PROP_KIT_PREFABS, VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { biomeAt, distanceToEdge, inBounds, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 import { SpatialHash } from "../grid";
 import { SPECIES_PREFAB, poissonDisk } from "./vegetation";
@@ -195,7 +195,11 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
   const facing = Math.atan2(look[2] - sz, look[0] - sx);
   const biome = biomeAt(ctx, sx, sz);
   const mix = groundCover(ctx, biome);
-  const light = ["lantern_post", "torch_post", "stone_lantern", "streetlight", "tiki_torch", "brazier", "energy_pylon"].find((id) => ctx.prefabs[id]?.length);
+  const lights = ["lantern_post", "torch_post", "stone_lantern", "streetlight", "tiki_torch", "brazier", "energy_pylon"].filter((id) => ctx.prefabs[id]?.length);
+  // the style's own light first: a wooden lantern by a neon avenue reads as a mistake
+  const kitIds = new Set(styleKits(ctx).flatMap((k) => PROP_KIT_PREFABS[k as PropKit] ?? []));
+  const light = lights.find((id) => kitIds.has(id)) ?? lights[0];
+  const street = mix.every((id) => id === "stone") ? smallKitProps(ctx) : [];
   // two trees framing the view corridor: the composition the player sees on their first frame
   const treeId = ["round_tree", "pine_tree", "birch", "palm", "snow_pine", "jungle_tree", "cherry_tree", "acacia", "alien_tree", "candy_tree"].find((id) => ctx.prefabs[id]?.length);
   if (treeId && ctx.style.kits.vegetation !== "none") {
@@ -208,7 +212,7 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
   }
   // the rim of the clearing, not its floor: the spawn keeps a 24-stud walkable circle (an occupant),
   // so anything closer than that is rejected and the apron would come out empty
-  const slots = 18;
+  const slots = street.length > 0 ? 32 : 18;
   for (let i = 0; i < slots; i++) {
     const a = (i / slots) * Math.PI * 2 + rng.float(-0.1, 0.1);
     const r = rng.float(27, 41);
@@ -216,10 +220,25 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
     const z = sz + Math.sin(a) * r;
     // a lantern or a bench on the road side of the clearing, ground cover everywhere else
     if (light && i % 5 === 0 && add(light, x, z, { importance: 7, margin: 0.5 })) continue;
+    // nothing grows here (a city, a moon base): the style's small props dress the clearing instead of pebbles
+    if (street.length > 0 && rng.chance(0.75) && add(street[rng.int(0, street.length - 1)]!, x, z, { importance: 6.5, margin: 0.4 })) continue;
     if (mix.length === 0) continue;
     const prefab = rng.chance(0.25) && ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" ? "flower_patch" : mix[rng.int(0, mix.length - 1)]!;
     add(prefab, x, z, { scale: prefab === "stone" ? rng.float(0.4, 0.9) : rng.float(0.85, 1.25), importance: 6.5, margin: 0.2 });
   }
+}
+
+function styleKits(ctx: GenContext): string[] {
+  return [...new Set([...(ctx.spec.props.sets as string[]), ...ctx.style.kits.props])];
+}
+
+/** Small ground-standing props of the style's kits, for places where no ground cover grows. */
+function smallKitProps(ctx: GenContext): string[] {
+  return [...new Set(styleKits(ctx).flatMap((k) => PROP_KIT_PREFABS[k as PropKit] ?? []))].filter((id) => {
+    const v = ctx.prefabs[id]?.[0];
+    if (!v || v.category !== "prop" || v.footprintRadius > 3.5) return false;
+    return !["floating", "ambience", "water", "wall", "vehicle", "light"].some((t) => v.tags.includes(t));
+  });
 }
 
 // ---------------------------------------------------------------- waterline

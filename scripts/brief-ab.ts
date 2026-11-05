@@ -2,17 +2,17 @@
  * Does the hidden brief make better maps? Runs the World agent (Claude Code, your account) twice on a fresh
  * project for the same request, without then with the brief, and scores both worlds with the critic.
  *
- *   npx tsx scripts/brief-ab.ts "fait moi un village" [--model sonnet] [--out demo-output/brief-ab]
+ *   npx tsx scripts/brief-ab.ts "fait moi un village" [--model sonnet] [--runs 3] [--out demo-output/brief-ab]
  *
  * Then look at them: npx tsx scripts/preview-map.ts --spec <out>/<arm>/worlds/main/world.spec.json
- * One run per arm is an anecdote, not a measure: repeat it before drawing conclusions.
+ * One run per arm is an anecdote, not a measure: use --runs 3 or more (each run draws a new brief).
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { WorldSpecSchema, getStylePreset, newId, slugify, type WorldSpec } from "@worldforge/core";
 import { generateWorld } from "@worldforge/world-gen";
-import { critiqueBake } from "@worldforge/quality";
+import { critiqueBake, measureFirstView } from "@worldforge/quality";
 import { scaffoldProjectFiles } from "@worldforge/roblox-export";
 import { Orchestrator, ROLES, createProviders, enhancePrompt, planWorldOnly, type FileIO } from "@worldforge/agents";
 import { createNodeProcessRunner } from "@worldforge/agents/node";
@@ -28,6 +28,7 @@ if (!request) {
   process.exit(1);
 }
 const model = flag("--model") ?? "sonnet";
+const runs = Math.max(1, Number(flag("--runs") ?? 1));
 const outDir = resolve(flag("--out") ?? join("demo-output", "brief-ab", slugify(request)));
 
 // npm's claude.cmd shim goes through cmd.exe, which mangles multi-line arguments: run the real exe
@@ -50,8 +51,12 @@ function summarize(spec: WorldSpec) {
   const style = getStylePreset(spec.stylePreset);
   const bake = generateWorld(spec, style);
   const report = critiqueBake(bake, spec, style);
+  const view = measureFirstView(bake);
   return {
     score: report.score,
+    openness: view.openness,
+    targetVisible: view.targetVisible,
+    dressing: view.dressing,
     scores: report.scores,
     problems: report.problems.map((p) => p.message),
     style: spec.stylePreset,
@@ -65,8 +70,8 @@ function summarize(spec: WorldSpec) {
   };
 }
 
-async function runArm(name: string, brief: string | undefined) {
-  const dir = join(outDir, name);
+async function runArm(name: string, brief: string | undefined, run: number) {
+  const dir = join(outDir, `run-${run}`, name);
   rmSync(dir, { recursive: true, force: true });
   for (const f of scaffoldProjectFiles({ projectName: "Brief AB", projectId: newId("prj"), stylePreset: "stylized_mystical" })) await files.writeText(join(dir, f.path), f.content);
   const plan = planWorldOnly(request!);
@@ -101,14 +106,26 @@ async function runArm(name: string, brief: string | undefined) {
 
 void (async () => {
   mkdirSync(outDir, { recursive: true });
-  console.log(`▶ "${request}" — World agent: claude ${model}`);
-  const enhanced = await enhancePrompt(request, { provider: claude, cwd: tmpdir() });
-  console.log(`  brief: ${enhanced.source}${enhanced.reason ? ` (${enhanced.reason})` : ""}`);
-  writeFileSync(join(outDir, "brief.txt"), enhanced.brief ?? "(none)");
-  const results = [await runArm("sans-brief", undefined), await runArm("avec-brief", enhanced.brief)];
-  writeFileSync(join(outDir, "results.json"), JSON.stringify({ request, model, briefSource: enhanced.source, results }, null, 2));
-  for (const r of results) console.log(`\n${r.arm}: ${r.status}, ${r.minutes} min, score ${r.world?.score ?? "-"}\n${JSON.stringify(r.world, null, 1)}`);
-  console.log(`\n→ ${join(outDir, "results.json")}`);
+  console.log(`▶ "${request}" — World agent: claude ${model}, ${runs} run(s) per arm`);
+  const results = [];
+  for (let run = 1; run <= runs; run++) {
+    const enhanced = await enhancePrompt(request, { provider: claude, cwd: tmpdir() });
+    console.log(`  run ${run}, brief: ${enhanced.source}${enhanced.reason ? ` (${enhanced.reason})` : ""}`);
+    mkdirSync(join(outDir, `run-${run}`), { recursive: true });
+    writeFileSync(join(outDir, `run-${run}`, "brief.txt"), enhanced.brief ?? "(none)");
+    results.push({ run, briefSource: enhanced.source, arm: await runArm("sans-brief", undefined, run) }, { run, briefSource: enhanced.source, arm: await runArm("avec-brief", enhanced.brief, run) });
+  }
+  writeFileSync(join(outDir, "results.json"), JSON.stringify({ request, model, runs, results }, null, 2));
+  for (const name of ["sans-brief", "avec-brief"]) {
+    const arms = results.map((r) => r.arm).filter((a) => a.arm === name);
+    const worlds = arms.flatMap((a) => (a.world ? [a.world] : []));
+    const mean = (f: (w: (typeof worlds)[number]) => number) => (worlds.length ? worlds.reduce((s, w) => s + f(w), 0) / worlds.length : 0);
+    console.log(`
+${name}: ${worlds.length}/${arms.length} worlds, score ${mean((w) => w.score).toFixed(1)} (${worlds.map((w) => w.score).join(", ")}), view ${(mean((w) => w.openness) * 100).toFixed(0)}% open, target seen ${worlds.filter((w) => w.targetVisible).length}/${worlds.length}, dressing ${mean((w) => w.dressing).toFixed(0)}, problems ${worlds.reduce((s, w) => s + w.problems.length, 0)}`);
+    console.log(`  styles ${worlds.map((w) => w.style).join(", ")} | focal ${worlds.map((w) => w.landmarks.find((l) => l.includes("focal"))?.split(" ")[0] ?? "-").join(", ")} | mood ${worlds.map((w) => w.mood).join(", ")}`);
+  }
+  console.log(`
+→ ${join(outDir, "results.json")}`);
 })().catch((err) => {
   console.error(err);
   process.exit(1);
