@@ -1,6 +1,7 @@
-import { deriveSeed, type LandmarkSpec, type Vec2, type Vec3 } from "@worldforge/core";
+import { clamp, deriveSeed, type LandmarkSpec, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { distanceToEdge, hasLineOfSight, normToWorld, progress, type GenContext } from "../context";
+import { layoutKeepOut } from "./layout";
 import { flattenArea, circlePoly } from "./sites";
 
 /** Landmark type → prefab id and approximate height (for visibility tests) and footprint. */
@@ -8,7 +9,7 @@ export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; hei
   giant_tree: { prefab: "giant_tree", height: 90, footprint: 30 },
   ruins: { prefab: "ancient_ruins", height: 22, footprint: 30 },
   tower: { prefab: "tower", height: 50, footprint: 14 },
-  castle: { prefab: "temple", height: 34, footprint: 32 },
+  castle: { prefab: "castle", height: 46, footprint: 60 },
   statue: { prefab: "statue", height: 36, footprint: 12 },
   windmill: { prefab: "windmill", height: 40, footprint: 14 },
   temple: { prefab: "temple", height: 34, footprint: 32 },
@@ -159,12 +160,14 @@ function searchPosition(
   let best: Vec2 | null = null;
   let bestScore = -Infinity;
   const smooth = h.blur(3);
+  const keepOut = layoutKeepOut(ctx);
   for (let z = 2; z < ctx.depth - 2; z += step) {
     for (let x = 2; x < ctx.width - 2; x += step) {
       const i = z * ctx.width + x;
       const [wx, wz] = h.toWorld(x, z);
       if (distanceToEdge(ctx, wx, wz) < marginStuds) continue;
       if (!Number.isNaN(ctx.water.data[i]!)) continue;
+      if (keepOut && Math.hypot(wx - keepOut.center[0], wz - keepOut.center[1]) < keepOut.radius + info.footprint) continue;
       const s = slope.data[i]!;
       if (s > 0.55) continue;
       const hn = (h.data[i]! - minH) / range;
@@ -232,7 +235,8 @@ function searchPosition(
         for (const site of ctx.sites) {
           const d = Math.hypot(wx - site.center[0], wz - site.center[1]);
           if (d < site.radius + info.footprint + 20) iso *= 0.05;
-          else if (lm.role === "focal" && d > ctx.worldW * 0.45) iso *= 0.6; // focal should not be too far
+          // the focal is the promise of the map: 500 studs away, a castle fills 6° of a 70° view
+          else if (lm.role === "focal") iso *= clamp(1 - (d - (site.radius + info.footprint + 110)) / 260, 0.08, 1);
         }
       }
       // visibility

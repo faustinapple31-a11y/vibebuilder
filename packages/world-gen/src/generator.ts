@@ -12,7 +12,7 @@ import {
 import { buildPrefabLibrary, PREFAB_INDEX, PROP_KIT_PREFABS, VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
-import { GEN_LAYERS, baseRelief, type GenContext, type GenLayer, type GenerateOptions } from "./context";
+import { GEN_LAYERS, baseGround, baseRelief, type GenContext, type GenLayer, type GenerateOptions } from "./context";
 import { computeMoisture, generateTerrain } from "./pipeline/terrain";
 import { generateWater } from "./pipeline/water";
 import { generateBiomes } from "./pipeline/biomes";
@@ -168,6 +168,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     ctx.occupants.push({ position: ctx.spawn.position, radius: 24, kind: "keep" });
   } else {
     chooseSpawn(ctx);
+    faceLandmarksToSpawn(ctx);
   }
 
   // ---- roads (handles reuse internally)
@@ -264,6 +265,15 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   // snapping (flattened pads, carved roads and levelled discs left heights between two levels)
   if (ctx.terrainMode === "parts") {
     snapHeightsToLevels(ctx);
+    // snapping moved the terrace steps after dressing chose its spots: anything small now straddling a step
+    // hangs half its base in the air (a bench, a fence run, a bush), and one object fewer is never noticed
+    ctx.placements = ctx.placements.filter((p) => {
+      if (p.locked || p.fixed || p.id.startsWith("layout_") || (p.category !== "prop" && p.category !== "vegetation")) return true;
+      const v = ctx.prefabs[p.prefab]?.[p.variant];
+      const r = (v?.baseRadius ?? 0) * p.scale;
+      if (!v || r < 1.5 || v.tags.includes("floating") || v.tags.includes("layout")) return true;
+      return baseRelief(ctx, p.position[0], p.position[2], r) <= GROUND_STEP * 0.6;
+    });
     // flat plates that lie *on* the ground — lane stripes, crossings, kerbs — cannot straddle a terrace
     // step: half the plate ends up in the air. Only the final levels say where the steps are, so they
     // are culled here rather than where they were placed.
@@ -273,6 +283,8 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       return baseRelief(ctx, p.position[0], p.position[2], Math.max(2, v.footprintRadius * p.scale)) <= GROUND_STEP * 0.6;
     });
   }
+
+  levelLandmarkPads(ctx);
 
   // ---- snap everything to the final terrain (no floating objects) and conform small things to the slope
   for (const p of ctx.placements) {
@@ -428,6 +440,40 @@ function addLandmarkPlacements(ctx: GenContext): void {
       importance: 10,
     };
     ctx.placements.push(p);
+  }
+}
+
+/** A landmark is never culled, so where a terrace step crosses its base the ground rises to meet it. */
+function levelLandmarkPads(ctx: GenContext): void {
+  const h = ctx.heights;
+  for (const p of ctx.placements) {
+    const v = ctx.prefabs[p.prefab]?.[p.variant];
+    if (p.category !== "landmark" || p.id.startsWith("layout_") || !v || v.tags.includes("floating")) continue;
+    const r = (v.baseRadius ?? v.footprintRadius) * p.scale;
+    const [x0, , z0] = p.position;
+    const top = baseGround(ctx, x0, z0, r).hi;
+    for (let z = 0; z < ctx.depth; z++) {
+      for (let x = 0; x < ctx.width; x++) {
+        const i = z * ctx.width + x;
+        const [wx, wz] = h.toWorld(x, z);
+        if (Math.hypot(wx - x0, wz - z0) > r + 1 || h.data[i]! >= top) continue;
+        h.data[i] = top;
+        ctx.water.data[i] = Number.NaN; // a lighthouse at the shore stands on its own rock, not over the sea
+      }
+    }
+  }
+}
+
+/** Landmarks with a front, whose door or face is what the player is meant to walk to. */
+const FRONTED = new Set(["castle", "temple", "church", "barn", "gas_station", "torii_gate", "portal", "statue", "pyramid"]);
+
+/** A random yaw showed the blank back of a castle from the spawn. Prefab front is -Z, see buildings.ts. */
+function faceLandmarksToSpawn(ctx: GenContext): void {
+  const [sx, , sz] = ctx.spawn.position;
+  for (const l of ctx.landmarks) {
+    if (!FRONTED.has(l.type)) continue;
+    const p = ctx.placements.find((q) => q.id === `landmark_${l.id}`);
+    if (p) p.rotationY = Math.atan2(-(sx - p.position[0]), -(sz - p.position[2]));
   }
 }
 

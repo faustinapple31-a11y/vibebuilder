@@ -137,7 +137,8 @@ export function alienTree(ctx: PrefabContext, variant: number): PrefabVariant {
 export function bamboo(ctx: PrefabContext, variant: number): PrefabVariant {
   const { rng, style } = ctx;
   const b = new PartListBuilder();
-  const n = rng.int(5, 9);
+  // 6 parts a stalk: a jungle plants hundreds of clumps, and at 9 parts × 9 stalks they ate half the map's budget
+  const n = rng.int(4, 6);
   const col = jitterHex("#8ab850", jitter(rng, 10), 0, jitter(rng, 0.08));
   for (let i = 0; i < n; i++) {
     const x = jitter(rng, 2.5);
@@ -147,9 +148,9 @@ export function bamboo(ctx: PrefabContext, variant: number): PrefabVariant {
     const pts: Vec3[] = [[x, -0.5, z]];
     for (let s = 1; s <= 3; s++) pts.push([x + lean * h * (s / 3) * 3, (h * s) / 3, z + jitter(rng, 0.5)]);
     b.chain(pts, 0.9, 0.55, col, { material: "SmoothPlastic", collide: i < 3, lod: i < 3 ? 2 : 1 });
-    for (let s = 1; s <= 3; s++) b.cylinder(pts[s]!, 1.1, 0.35, mixHex(col, "#000000", 0.25), { material: "SmoothPlastic", collide: false, lod: 0 });
+    b.cylinder(pts[2]!, 1.1, 0.35, mixHex(col, "#000000", 0.25), { material: "SmoothPlastic", collide: false, lod: 0 });
     const top = pts[3]!;
-    for (let l = 0; l < 3; l++) {
+    for (let l = 0; l < 2; l++) {
       const from: Vec3 = [pts[3 - Math.min(l, 1)]![0], top[1] - l * 2.2, pts[3 - Math.min(l, 1)]![2]];
       const yaw = rng.float(0, Math.PI * 2);
       const len = rng.float(2.5, 4);

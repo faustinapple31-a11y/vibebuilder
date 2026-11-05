@@ -3,10 +3,14 @@ import { sampleHeight, type WorldBake } from "@worldforge/core";
 export interface FirstView {
   /** Share of the view rays (a ±20° fan at eye height) that run 60 studs without hitting anything. */
   openness: number;
-  /** Whether the central ray reaches the look target (or 160 studs) unobstructed. */
+  /** Whether the central ray reaches the look target (or 420 studs) unobstructed. */
   targetVisible: boolean;
   /** What hides the target, when it is hidden. */
   targetBlocker?: string;
+  /** Height of the target landmark in the first frame, in degrees of a 70° view; undefined without a landmark target. */
+  focalAngle?: number;
+  /** Share of the fog range the target stands at: past 0.85 the fog has eaten most of it. */
+  focalFog?: number;
   /** Objects within 45 studs of the spawn, ground and road pieces aside: what dresses the first frame. */
   dressing: number;
   /** What stops each blocked ray first, e.g. "terrain", "round_tree", "ground_block". */
@@ -15,7 +19,7 @@ export interface FirstView {
 
 const EYE = 6;
 const NEAR = 60;
-const FAR = 160;
+const FAR = 420;
 const RAYS = 9;
 const FAN = 0.35;
 
@@ -31,8 +35,12 @@ export function measureFirstView(bake: WorldBake): FirstView {
   const eyeY = sy + EYE;
   const heading = Math.atan2(lz - sz, lx - sx);
   const targetDist = Math.hypot(lx - sx, lz - sz);
-  // only what stands tall enough near the view can block it
+  // aim at the upper part of the target: a lighthouse is seen as soon as its top clears the hill in front
+  const landmark = bake.placements.find((p) => p.category === "landmark" && Math.hypot(p.position[0] - lx, p.position[2] - lz) < 15);
+  const lv = landmark ? bake.prefabs[landmark.prefab]?.[landmark.variant] ?? bake.prefabs[landmark.prefab]?.[0] : undefined;
+  // only what stands tall enough near the view can block it, and a target does not hide itself
   const obstacles = bake.placements
+    .filter((p) => p !== landmark)
     // gameplay structures (obby steps, arena walls) are what a layout spawn is meant to face
     .filter((p) => p.prefab !== "spawn_plaza" && !p.id.startsWith("layout_") && Math.hypot(p.position[0] - sx, p.position[2] - sz) < FAR + 20)
     .map((p) => {
@@ -64,15 +72,14 @@ export function measureFirstView(bake: WorldBake): FirstView {
     if (hit) blockers.push(hit);
     else open++;
   }
-  // aim at the upper part of the target: a lighthouse is seen as soon as its top clears the hill in front
-  const landmark = bake.placements.find((p) => p.category === "landmark" && Math.hypot(p.position[0] - lx, p.position[2] - lz) < 15);
-  const lv = landmark ? bake.prefabs[landmark.prefab]?.[landmark.variant] ?? bake.prefabs[landmark.prefab]?.[0] : undefined;
   const aimY = ly + Math.max(4, lv && landmark ? lv.bounds.max[1] * landmark.scale * 0.6 : 0);
   const targetBlocker = castRay(heading, Math.min(FAR, targetDist * 0.9), aimY, targetDist) ?? undefined;
   const dressing = bake.placements.filter((p) => {
     if (p.prefab === "spawn_plaza" || p.category === "path" || bake.prefabs[p.prefab]?.[p.variant]?.tags.includes("ground")) return false;
     return Math.hypot(p.position[0] - sx, p.position[2] - sz) < 45;
   }).length;
-  return { openness: open / RAYS, targetVisible: !targetBlocker, targetBlocker, dressing, blockers };
+  const focalAngle = lv && landmark ? (Math.atan2(lv.bounds.max[1] * landmark.scale, targetDist) * 180) / Math.PI : undefined;
+  const focalFog = landmark && bake.lighting.fogEnd ? targetDist / bake.lighting.fogEnd : undefined;
+  return { openness: open / RAYS, targetVisible: !targetBlocker, targetBlocker, focalAngle, focalFog, dressing, blockers };
 }
 

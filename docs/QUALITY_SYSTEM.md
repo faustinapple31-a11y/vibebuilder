@@ -28,6 +28,7 @@ Package : `@worldforge/quality` + rôle QA de `@worldforge/agents` + commandes R
 Le critic combine :
 1. **Métriques du bake** (déterministes, sans IA) :
    - Composition : présence foreground/midground/background, point focal, corridors de vue valides.
+     Le landmark visé doit mesurer au moins 8° dans la vue (`focal_too_small`) et rester sous 85 % de la portée du brouillard (`focal_in_fog`).
    - **Première vue** (`measureFirstView`, `first-view.ts`) : 9 rayons à hauteur d'œil (±20°) depuis le spawn vers
      sa cible. Moins de 60 % ouverts sur 60 studs → `first_view_blocked` (haut) ; cible invisible (visée à 60 % de la
      hauteur du landmark) → `first_view_target_hidden` (moyen). Les structures de gameplay `layout_*` ne comptent pas.

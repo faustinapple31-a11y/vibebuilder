@@ -12,6 +12,16 @@ import { flattenArea } from "./sites";
  * on-the-fly prefab variants; every gameplay anchor becomes a `gameplay` zone with `meta`
  * attributes the roblox-ts systems read from `World/Zones` (stage index, plot index, team, …).
  */
+/**
+ * Ground the gameplay structures will claim. Landmarks are placed first, so they must keep off it: a castle
+ * once stood in the middle of an arena, 46 studs in front of the spawn, half hanging over the flattened floor.
+ */
+export function layoutKeepOut(ctx: GenContext): { center: Vec2; radius: number } | null {
+  const layout = ctx.spec.layout;
+  if (!layout || ["settlement", "open_world", "campus", "island", "obby_course"].includes(layout.archetype)) return null;
+  return { center: layoutCenter(ctx, layout.position), radius: Math.min(layout.extent * Math.min(ctx.worldW, ctx.worldD) * 0.5, 110) + 12 };
+}
+
 export function placeLayout(ctx: GenContext): void {
   const { spec, style } = ctx;
   const layout = spec.layout;

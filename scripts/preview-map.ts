@@ -209,18 +209,18 @@ function sphereTris(h: Vec3, rings = 5, seg = 9): Tri[] {
   return out;
 }
 
-/** Roblox cylinder: circular section in Y/Z, axis along X. */
+/** PartList cylinder: Y-up, size = [diameter, height, diameter]. The exporters turn it to Roblox's X axis. */
 function cylinderTris(h: Vec3, seg = 10): Tri[] {
-  const ring = (sx: number, j: number): Vec3 => [sx * h[0], Math.cos((j / seg) * Math.PI * 2) * h[1], Math.sin((j / seg) * Math.PI * 2) * h[2]];
+  const ring = (sy: number, j: number): Vec3 => [Math.cos((j / seg) * Math.PI * 2) * h[0], sy * h[1], Math.sin((j / seg) * Math.PI * 2) * h[2]];
   const out: Tri[] = [];
   for (let j = 0; j < seg; j++) {
     const a = ring(-1, j);
     const b = ring(1, j);
     const c = ring(1, j + 1);
     const d = ring(-1, j + 1);
-    out.push([a, b, c], [a, c, d]);
-    out.push([[-h[0], 0, 0], d, a]);
-    out.push([[h[0], 0, 0], b, c]);
+    out.push([a, c, b], [a, d, c]);
+    out.push([[0, -h[1], 0], a, d]);
+    out.push([[0, h[1], 0], c, b]);
   }
   return out;
 }

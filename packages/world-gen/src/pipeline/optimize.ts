@@ -58,7 +58,10 @@ export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): Ba
   const isGround = (p: Placement) => p.prefab === "ground_block" || p.prefab === "road_strip";
   let parts = kept.reduce((s, p) => s + (isGround(p) ? 0 : partsOf(p)), 0);
   if (parts > budget.maxParts) {
-    kept.sort((a, b) => (b.locked || essential(b) ? 1 : 0) - (a.locked || essential(a) ? 1 : 0) || b.importance - a.importance);
+    // worth per part, not importance alone: a jungle over budget once lost its whole floor (14 plants, 9 rocks)
+    // to keep bamboo clumps of 68 parts. Cheap dressing and anything near the player go last.
+    const worth = (p: Placement) => (p.importance * (p.layer === "foreground" ? 2 : 1)) / Math.sqrt(Math.max(1, partsOf(p)));
+    kept.sort((a, b) => (b.locked || essential(b) ? 1 : 0) - (a.locked || essential(a) ? 1 : 0) || worth(b) - worth(a));
     while (parts > budget.maxParts && kept.length > 0 && !essential(kept[kept.length - 1]!)) {
       const p = kept.pop()!;
       parts -= partsOf(p);

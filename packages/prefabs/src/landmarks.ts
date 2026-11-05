@@ -287,3 +287,128 @@ export function temple(ctx: PrefabContext, variant: number): PrefabVariant {
   }
   return b.build({ id: `temple/${variant}`, prefab: "temple", category: "landmark", sinkDepth: 1, footprintRadius: W / 2 + 5, baseRadius: W / 2 + 4, tags: ["landmark", "temple"] });
 }
+
+/** A real stronghold: curtain walls, corner towers, a gatehouse with its portcullis, a keep flying a banner. */
+export function castle(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const stone = jitterHex(style.palette.stone, jitter(rng, 4), -0.02, jitter(rng, 0.05));
+  const dark = jitterHex(stone, 0, 0, -0.1);
+  const pale = jitterHex(stone, 0, 0, 0.06);
+  const material = style.materials.stoneWall;
+  const solid = { material, collide: true, lod: 2 as const };
+  const wear = style.architecture.weathering * 0.3;
+  const H = 26; // half side of the curtain wall
+  const T = 4; // wall thickness
+  const gap = 9; // gate opening
+  const wallH = rng.float(15, 18);
+  const towerD = 14;
+  const towerH = wallH + rng.float(9, 13);
+  const pointed = variant % 2 === 0;
+
+  // one merlon every 4 studs along a wall top; some have fallen on a weathered castle
+  const crenels = (x0: number, z0: number, x1: number, z1: number, y: number, depth: number) => {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const count = Math.floor(len / 4);
+    for (let i = 0; i < count; i++) {
+      if (rng.chance(wear)) continue;
+      const t = (i + 0.5) / count;
+      const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+      b.box([x0 + (x1 - x0) * t, y + 1, z0 + (z1 - z0) * t], alongX ? [2.2, 2.4, depth] : [depth, 2.4, 2.2], pale, { material, collide: false, lod: 1 });
+    }
+  };
+
+  // courtyard and curtain walls (the front one leaves the gate open)
+  b.box([0, 0.2, 0], [H * 2, 1.2, H * 2], dark, { material: style.materials.path, collide: true, lod: 2 });
+  b.box([0, wallH / 2, H], [H * 2, wallH, T], stone, solid);
+  for (const sx of [-1, 1]) b.box([sx * H, wallH / 2, 0], [T, wallH, H * 2], stone, solid);
+  const side = H - gap / 2;
+  for (const sx of [-1, 1]) {
+    b.box([sx * (gap / 2 + side / 2), wallH / 2, -H], [side, wallH, T], stone, solid);
+    crenels(sx * (gap / 2 + 4), -H, sx * (H - 6), -H, wallH, T);
+    crenels(sx * H, -H + 6, sx * H, H - 6, wallH, T);
+  }
+  crenels(-H + 6, H, H - 6, H, wallH, T);
+
+  // a flat grey wall reads as a placeholder: battered foot, string course, arrow slits, patches of newer stone
+  const outer = H + T / 2;
+  const trim = { material, collide: false, lod: 1 as const };
+  const fine = { material, collide: false, lod: 0 as const };
+  const slit = { material: "SmoothPlastic" as const, collide: false, lod: 0 as const };
+  const faces: { c: [number, number]; along: "x" | "z"; len: number; out: [number, number] }[] = [
+    { c: [0, outer], along: "x", len: H * 2, out: [0, 1] },
+    { c: [-outer, 0], along: "z", len: H * 2, out: [-1, 0] },
+    { c: [outer, 0], along: "z", len: H * 2, out: [1, 0] },
+    { c: [-(gap / 2 + side / 2), -outer], along: "x", len: side, out: [0, -1] },
+    { c: [gap / 2 + side / 2, -outer], along: "x", len: side, out: [0, -1] },
+  ];
+  for (const f of faces) {
+    const sized = (l: number, h: number, d: number): Vec3 => (f.along === "x" ? [l, h, d] : [d, h, l]);
+    const at = (t: number, y: number, o: number): Vec3 => [f.c[0] + (f.along === "x" ? t : 0) + f.out[0] * o, y, f.c[1] + (f.along === "z" ? t : 0) + f.out[1] * o];
+    b.box(at(0, 1.6, 0.5), sized(f.len, 4.2, 1.6), dark, trim);
+    b.box(at(0, wallH - 3, 0.1), sized(f.len, 0.9, 0.9), pale, trim);
+    const slits = Math.floor(f.len / 11);
+    for (let i = 0; i < slits; i++) {
+      const t = ((i + 0.5) / slits - 0.5) * f.len * 0.8;
+      b.box(at(t, wallH * 0.62, 0), sized(0.8, 3.4, 0.5), "#1c1d22", slit);
+      b.box(at(t + jitter(rng, 2.5), rng.float(5, wallH - 6), 0), sized(rng.float(3, 6), rng.float(1.2, 2.2), 0.5), rng.chance(0.5) ? pale : dark, fine);
+    }
+  }
+
+  // gatehouse: two square towers, a lintel over the gate and a half-raised portcullis
+  const gateH = wallH + 5;
+  for (const sx of [-1, 1]) {
+    const x = sx * (gap / 2 + 3.5);
+    b.box([x, gateH / 2, -H - 1], [7, gateH, 8], stone, solid);
+    crenels(x - 3, -H - 4.4, x + 3, -H - 4.4, gateH, 1.4);
+    b.box([x, wallH - 4, -H - 5.1], [3, 6, 0.4], style.palette.accent, { material: "Fabric", collide: false, lod: 0 });
+    const glow = mixHex("#ffb866", style.palette.glow, 0.3);
+    b.box([x, 6.5, -H - 5.3], [1, 1.6, 1], glow, { material: "Neon", transparency: 0.2, collide: false, lod: 1, light: { type: "point", color: glow, brightness: 1.6, range: 30 } });
+  }
+  b.box([0, wallH - 2.5, -H], [gap + 1, 5, T + 1], stone, solid);
+  b.box([0, wallH - 6, -H - 1], [gap, 2.4, 0.8], "#2e2e33", { material: style.materials.metal, collide: false, lod: 1 });
+
+  // corner towers
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const x = sx * H;
+      const z = sz * H;
+      b.cylinder([x, towerH / 2, z], towerD, towerH, stone, solid);
+      b.cylinder([x, towerH - 0.6, z], towerD + 2, 2, pale, { material, collide: false, lod: 1 });
+      b.cylinder([x, 1.8, z], towerD + 1.6, 4.6, dark, trim);
+      for (const [ox, oz] of [[sx, 0], [0, sz]] as const) {
+        const reach = towerD / 2;
+        b.box([x + ox * reach, towerH * 0.66, z + oz * reach], ox ? [0.5, 3.4, 0.8] : [0.8, 3.4, 0.5], "#1c1d22", slit);
+      }
+      if (pointed) b.pyramidRoof([x, towerH + 4.2, z], towerD + 1, towerD + 1, 9, style.palette.roof, { material: style.materials.roof, collide: true, lod: 2 });
+      else for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        b.box([x + Math.cos(a) * (towerD / 2), towerH + 1.2, z + Math.sin(a) * (towerD / 2)], [2.6, 2.4, 2.6], pale, { material, collide: false, lod: 1 });
+      }
+    }
+  }
+
+  // the keep, set back from the gate, with a turret and a banner: the silhouette seen from afar
+  const keepW = 22;
+  const keepH = rng.float(34, 40);
+  const kz = H * 0.3;
+  const kx = jitter(rng, 3);
+  b.box([kx, keepH / 2, kz], [keepW, keepH, keepW], pale, solid);
+  const k = keepW / 2 - 1;
+  crenels(kx - k, kz - k, kx + k, kz - k, keepH, 2);
+  crenels(kx - k, kz + k, kx + k, kz + k, keepH, 2);
+  crenels(kx - k, kz - k + 3, kx - k, kz + k - 3, keepH, 2);
+  crenels(kx + k, kz - k + 3, kx + k, kz + k - 3, keepH, 2);
+  for (const wy of [keepH * 0.45, keepH * 0.72]) {
+    for (const wx of [-5, 0, 5]) b.box([kx + wx, wy, kz - keepW / 2 - 0.1], [2, 4, 0.6], "#20222a", { material: "SmoothPlastic", collide: false, lod: 0 });
+  }
+  const turretH = keepH + 9;
+  const tx = kx + keepW / 2 - 2;
+  const tz = kz + keepW / 2 - 2;
+  b.cylinder([tx, turretH / 2, tz], 8, turretH, stone, solid);
+  b.pyramidRoof([tx, turretH + 3.2, tz], 9, 9, 7, style.palette.roof, { material: style.materials.roof, collide: true, lod: 2 });
+  const poleTop = keepH + 12;
+  b.segment([kx, keepH - 1, kz], [kx, poleTop, kz], 0.6, style.palette.wood, { material: style.materials.trunk, collide: false, lod: 1 });
+  b.box([kx + 3.2, poleTop - 2, kz], [6, 3.4, 0.3], style.palette.accent, { material: "Fabric", collide: false, lod: 1 });
+  return b.build({ id: `castle/${variant}`, prefab: "castle", category: "landmark", sinkDepth: 1, footprintRadius: H + 8, baseRadius: H + 4, tags: ["landmark", "castle"] });
+}

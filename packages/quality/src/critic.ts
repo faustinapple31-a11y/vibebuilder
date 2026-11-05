@@ -90,6 +90,15 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     composition -= 0.5;
     problems.push({ id: "first_view_target_hidden", severity: "medium", message: `the spawn faces its target but cannot see it (hidden by ${view.targetBlocker ?? "terrain"})`, layer: "composition", location: bake.spawn.position });
   }
+  if (view.focalAngle !== undefined && view.focalAngle < 8) {
+    // measured on 5 Nov 2026: a castle 520 studs from the spawn filled 6° of the view and scored 100/100
+    composition -= 1;
+    problems.push({ id: "focal_too_small", severity: "medium", message: `the landmark the spawn faces stands only ${view.focalAngle.toFixed(1)}° tall in the first view (aim for 11°)`, layer: "composition" });
+  }
+  if (view.focalFog !== undefined && view.focalFog > 0.85) {
+    composition -= 1;
+    problems.push({ id: "focal_in_fog", severity: "medium", message: `the landmark the spawn faces stands at ${Math.round(view.focalFog * 100)}% of the fog range: it reads as a grey smear`, layer: "composition" });
+  }
 
   // ---------------- terrain
   let terrain = 10;

@@ -1,7 +1,12 @@
-import { deriveSeed, type Vec2, type Vec3 } from "@worldforge/core";
+import { clamp, deriveSeed, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { hasLineOfSight, inBounds, isWaterAt, normToWorld, slopeAtWorld, type GenContext } from "../context";
+import { LANDMARK_PREFAB } from "./landmarks";
+import { computeLighting } from "./lighting";
 import { flattenArea, circlePoly } from "./sites";
+
+/** Angular height (radians) a focal should reach from the spawn: about 11°, a sixth of a 70° view. */
+const FOCAL_ANGLE = 0.2;
 
 /**
  * Spawn composition: the player should spawn on a flat clearing, looking across the
@@ -14,6 +19,8 @@ export function chooseSpawn(ctx: GenContext): void {
   const site = ctx.sites[0];
   const facingId = spec.cameraComposition.spawnFacing;
   const facing = facingId ? ctx.landmarks.find((l) => l.id === facingId) ?? null : null;
+  /** Past this, the fog has eaten most of a landmark: at the right size on paper, a grey smear on screen. */
+  const fogReach = computeLighting(ctx).fogEnd * 0.7;
   const facingSite = facingId ? ctx.sites.find((s) => s.id === facingId) ?? null : null;
   /** What the first view must show: the spawnFacing target when the spec names one. */
   const viewTarget: Vec3 | null = facing ? [facing.position[0], facing.position[1] + 30, facing.position[2]] : facingSite ? [facingSite.center[0], facingSite.baseHeight + 8, facingSite.center[1]] : null;
@@ -29,6 +36,7 @@ export function chooseSpawn(ctx: GenContext): void {
     dx /= len;
     dz /= len;
     const dist = site.radius + 90 + rng.float(0, 40);
+    const focalHeight = focal ? LANDMARK_PREFAB[focal.type].height * focal.scale : 0;
     let best: Vec2 | null = null;
     let bestScore = -Infinity;
     for (let attempt = 0; attempt < 40; attempt++) {
@@ -55,13 +63,45 @@ export function chooseSpawn(ctx: GenContext): void {
       const seesLandmark = focal ? hasLineOfSight(ctx, [x, y, z], [focal.position[0], focal.position[1] + 40, focal.position[2]]) : false;
       const seesTarget = viewTarget ? hasLineOfSight(ctx, [x, y, z], viewTarget) : false;
       const looks = viewTarget ?? [site.center[0], site.baseHeight + 8, site.center[1]];
-      const score = (seesVillage ? 2 : 0) + (seesLandmark ? 2.5 : 0) + (seesTarget ? 3 : 0) + terrainFan(ctx, x, z, looks) * 2 - (landmarkInFace(ctx, x, z, looks) ? 4 : 0) - s * 2 - attempt * 0.03;
+      // how tall the focal stands in the first frame: seen from past the village, it can shrink to a speck
+      const toFocal = focal ? Math.hypot(x - focal.position[0], z - focal.position[2]) : 0;
+      const apparent = focal ? Math.atan2(focalHeight, toFocal) : 0;
+      // only thick fog overrides the composition: a haunted manor beyond it is gone, a far tower in haze is fine
+      const lost = focal && fogReach < 200 ? clamp((toFocal - fogReach) / fogReach, 0, 1) * 6 : 0;
+      const score = Math.min(1, apparent / FOCAL_ANGLE) * 4 - lost + (seesVillage ? 2 : 0) + (seesLandmark ? 2.5 : 0) + (seesTarget ? 3 : 0) + terrainFan(ctx, x, z, looks) * 2 - (landmarkInFace(ctx, x, z, looks) ? 4 : 0) - s * 2 - attempt * 0.03;
       if (score > bestScore) {
         bestScore = score;
         best = [x, z];
       }
     }
     pos = best ?? [site.center[0] + dx * dist, site.center[1] + dz * dist];
+  } else if (focal) {
+    // no settlement to look across: stand where the focal fills the frame, wherever the middle of the map is
+    const reach = Math.min(clamp((LANDMARK_PREFAB[focal.type].height * focal.scale) / Math.tan(FOCAL_ANGLE), 120, 300), Math.max(100, fogReach));
+    const wish: Vec2 = [focal.position[0], focal.position[2]];
+    const middle: Vec2 = [ctx.origin[0] + ctx.worldW / 2, ctx.origin[1] + ctx.worldD / 2];
+    const toward = Math.atan2(middle[1] - wish[1], middle[0] - wish[0]);
+    const look = viewTarget ?? ([focal.position[0], focal.position[1] + 30, focal.position[2]] as Vec3);
+    let bestScore = -Infinity;
+    for (const r of [reach, reach * 0.8, reach * 1.2]) {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const spread = (attempt / 40) * Math.PI;
+        const a = toward + (attempt % 2 === 0 ? spread : -spread);
+        const x = wish[0] + Math.cos(a) * r;
+        const z = wish[1] + Math.sin(a) * r;
+        if (!inBounds(ctx, x, z, ctx.worldW * 0.1) || isWaterAt(ctx, x, z)) continue;
+        const s = slopeAtWorld(ctx, x, z);
+        if (s > 0.3) continue;
+        const sees = hasLineOfSight(ctx, [x, ctx.heights.sample(x, z) + 5, z], look);
+        // the far fan matters here: nothing stands between the player and a terrace wall 70 studs ahead
+        const score = (sees ? 3 : 0) + terrainFan(ctx, x, z, look) * 2 + terrainFan(ctx, x, z, look, r * 0.8) * 4 - s * 2 - attempt * 0.01;
+        if (score > bestScore) {
+          bestScore = score;
+          pos = [x, z];
+        }
+      }
+    }
+    pos ??= [ctx.origin[0] + ctx.worldW * 0.5, ctx.origin[1] + ctx.worldD * 0.72];
   } else {
     pos = [ctx.origin[0] + ctx.worldW * 0.5, ctx.origin[1] + ctx.worldD * 0.72];
   }
@@ -98,7 +138,8 @@ export function clearViewAxis(ctx: GenContext): void {
   const [sx, sy, sz] = ctx.spawn.position;
   const [lx, , lz] = ctx.spawn.lookAt;
   const heading = Math.atan2(lz - sz, lx - sx);
-  const reach = Math.min(220, Math.hypot(lx - sx, lz - sz) * 0.9);
+  // an obby's first platform is 30 studs away, but the view it opens runs on past it
+  const reach = Math.max(70, Math.min(220, Math.hypot(lx - sx, lz - sz) * 0.9));
   // a low plant takes the place of a nearby tree, so the foreground keeps its dressing (the critic counts it)
   const low = ["bush", "fern", "flower_patch", "grass_tuft"].find((id) => ctx.prefabs[id]?.length);
   const replacements: typeof ctx.placements = [];
@@ -124,14 +165,14 @@ const VIEW_AXIS_HALF_ANGLE = 0.3;
  * above them: a single clear line can still leave a terrace wall filling half the first frame.
  * Mirrors `measureFirstView` in the critic, which also sees the objects placed later.
  */
-function terrainFan(ctx: GenContext, x: number, z: number, target: Vec3): number {
+function terrainFan(ctx: GenContext, x: number, z: number, target: Vec3, reach = 60): number {
   const eye = ctx.heights.sample(x, z) + 6;
   const heading = Math.atan2(target[2] - z, target[0] - x);
   let open = 0;
   for (let i = 0; i < 9; i++) {
     const a = heading - 0.35 + (0.7 * i) / 8;
     let clear = true;
-    for (let d = 8; d <= 60 && clear; d += 4) if (ctx.heights.sample(x + Math.cos(a) * d, z + Math.sin(a) * d) > eye) clear = false;
+    for (let d = 8; d <= reach && clear; d += 4) if (ctx.heights.sample(x + Math.cos(a) * d, z + Math.sin(a) * d) > eye) clear = false;
     if (clear) open++;
   }
   return open / 9;

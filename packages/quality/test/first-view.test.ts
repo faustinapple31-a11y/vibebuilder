@@ -79,3 +79,72 @@ describe("first view from the spawn", () => {
     expect(critiqueBake(bake, base, style).problems.map((p) => p.id)).toContain("first_view_blocked");
   });
 });
+
+/**
+ * Found on 5 Nov 2026 by looking at renders of maps the critic scored 100/100: the focal landmark stood
+ * about 500 studs from the spawn on nearly every map, a castle filled 6° of the view, and on an arena map
+ * it stood on the fighting floor, 46 studs in front of the player.
+ */
+describe("the focal landmark in the first view", () => {
+  it("stands tall enough to read from the spawn, with or without a settlement", () => {
+    for (const prompt of ["un château médiéval sur une colline", "une map d'horreur"]) {
+      const { spec } = interpretPrompt(prompt);
+      const style = getStylePreset(spec.stylePreset);
+      const bake = generateWorld(spec, style);
+      expect(measureFirstView(bake).focalAngle, prompt).toBeGreaterThanOrEqual(11);
+      expect(critiqueBake(bake, spec, style).problems.map((p) => p.id), prompt).not.toContain("focal_too_small");
+    }
+  });
+
+  it("is flagged by the critic when it shrinks to a speck", () => {
+    const { spec } = interpretPrompt("un château médiéval sur une colline");
+    const style = getStylePreset(spec.stylePreset);
+    const bake = generateWorld(spec, style);
+    const castle = bake.placements.find((p) => p.prefab === "castle")!;
+    const [sx, , sz] = bake.spawn.position;
+    const k = 520 / Math.hypot(castle.position[0] - sx, castle.position[2] - sz);
+    castle.position = [sx + (castle.position[0] - sx) * k, castle.position[1], sz + (castle.position[2] - sz) * k];
+    bake.spawn.lookAt = castle.position;
+    expect(critiqueBake(bake, spec, style).problems.map((p) => p.id)).toContain("focal_too_small");
+  });
+
+  it("stays inside the fog range on a foggy map, where size alone proves nothing", () => {
+    for (const prompt of ["une map d'horreur", "manoir hanté dans un marais"]) {
+      const { spec } = interpretPrompt(prompt);
+      const style = getStylePreset(spec.stylePreset);
+      const bake = generateWorld(spec, style);
+      expect(measureFirstView(bake).focalFog, prompt).toBeLessThanOrEqual(0.85);
+      bake.lighting.fogEnd = 60;
+      expect(critiqueBake(bake, spec, style).problems.map((p) => p.id), prompt).toContain("focal_in_fog");
+    }
+  });
+
+  it("turns the castle gate toward the spawn", () => {
+    const { spec } = interpretPrompt("un château médiéval sur une colline");
+    const bake = generateWorld(spec, getStylePreset(spec.stylePreset));
+    const castle = bake.placements.find((p) => p.prefab === "castle")!;
+    // prefab front is -Z: rotating by θ sends it to (-sin θ, -cos θ)
+    const front = [-Math.sin(castle.rotationY), -Math.cos(castle.rotationY)];
+    const dx = bake.spawn.position[0] - castle.position[0];
+    const dz = bake.spawn.position[2] - castle.position[2];
+    expect((front[0]! * dx + front[1]! * dz) / Math.hypot(dx, dz)).toBeGreaterThan(0.99);
+  });
+
+  it("keeps landmarks off the fighting floor of an arena", () => {
+    const { spec } = interpretPrompt("arène de combat dans un volcan");
+    const style = getStylePreset(spec.stylePreset);
+    const bake = generateWorld(spec, style);
+    const [sx, , sz] = bake.spawn.position;
+    for (const p of bake.placements) {
+      if (p.category === "landmark" && !p.id.startsWith("layout_")) expect(Math.hypot(p.position[0] - sx, p.position[2] - sz), p.id).toBeGreaterThan(100);
+    }
+    expect(measureFirstView(bake).openness).toBe(1);
+  });
+
+  it("leaves a jungle its floor when the map runs over the parts budget", () => {
+    const { spec } = interpretPrompt("une jungle");
+    const bake = generateWorld(spec, getStylePreset(spec.stylePreset));
+    expect(bake.placements.filter((p) => p.id.startsWith("ug_")).length).toBeGreaterThan(400);
+    expect(bake.placements.filter((p) => p.category === "rock").length).toBeGreaterThan(40);
+  });
+});

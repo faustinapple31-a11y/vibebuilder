@@ -125,11 +125,17 @@ export function placeVegetation(ctx: GenContext): void {
   const allowed = new Set<VegetationSpecies>([...spec.vegetation.species, ...(VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []).map(([sp]) => sp)]);
   const globalDensity = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9) * (ctx.islands ? 0.45 : 1);
   const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
-  for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
+  // what undergrowth must avoid: trunks, not canopies. A jungle of wide crowns once kept 14 plants on its floor
+  const floor = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
+  for (const o of ctx.occupants) {
+    hash.insert({ position: o.position, radius: o.radius });
+    floor.insert({ position: o.position, radius: o.radius });
+  }
   const lockedPrev = ctx.previous?.placements.filter((p) => p.locked && p.category === "vegetation") ?? [];
   for (const p of lockedPrev) {
     ctx.placements.push({ ...p });
     hash.insert({ position: p.position, radius: 4 });
+    floor.insert({ position: p.position, radius: 2 });
   }
 
   const spawnClear = 42;
@@ -214,6 +220,7 @@ export function placeVegetation(ctx: GenContext): void {
     const y = ctx.heights.sample(tx, tz) - v.sinkDepth * scale;
     const pos: [number, number, number] = [tx, y, tz];
     hash.insert({ position: pos, radius });
+    floor.insert({ position: pos, radius: trunk });
     ctx.placements.push({
       id: `veg_${treeCount++}`,
       prefab,
@@ -262,10 +269,10 @@ export function placeVegetation(ctx: GenContext): void {
     const uz = spot[1];
     if (isWaterAt(ctx, ux, uz) || densityAt(ux, uz, biome, false) <= 0) continue;
     const radius = v.footprintRadius * scale * 0.5;
-    if (hash.overlaps(ux, uz, radius, 0.3)) continue;
+    if (floor.overlaps(ux, uz, radius, 0.3)) continue;
     const y = ctx.heights.sample(ux, uz) - v.sinkDepth * scale;
     const pos: [number, number, number] = [ux, y, uz];
-    if (species === "log" || species === "bush") hash.insert({ position: pos, radius });
+    if (species === "log" || species === "bush") floor.insert({ position: pos, radius });
     ctx.placements.push({
       id: `ug_${smallCount++}`,
       prefab,
