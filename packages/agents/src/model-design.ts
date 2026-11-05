@@ -1,15 +1,15 @@
 import type { IAgentProvider, FileIO } from "./types";
 import type { ProcessRunner } from "./runner";
 import { SESSION_DEFAULTS, askModel } from "./prompt-enhancer";
-import { CONCEPT_VIEWS, runBlenderConcept, runBlenderJob, type BlenderJob, type BlenderReport, type ConceptView } from "./blender-job";
+import { runBlenderJob, type BlenderJob, type BlenderReport } from "./blender-job";
 
 /**
- * The 3D model pipeline, the twin of the map's hidden brief. The user sees none of the first three steps:
+ * The 3D model pipeline, the twin of the map's hidden brief. The user sees only the result:
  *   1. a small model rewrites the request into a modelling brief ("une épée" stays the intent);
- *   2. Claude Design, on Opus 5.5, builds a 3D concept in Blender, as detailed as it can, with no triangle
- *      budget; it is rendered from every side;
- *   3. those renders and the brief go back to Opus 5.5, which writes the game-ready Blender script;
- *   4. Blender builds the model and exports GLB and FBX; one review pass compares it with the concept.
+ *   2. Claude Design, on Opus 5.5, builds the model in Blender, in 3D, with all the detail it can, no budget;
+ *   3. Blender bakes that design onto a game shell under the Roblox triangle limit and exports GLB and FBX.
+ * Step 3 takes seconds. It replaced a second and third Opus pass, each as slow as the design, and it keeps
+ * every detail in the textures, where a rewritten script would have to redraw them.
  */
 export interface ModelContext {
   /** "landmark", "prop", "building", "vegetation" or "rock". */
@@ -98,8 +98,12 @@ export function briefAsPlainPrompt(brief: string, limit = 580): string {
 
 /** The 3D design and the game model are both made by Opus 5.5, whatever the settings say. */
 export const DESIGN_MODEL = "claude-opus-5-5";
-/** Measured on 5 Nov 2026: Opus 5.5 needed more than 10 minutes for a detailed design script. */
-const OPUS_TIMEOUT_MS = 1_500_000;
+/**
+ * The design gets Opus 5.5's full thinking and all the time it needs: quality comes first, by the user's decision.
+ * Measured on 5 Nov 2026, same dragon: default effort took 26 minutes and was clearly better than low effort at
+ * 6 minutes. Never lower the effort to save time.
+ */
+const OPUS_TIMEOUT_MS = 3_600_000;
 
 export interface ModelAgentOptions {
   provider?: IAgentProvider;
@@ -108,12 +112,13 @@ export interface ModelAgentOptions {
   signal?: AbortSignal;
 }
 
-async function ask(prompt: string, options: ModelAgentOptions, model: "haiku" | typeof DESIGN_MODEL, timeoutMs: number, images?: string[]): Promise<string> {
+async function ask(prompt: string, options: ModelAgentOptions, model: "haiku" | typeof DESIGN_MODEL, timeoutMs: number, images?: string[], effort?: string): Promise<string> {
   const { provider, cwd, signal } = options;
   const base = provider && SESSION_DEFAULTS[provider.id]?.(model);
   if (!provider || !base) throw new Error("no agent can design the model");
   // the images are read through the Read tool, the only tool these agents get
-  const defaults = images?.length ? { ...base, extraArgs: base.extraArgs?.map((a) => (a === "--tools=" ? "--tools=Read" : a)) } : base;
+  const tooled = images?.length ? { ...base, extraArgs: base.extraArgs?.map((a) => (a === "--tools=" ? "--tools=Read" : a)) } : base;
+  const defaults = effort ? { ...tooled, effort } : tooled;
   const controller = new AbortController();
   const abort = () => controller.abort();
   const timer = setTimeout(abort, options.timeoutMs ?? timeoutMs);
@@ -155,34 +160,21 @@ const BLENDER_RULES = `Write Blender 5 Python. Define a single function build() 
 - Faceted style: a 1-segment chamfer on edges. Smooth style: 2 segments. A bevel under 2 pixels at play distance is wasted, so landmarks get double.
 - A creature or character gets one exaggerated feature and open gaps between its masses, so the outline reads as a filled shape.`;
 
-const BUDGET_RULES = "- Game-ready: under 15000 triangles, no subdivision above level 1, no booleans that can fail.";
-
 const CONCEPT_RULES = `- This is the design, not the game asset: no triangle budget. Go as far as the form deserves, up to 300000 triangles.
+- Colour follows the forms: each part has its own material. Never pick a material per face from noise or random values: on large faces it turns into blocky camouflage.
 - Sculpt real volume: subdivision surface on organic forms, displaced or hand-placed detail, individual scales, rivets, planks, folds, wear. No flat placeholder surfaces.`;
 
-export function buildConceptPrompt(brief: string, context: ModelContext): string {
-  return `You are the lead 3D concept designer of a game studio. Design this object in 3D, in Blender, with as much detail as you can.
-
-${brief}
-${context.heightStuds ? `\nHeight in the game: ${context.heightStuds} studs.` : ""}
-
-Write compact code: small reusable helpers and loops, not one line per part, under 500 lines. The silhouette must stay readable; the detail serves it. Your design is rendered from the front, the right, the back and in three-quarter view, then handed to the modellers: every side must be designed, not only the front.
-
-${BLENDER_RULES}
-${CONCEPT_RULES}
-
-Answer with the script only, inside <script></script>.`;
-}
-
-export function buildBlenderPrompt(brief: string, context: ModelContext, images: string[] = []): string {
-  return `You are a senior game prop artist working in Blender.
+export function buildConceptPrompt(brief: string, context: ModelContext, images: string[] = []): string {
+  return `You are the lead 3D designer of a game studio. Build this object in 3D, in Blender, with as much detail as you can.
 
 ${brief}
 ${context.heightStuds ? `\nHeight in the game: ${context.heightStuds} studs. The model is rescaled to that height for you.` : ""}
-${images.length ? "\nThe images listed below are renders of the approved 3D design, from several sides. Read each one. Match its silhouette, proportions, forms and colours, and turn it into a game-ready model: keep what reads at game distance, simplify the rest." : ""}
+${images.length ? "\nThe images listed below are references from the client: follow them." : ""}
+
+Every side is seen: design them all, not only the front. Your design is baked onto a game mesh for you: fine relief and colour survive as textures, so put them in. Compact code: small reusable helpers and loops, not one line per part, under 500 lines. The silhouette must stay readable; the detail serves it.
 
 ${BLENDER_RULES}
-${BUDGET_RULES}
+${CONCEPT_RULES}
 
 Answer with the script only, inside <script></script>.`;
 }
@@ -198,92 +190,49 @@ export interface CreateModelOptions extends ModelAgentOptions {
   files: FileIO;
   blender: string;
   job: BlenderJob;
-  /** Where the hidden working files go: the Blender scripts and the renders of the 3D design. */
+  /** Where the hidden working files go. */
   workDir: string;
-  /** Images the user supplied: they go with the renders. */
+  /** Images the user supplied. */
   extraImages?: string[];
-  onStep?: (step: "brief" | "design" | "modelling" | "building" | "review" | "done", detail?: string) => void;
+  /** Only for experiments: production leaves the model at its default effort. */
+  effort?: string;
+  onStep?: (step: "brief" | "design" | "building" | "done", detail?: string) => void;
 }
 
 export interface CreatedModel {
   brief: string;
-  /** Renders of the 3D design; empty when the design failed and the model came from the brief alone. */
-  designImages: string[];
-  designScript?: string;
   report: BlenderReport;
   script: string;
 }
 
-const script = (answer: string): string => {
+const scriptOf = (answer: string): string => {
   const code = parseBlenderScript(answer);
   if (!code) throw new Error("the agent returned no Blender script");
   return code;
 };
 
-/** Writes a script and runs it; a refusal goes back to the agent, because most are a wrong name in Blender's API. */
-async function writeAndBuild(prompt: string, model: Parameters<typeof ask>[2], options: ModelAgentOptions, timeoutMs: number, images: string[], build: (code: string) => Promise<BlenderReport>, onRetry?: (error?: string) => void): Promise<{ code: string; report: BlenderReport }> {
-  let code = script(await ask(prompt, options, model, timeoutMs, images));
-  let report = await build(code);
-  for (let attempt = 0; attempt < 2 && !report.ok; attempt++) {
-    onRetry?.(report.error);
-    code = script(await ask(`${prompt}\n\nYour previous script:\n${code}\n\nBlender refused it:\n${report.error}\n\nFix it. Answer with the whole script.`, options, model, timeoutMs, images));
-    report = await build(code);
-  }
-  return { code, report };
-}
-
-/** Step 2: the 3D design, rendered from every side. Returns nothing rather than stop the model. */
-async function designIn3D(brief: string, context: ModelContext, options: CreateModelOptions): Promise<{ images: string[]; script?: string }> {
-  const { workDir, blender, runner, files } = options;
-  const renders = Object.fromEntries((Object.keys(CONCEPT_VIEWS) as ConceptView[]).map((v) => [v, `${workDir}/design_${v}.png`])) as Record<ConceptView, string>;
-  const build = (code: string) => runBlenderConcept(code, renders, `${workDir}/design.json`, blender, runner, files, `${workDir}/design.py`);
-  try {
-    const { code, report } = await writeAndBuild(buildConceptPrompt(brief, context), DESIGN_MODEL, options, OPUS_TIMEOUT_MS, [], build, (e) => options.onStep?.("design", e));
-    if (report.ok) return { images: Object.values(renders), script: code };
-    options.onStep?.("design", `no design: ${report.error}`);
-  } catch (e) {
-    options.onStep?.("design", `no design: ${(e as Error).message}`);
-  }
-  return { images: [] };
-}
-
 /** The whole hidden chain from a request to GLB and FBX. Throws when Blender cannot produce a model. */
 export async function createModel(request: string, context: ModelContext, options: CreateModelOptions): Promise<CreatedModel> {
   const { job, blender, runner, files, workDir, onStep } = options;
   const step = onStep ?? (() => undefined);
+  const images = options.extraImages ?? [];
   step("brief");
   const { brief } = await enhanceModelPrompt(request, context, options);
   step("design");
-  const design = await designIn3D(brief, context, options);
-  const images = [...(options.extraImages ?? []), ...design.images];
-
-  step("modelling");
+  const prompt = buildConceptPrompt(brief, context, images);
+  const write = (text: string) => ask(text, options, DESIGN_MODEL, OPUS_TIMEOUT_MS, images, options.effort).then(scriptOf);
   const build = (code: string) => runBlenderJob(code, job, blender, runner, files, `${workDir}/job.py`);
-  const prompt = buildBlenderPrompt(brief, context, images);
-  const first = await writeAndBuild(prompt, DESIGN_MODEL, options, OPUS_TIMEOUT_MS, images, build, (e) => step("modelling", e));
-  if (!first.report.ok) throw new Error(`Blender could not build the model: ${(first.report.error ?? "").slice(-300)}`);
-  let { code, report } = first;
-
-  // one review: the render against the design
-  step("review");
-  const answer = await ask(
-    `${prompt}\n\nYour script:\n${code}\n\nThe last image is the render of your model. Review it as a strict art director against the brief${design.images.length ? " and the design renders" : ""}, in this order. First correctness: is a symmetric object lopsided, a centred feature off-centre, anything floating or sunk? Then surface: pinches, seams, stray faceting. Then style: would the silhouette read at 64 pixels from every side, are large, medium and small forms clearly separate, do proportions look designed rather than stiff primitives, do the edges catch light, is the palette disciplined? Rewrite the script to fix what fails and add the structure that is missing. Answer with the whole script.`,
-    options,
-    DESIGN_MODEL,
-    OPUS_TIMEOUT_MS,
-    [...images, job.preview],
-  ).catch(() => "");
-  const reviewed = parseBlenderScript(answer);
-  if (reviewed) {
-    const better = await build(reviewed);
-    // a review that breaks the model must not cost the first version
-    if (better.ok) {
-      code = reviewed;
-      report = better;
-    } else {
-      report = await build(code);
-    }
+  let code = await write(prompt);
+  step("building");
+  let report = await build(code);
+  // a refusal goes back to the agent: most are a wrong name in Blender's API
+  for (let attempt = 0; attempt < 2 && !report.ok; attempt++) {
+    step("design", report.error);
+    code = await write(`${prompt}\n\nYour previous script:\n${code}\n\nBlender refused it:\n${report.error}\n\nFix it. Answer with the whole script.`);
+    step("building");
+    report = await build(code);
   }
+  if (!report.ok) throw new Error(`Blender could not build the model: ${(report.error ?? "").slice(-300)}`);
   step("done");
-  return { brief, designImages: design.images, designScript: design.script, report, script: code };
+  return { brief, report, script: code };
 }

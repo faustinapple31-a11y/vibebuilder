@@ -2,9 +2,12 @@ import type { FileIO } from "./types";
 import type { ProcessRunner } from "./runner";
 
 /**
- * Runs modelling scripts in Blender, headless: models are made in Blender, never in Roblox Studio.
- * The agent writes `def build():`; everything around it is fixed here: one mesh, the asked height, base on
- * the ground, a palette texture so colours survive the FBX import, the triangle budget, the exports.
+ * Runs a design script in Blender, headless: models are made in Blender, never in Roblox Studio.
+ * The agent writes `def build():`, a high-detail design with no triangle budget. Everything after it is fixed
+ * here and costs seconds, not minutes: a closed low-poly shell from a voxel remesh, then the design's colours
+ * and relief baked onto it, so the game model keeps the detail within the Roblox triangle limit.
+ * Measured on 5 Nov 2026: a 269,184-triangle dragon became 18,900 triangles and two textures in 25 seconds.
+ * The full design is kept too: `<textures>_design.glb` and `<textures>_design.png`.
  */
 export interface BlenderJob {
   /** Absolute paths. */
@@ -12,7 +15,8 @@ export interface BlenderJob {
   fbx: string;
   preview: string;
   report: string;
-  palette: string;
+  /** Prefix of the baked textures: `<prefix>_albedo.png`, `<prefix>_normal.png`. */
+  textures: string;
   heightStuds: number;
   maxTriangles: number;
 }
@@ -20,10 +24,12 @@ export interface BlenderJob {
 export interface BlenderReport {
   ok: boolean;
   error?: string;
+  /** Triangles of the design. */
+  designTriangles?: number;
+  /** Triangles of the game model. */
   triangles?: number;
   /** Width, depth, height in studs. */
   size?: [number, number, number];
-  materials?: number;
   /** Edges with one face: a closed model has none. */
   openEdges?: number;
 }
@@ -48,10 +54,14 @@ export function blenderScriptProblem(code: string): string | null {
 
 const j = (v: unknown) => JSON.stringify(v);
 
-/** Imports, the report writer and mat(). The wrapper's own names start with _wf_: an agent's helpers must not shadow them. */
-const prelude = (report: string) => `import bpy, bmesh, math, mathutils, random, json, traceback
+/** The complete Python file Blender runs. The wrapper's own names start with _wf_: an agent's helpers must not shadow them. */
+export function blenderJobScript(code: string, job: BlenderJob, opts: { voxels?: number; texture?: number } = {}): string {
+  const voxels = opts.voxels ?? 300;
+  const texture = opts.texture ?? 2048;
+  return `import bpy, bmesh, math, mathutils, random, json, traceback
 random.seed(7)
-_WF_REPORT = ${j(report)}
+_WF_REPORT = ${j(job.report)}
+_WF_HEIGHT = ${job.heightStuds}
 
 def _wf_report(data):
     with open(_WF_REPORT, "w", encoding="utf8") as f:
@@ -68,46 +78,58 @@ def mat(name, color, roughness=0.75, metallic=0.0):
     m.roughness = roughness
     m.metallic = metallic
     return m
-`;
 
-export const CONCEPT_VIEWS = { front: [0, -1, 0.12], right: [1, 0, 0.12], back: [0, 1, 0.12], three_quarter: [0.7, -0.8, 0.4] } as const;
-export type ConceptView = keyof typeof CONCEPT_VIEWS;
-
-/** The 3D design: no triangle budget, no export, only renders of the concept from every side. */
-export function blenderConceptScript(code: string, renders: Record<ConceptView, string>, report: string): string {
-  return `${prelude(report)}
-# ---- the design agent's concept
+# ---- the agent's design
 ${code}
-# ---- end of the concept
+# ---- end of the design
 
-def _wf_concept():
+def _wf_finish():
     build()
     objs = [o for o in bpy.data.objects if o.type in {"MESH", "CURVE", "META", "SURFACE", "FONT"}]
     if not objs:
         raise RuntimeError("build() created no mesh")
-    scene = bpy.context.scene
-    deps = bpy.context.evaluated_depsgraph_get()
-    lo = mathutils.Vector((1e9, 1e9, 1e9)); hi = -lo
-    tris = 0
+    bpy.ops.object.select_all(action="DESELECT")
     for o in objs:
-        ev = o.evaluated_get(deps)
-        for c in ev.bound_box:
-            w = ev.matrix_world @ mathutils.Vector(c)
-            lo = mathutils.Vector(map(min, lo, w)); hi = mathutils.Vector(map(max, hi, w))
-        me = ev.to_mesh()
-        me.calc_loop_triangles()
-        tris += len(me.loop_triangles)
-        ev.to_mesh_clear()
-    centre = (lo + hi) / 2
-    dist = max(hi - lo) * 2.5
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.convert(target="MESH")
+    bpy.ops.object.join()
+    hi = bpy.context.view_layer.objects.active
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    me = hi.data
+    if not me.materials:
+        raise RuntimeError("the model has no material")
+
+    # height, base on the ground, centred; the agent's front is -Y, Roblox prefabs face -Z
+    xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+    span = max(zs) - min(zs)
+    if span <= 0:
+        raise RuntimeError("the model has no height")
+    H = _WF_HEIGHT
+    s = H / span
+    cx = (min(xs) + max(xs)) / 2; cy = (min(ys) + max(ys)) / 2; z0 = min(zs)
+    for v in me.vertices:
+        v.co = ((v.co.x - cx) * -s, (v.co.y - cy) * -s, (v.co.z - z0) * s)
+    me.update()
+    design_tris = sum(len(p.vertices) - 2 for p in me.polygons)
+    for m in me.materials:
+        if not m:
+            continue
+        m.use_nodes = True
+        b = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        b.inputs[0].default_value = m.diffuse_color
+        b.inputs["Roughness"].default_value = m.roughness
+        b.inputs["Metallic"].default_value = m.metallic
+
+    # the full design stays available: a render and a master GLB, next to the game model
+    scene = bpy.context.scene
+    dmax = max(hi.dimensions)
     cam = bpy.data.objects.new("_wf_cam", bpy.data.cameras.new("_wf_cam"))
     scene.collection.objects.link(cam)
-    cam.data.clip_end = dist * 10
+    cam.location = (dmax * 1.0, dmax * 1.5, H * 0.5 + dmax * 0.6)
+    target = mathutils.Vector((0, 0, H * 0.4))
+    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
-    world = bpy.data.worlds.new("_wf_w")
-    world.use_nodes = True
-    next(n for n in world.node_tree.nodes if n.type == "BACKGROUND").inputs[0].default_value = (0.8, 0.82, 0.85, 1)
-    scene.world = world
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.display.shading.light = "STUDIO"
     scene.display.shading.color_type = "MATERIAL"
@@ -116,159 +138,98 @@ def _wf_concept():
     scene.render.resolution_x = 1024
     scene.render.resolution_y = 1024
     scene.render.image_settings.file_format = "PNG"
-    for path, d in _WF_VIEWS:
-        cam.location = centre + mathutils.Vector(d).normalized() * dist
-        cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
-        scene.render.filepath = path
-        bpy.ops.render.render(write_still=True)
-    _wf_report({"ok": True, "triangles": tris, "size": list(hi - lo)})
-
-_WF_VIEWS = ${j((Object.keys(CONCEPT_VIEWS) as ConceptView[]).map((k) => [renders[k], CONCEPT_VIEWS[k]]))}
-try:
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    _wf_concept()
-except Exception:
-    _wf_report({"ok": False, "error": traceback.format_exc()[-1500:]})
-`;
-}
-
-/** The complete Python file Blender runs for the final model. */
-export function blenderJobScript(code: string, job: BlenderJob): string {
-  return `${prelude(job.report)}
-# ---- the agent's model
-${code}
-# ---- end of the agent's model
-
-def _wf_finish():
-    build()
-    meshes = [o for o in bpy.data.objects if o.type in {"MESH", "CURVE", "META", "SURFACE", "FONT"}]
-    if not meshes:
-        raise RuntimeError("build() created no mesh")
+    scene.render.filepath = ${j(job.textures)} + "_design.png"
+    bpy.ops.render.render(write_still=True)
     bpy.ops.object.select_all(action="DESELECT")
-    for o in meshes:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = meshes[0]
-    bpy.ops.object.convert(target="MESH")
-    bpy.ops.object.join()
-    obj = bpy.context.view_layer.objects.active
-    obj.name = "model"
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    hi.select_set(True); bpy.context.view_layer.objects.active = hi
+    bpy.ops.export_scene.gltf(filepath=${j(job.textures)} + "_design.glb", export_format="GLB", use_selection=True, export_apply=True)
 
-    # height, base on the ground, centred; the agent's front is -Y, Roblox prefabs face -Z
-    me = obj.data
-    xs = [v.co.x for v in me.vertices]; ys = [v.co.y for v in me.vertices]; zs = [v.co.z for v in me.vertices]
-    span = max(zs) - min(zs)
-    if span <= 0:
-        raise RuntimeError("the model has no height")
-    s = ${job.heightStuds} / span
-    cx = (min(xs) + max(xs)) / 2; cy = (min(ys) + max(ys)) / 2; z0 = min(zs)
-    for v in me.vertices:
-        v.co = ((v.co.x - cx) * s * -1, (v.co.y - cy) * s * -1, (v.co.z - z0) * s)
-    me.update()
+    # the game shell: closed by construction, inside the triangle limit
+    lo = hi.copy(); lo.data = hi.data.copy(); lo.name = "model"
+    bpy.context.scene.collection.objects.link(lo)
+    bpy.ops.object.select_all(action="DESELECT")
+    lo.select_set(True); bpy.context.view_layer.objects.active = lo
+    r = lo.modifiers.new("remesh", "REMESH")
+    r.mode = "VOXEL"; r.voxel_size = H / ${voxels}; r.use_smooth_shade = False
+    bpy.ops.object.modifier_apply(modifier=r.name)
+    tris = sum(len(p.vertices) - 2 for p in lo.data.polygons)
+    if tris > ${job.maxTriangles} * 0.95:
+        d = lo.modifiers.new("budget", "DECIMATE"); d.ratio = ${job.maxTriangles} * 0.95 / tris
+        bpy.ops.object.modifier_apply(modifier=d.name)
+    lo.data.materials.clear()
+    while lo.data.uv_layers:
+        lo.data.uv_layers.remove(lo.data.uv_layers[0])
+    lo.data.uv_layers.new(name="UVMap")
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(85), island_margin=0.0015)
+    bpy.ops.object.mode_set(mode="OBJECT")
 
-    # clean mesh gates: no loose geometry, outward normals, no n-gons
-    bm = bmesh.new(); bm.from_mesh(me)
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    # the design's colours and relief, baked onto the shell
+    final = bpy.data.materials.new("baked")
+    final.use_nodes = True
+    nt = final.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 0.8
+    albedo = bpy.data.images.new("albedo", ${texture}, ${texture}, alpha=False)
+    normal = bpy.data.images.new("normal", ${texture}, ${texture}, alpha=False)
+    normal.colorspace_settings.name = "Non-Color"
+    ta = nt.nodes.new("ShaderNodeTexImage"); ta.image = albedo
+    tn = nt.nodes.new("ShaderNodeTexImage"); tn.image = normal
+    nm = nt.nodes.new("ShaderNodeNormalMap")
+    lo.data.materials.append(final)
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 8
+    scene.cycles.use_denoising = False
+    bake = scene.render.bake
+    bake.use_selected_to_active = True
+    bake.cage_extrusion = H * 0.012
+    bake.max_ray_distance = H * 0.04
+    bake.margin = 3
+    bake.use_pass_direct = False
+    bake.use_pass_indirect = False
+    bake.use_pass_color = True
+    bpy.ops.object.select_all(action="DESELECT")
+    hi.select_set(True); lo.select_set(True); bpy.context.view_layer.objects.active = lo
+    nt.nodes.active = ta
+    bpy.ops.object.bake(type="DIFFUSE")
+    nt.nodes.active = tn
+    bpy.ops.object.bake(type="NORMAL", normal_space="TANGENT")
+    for img, path in ((albedo, ${j(job.textures)} + "_albedo.png"), (normal, ${j(job.textures)} + "_normal.png")):
+        img.filepath_raw = path; img.file_format = "PNG"; img.save(); img.pack()
+    nt.links.new(ta.outputs[0], bsdf.inputs[0])
+    nt.links.new(tn.outputs[0], nm.inputs["Color"])
+    nt.links.new(nm.outputs[0], bsdf.inputs["Normal"])
+    bpy.data.objects.remove(hi)
+
+    # mesh gates, then the exports
+    bm = bmesh.new(); bm.from_mesh(lo.data)
     bmesh.ops.triangulate(bm, faces=bm.faces)
     open_edges = sum(1 for e in bm.edges if len(e.link_faces) == 1)
     tris = len(bm.faces)
-    bm.to_mesh(me); bm.free(); me.update()
-
-    # triangle budget of a Roblox MeshPart
-    if tris > ${job.maxTriangles}:
-        d = obj.modifiers.new("budget", "DECIMATE")
-        d.ratio = ${job.maxTriangles} / tris
-        bpy.ops.object.modifier_apply(modifier=d.name)
-
-    # one palette texture: a material's colour reaches Roblox through an FBX only as a texture
-    mats = [m for m in me.materials if m]
-    if not mats:
-        raise RuntimeError("the model has no material")
-    cells = 1
-    while cells * cells < len(mats):
-        cells *= 2
-    cell = 8
-    size = cells * cell
-    img = bpy.data.images.new("palette", size, size, alpha=False)
-    def srgb(c):
-        return c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
-    px = [0.0] * (size * size * 4)
-    for i, m in enumerate(mats):
-        col = [srgb(c) for c in m.diffuse_color[:3]]
-        cx0 = (i % cells) * cell; cy0 = (i // cells) * cell
-        for y in range(cy0, cy0 + cell):
-            for x in range(cx0, cx0 + cell):
-                k = (y * size + x) * 4
-                px[k:k + 4] = [col[0], col[1], col[2], 1.0]
-    img.pixels = px
-    img.filepath_raw = ${j(job.palette)}
-    img.file_format = "PNG"
-    img.save()
-    img.pack()
-    while me.uv_layers:
-        me.uv_layers.remove(me.uv_layers[0])
-    uv = me.uv_layers.new(name="UVMap")
-    slots = {me.materials[i]: i for i in range(len(me.materials))}
-    order = {slots[m]: i for i, m in enumerate(mats)}
-    for poly in me.polygons:
-        i = order.get(poly.material_index, 0)
-        u = ((i % cells) + 0.5) / cells
-        w = ((i // cells) + 0.5) / cells
-        for li in poly.loop_indices:
-            uv.data[li].uv = (u, w)
-        poly.material_index = 0
-    final = bpy.data.materials.new("palette")
-    final.use_nodes = True
-    bsdf = next(n for n in final.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-    tex = final.node_tree.nodes.new("ShaderNodeTexImage")
-    tex.image = img
-    tex.interpolation = "Closest"
-    final.node_tree.links.new(tex.outputs[0], bsdf.inputs[0])
-    bsdf.inputs["Roughness"].default_value = 0.8
-    me.materials.clear()
-    me.materials.append(final)
-    for poly in me.polygons:
-        poly.use_smooth = False
-
-    bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
+    bm.to_mesh(lo.data); bm.free(); lo.data.update()
+    lo.select_set(True); bpy.context.view_layer.objects.active = lo
+    bpy.ops.object.shade_smooth()
     bpy.ops.export_scene.gltf(filepath=${j(job.glb)}, export_format="GLB", use_selection=True, export_apply=True)
     bpy.ops.export_scene.fbx(filepath=${j(job.fbx)}, use_selection=True, axis_forward="-Z", axis_up="Y", apply_scale_options="FBX_SCALE_ALL", mesh_smooth_type="FACE", path_mode="COPY", embed_textures=True)
 
-    # a three-quarter preview for the review agent
-    scene = bpy.context.scene
-    h = ${job.heightStuds}
-    r = max(obj.dimensions) * 1.9
-    cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
-    scene.collection.objects.link(cam)
-    cam.location = (r * 0.55, r * 0.8, h * 0.5 + r * 0.32)  # the front faces +Y once turned for Roblox
-    target = mathutils.Vector((0, 0, h * 0.5))
-    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
-    scene.camera = cam
-    sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
+    # the front three-quarter preview
+    sun = bpy.data.objects.new("_wf_sun", bpy.data.lights.new("_wf_sun", "SUN"))
     scene.collection.objects.link(sun)
-    sun.rotation_euler = (math.radians(50), 0, math.radians(35))
+    sun.rotation_euler = (math.radians(50), 0, math.radians(150))
     sun.data.energy = 3
-    world = bpy.data.worlds.new("w")
+    world = bpy.data.worlds.new("_wf_w")
     world.use_nodes = True
-    next(n for n in world.node_tree.nodes if n.type == "BACKGROUND").inputs[0].default_value = (0.55, 0.6, 0.66, 1)
+    next(n for n in world.node_tree.nodes if n.type == "BACKGROUND").inputs[0].default_value = (0.5, 0.55, 0.62, 1)
     scene.world = world
-    scene.render.engine = "BLENDER_WORKBENCH"
-    scene.display.shading.light = "STUDIO"
-    scene.display.shading.color_type = "TEXTURE"
-    scene.display.shading.show_shadows = True
+    scene.cycles.samples = 24
     scene.render.resolution_x = 768
     scene.render.resolution_y = 768
     scene.render.filepath = ${j(job.preview)}
     scene.render.image_settings.file_format = "PNG"
     bpy.ops.render.render(write_still=True)
-
-    bm = bmesh.new(); bm.from_mesh(me); tris = sum(len(f.verts) - 2 for f in bm.faces); bm.free()
-    d = obj.dimensions
-    _wf_report({"ok": True, "triangles": tris, "size": [d.x, d.y, d.z], "materials": len(mats), "openEdges": open_edges})
+    d = lo.dimensions
+    _wf_report({"ok": True, "designTriangles": design_tris, "triangles": tris, "size": [d.x, d.y, d.z], "openEdges": open_edges})
 
 try:
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -291,24 +252,15 @@ export async function findBlender(runner: ProcessRunner, files: FileIO): Promise
   return null;
 }
 
-async function runBlender(python: string, report: string, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs: number): Promise<BlenderReport> {
-  await files.writeText(scriptPath, python);
+/** Runs one job and returns what the script reported. */
+export async function runBlenderJob(code: string, job: BlenderJob, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs = 240): Promise<BlenderReport> {
+  const problem = blenderScriptProblem(code);
+  if (problem) return { ok: false, error: problem };
+  await files.writeText(scriptPath, blenderJobScript(code, job));
   await runner.runCapture(blender, ["--background", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", scriptPath], undefined, timeoutSecs);
   try {
-    return JSON.parse(await files.readText(report)) as BlenderReport;
+    return JSON.parse(await files.readText(job.report)) as BlenderReport;
   } catch {
     return { ok: false, error: "Blender stopped without a report" };
   }
-}
-
-/** Runs the final model and returns what the script reported. */
-export async function runBlenderJob(code: string, job: BlenderJob, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs = 180): Promise<BlenderReport> {
-  const problem = blenderScriptProblem(code);
-  return problem ? { ok: false, error: problem } : runBlender(blenderJobScript(code, job), job.report, blender, runner, files, scriptPath, timeoutSecs);
-}
-
-/** Renders the 3D design from every side. */
-export async function runBlenderConcept(code: string, renders: Record<ConceptView, string>, report: string, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs = 300): Promise<BlenderReport> {
-  const problem = blenderScriptProblem(code);
-  return problem ? { ok: false, error: problem } : runBlender(blenderConceptScript(code, renders, report), report, blender, runner, files, scriptPath, timeoutSecs);
 }

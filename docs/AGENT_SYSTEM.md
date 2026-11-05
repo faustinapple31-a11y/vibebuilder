@@ -206,17 +206,16 @@ L'orchestrateur relit le fichier, valide, et renvoie les erreurs Zod formatées 
 
 ## 4d. Modèles 3D : brief caché, design 3D caché, Blender
 
-`createModel` (`packages/agents/src/model-design.ts`) enchaîne, sans rien montrer à l'utilisateur :
-Haiku réécrit la demande en brief, Opus 5.5 construit un concept 3D très détaillé dans Blender, sans budget
-de triangles, rendu sous quatre angles ; Opus 5.5 écrit ensuite le script du modèle de jeu à partir du brief et de ces
-rendus, Blender le construit sans fenêtre, puis une passe de revue compare le rendu au concept. `blender-job.ts` fixe tout autour du script de l'agent :
-hauteur, base au sol, budget de triangles, texture palette, exports GLB et FBX.
+`createModel` (`packages/agents/src/model-design.ts`) enchaîne : Haiku réécrit la demande en brief, Opus 5.5
+construit le modèle en 3D dans Blender, sans budget de triangles et à pleine réflexion, puis `blender-job.ts`
+cuit ce design sur un maillage de jeu sous la limite Roblox et exporte GLB et FBX. La qualité passe avant le
+temps : compter environ 30 minutes par modèle, ne pas baisser l'effort d'Opus.
 
 Les modèles ne sont jamais faits dans Roblox Studio. Le script vient d'un modèle et tourne chez le client :
 `blenderScriptProblem` refuse imports et appels dangereux, et Blender tourne avec `--factory-startup` et
 `--disable-autoexec`. C'est un filtre, pas un bac à sable.
 
-Essai : `npx tsx scripts/design-model.ts "un coffre de pirate" --height 6` (environ quatre appels Claude).
+Essai : `npx tsx scripts/design-model.ts "un coffre de pirate" --height 6` (au moins deux appels Claude).
 
 Crédit : plusieurs règles de modélisation et de composition sont reformulées d'après « fwjelaa vault »
 (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/). Les packs `make-map`, `make-anim` et `make-model`,

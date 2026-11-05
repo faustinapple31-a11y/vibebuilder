@@ -79,10 +79,10 @@ export interface BlenderMeshOptions {
   onProgress?: (message: string, progress: number) => void;
 }
 
-const MODEL_STEPS = { brief: ["Understanding the request…", 8], design: ["Designing in 3D…", 15], modelling: ["Modelling in Blender…", 55], building: ["Building the mesh…", 70], review: ["Reviewing the model…", 82], done: ["Finishing…", 96] } as const;
+const MODEL_STEPS = { brief: ["Understanding the request…", 5], design: ["Designing in 3D, this can take 30 minutes…", 15], building: ["Baking the game model…", 88], done: ["Finishing…", 96] } as const;
 
 /**
- * The model pipeline: hidden brief, hidden 3D design on Opus 5.5, Blender, GLB + FBX. Only the user's own words are stored
+ * The model pipeline: hidden brief, 3D design on Opus 5.5, baked in Blender, GLB + FBX. Only the user's own words are stored
  * on the asset; the brief, the design and the script stay in the hidden work folder.
  */
 export async function generateBlenderMeshAsset(projectDir: string, opts: BlenderMeshOptions): Promise<MeshAssetRecord> {
@@ -95,7 +95,7 @@ export async function generateBlenderMeshAsset(projectDir: string, opts: Blender
   const work = path.join(projectDir, MESH_ASSET_DIR, ".work", id).replace(/\\/g, "/");
   await fs.mkdirp(work);
   const heightStuds = opts.heightStuds ?? 10;
-  const job = { glb: `${work}/model.glb`, fbx: `${work}/model.fbx`, preview: `${work}/preview.png`, report: `${work}/report.json`, palette: `${work}/palette.png`, heightStuds, maxTriangles: 20000 };
+  const job = { glb: `${work}/model.glb`, fbx: `${work}/model.fbx`, preview: `${work}/preview.png`, report: `${work}/report.json`, textures: `${work}/model`, heightStuds, maxTriangles: 20000 };
   const extraImages: string[] = [];
   if (opts.image) {
     const file = `${work}/user.${opts.image.extension}`;

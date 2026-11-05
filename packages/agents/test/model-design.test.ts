@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  blenderConceptScript,
   blenderJobScript,
   blenderScriptProblem,
   briefAsPlainPrompt,
-  buildBlenderPrompt,
   buildConceptPrompt,
   buildLocalModelBrief,
   buildModelBriefPrompt,
@@ -13,7 +11,7 @@ import {
   DESIGN_MODEL,
 } from "@worldforge/agents";
 
-const job = { glb: "a.glb", fbx: "a.fbx", preview: "a.png", report: "a.json", palette: "p.png", heightStuds: 8, maxTriangles: 20000 };
+const job = { glb: "a.glb", fbx: "a.fbx", preview: "a.png", report: "a.json", textures: "t", heightStuds: 8, maxTriangles: 20000 };
 
 describe("the hidden model brief", () => {
   it("keeps the request and the world's palette in what the small model receives", () => {
@@ -44,17 +42,9 @@ describe("the hidden 3D design", () => {
     expect(prompt).not.toContain("under 15000 triangles");
   });
 
-  it("is rendered from every side, and exports nothing", () => {
-    const python = blenderConceptScript("def build():\n    pass", { front: "f.png", right: "r.png", back: "b.png", three_quarter: "q.png" }, "d.json");
-    for (const view of ["f.png", "r.png", "b.png", "q.png"]) expect(python).toContain(view);
-    expect(python).not.toContain("export_scene");
-  });
-
-  it("reaches the modelling agent as images, and the budget applies there", () => {
-    const prompt = buildBlenderPrompt("OBJECT: x", {}, ["front.png"]);
-    expect(prompt).toContain("renders of the approved 3D design");
-    expect(prompt).toContain("under 15000 triangles");
-    expect(buildBlenderPrompt("OBJECT: x", {})).not.toContain("approved 3D design");
+  it("takes the client's images when there are some", () => {
+    expect(buildConceptPrompt("OBJECT: x", {}, ["ref.png"])).toContain("references from the client");
+    expect(buildConceptPrompt("OBJECT: x", {})).not.toContain("references from the client");
   });
 
   it("cannot have its wrapper shadowed by an agent's helper", () => {
@@ -83,8 +73,9 @@ describe("the Blender script", () => {
     const python = blenderJobScript("def build():\n    pass", job);
     expect(python).toContain("export_scene.gltf");
     expect(python).toContain("export_scene.fbx");
-    expect(python).toContain("s = 8 / span");
-    expect(python).toContain("tris > 20000");
+    expect(python).toContain("_WF_HEIGHT = 8");
+    expect(python).toContain("20000 * 0.95");
+    expect(python).toContain('bpy.ops.object.bake(type="NORMAL"');
     expect(python).toContain("def build():");
   });
 });
