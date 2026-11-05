@@ -8,6 +8,7 @@
   "exports": { ".": "./src/index.ts" },
   "dependencies": {
     "@worldforge/core": "*",
+    "@worldforge/textures": "*",
     "@worldforge/world-gen": "*"
   }
 }

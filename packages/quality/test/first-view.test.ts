@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getStylePreset, type WorldSpec } from "@worldforge/core";
 import { generateWorld } from "@worldforge/world-gen";
 import { interpretPrompt } from "@worldforge/agents";
-import { critiqueBake, measureFirstView } from "@worldforge/quality";
+import { critiqueBake, measureFirstView, renderThumbnail } from "@worldforge/quality";
 
 /**
  * The first frame from the spawn. On 4 Nov 2026 a World agent placed the spawn inside a walled village
@@ -148,6 +148,17 @@ describe("the focal landmark in the first view", () => {
     expect(ids).not.toContain("background_empty");
     expect(ids).not.toContain("focal_in_fog");
     expect(measureFirstView(bake).openness).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("renders a store thumbnail, with or without a focal landmark", async () => {
+    for (const prompt of ["un château médiéval sur une colline", "obby de plateformes dans les nuages"]) {
+      const { spec } = interpretPrompt(prompt);
+      const png = await renderThumbnail(generateWorld(spec, getStylePreset(spec.stylePreset)));
+      expect(Array.from(png.slice(0, 4)), prompt).toEqual([0x89, 0x50, 0x4e, 0x47]);
+      const view = new DataView(png.buffer, png.byteOffset);
+      expect([view.getUint32(16), view.getUint32(20)], prompt).toEqual([1920, 1080]);
+      expect(png.length, prompt).toBeGreaterThan(20_000); // a blank frame compresses to almost nothing
+    }
   });
 
   it("keeps landmarks off the fighting floor of an arena", () => {

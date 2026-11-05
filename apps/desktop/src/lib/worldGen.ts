@@ -11,7 +11,7 @@ function getWorker(): Worker {
 }
 
 /** Run the deterministic generator off the UI thread. */
-export function generateInWorker(spec: WorldSpec, style: StyleBible, options: Omit<GenerateOptions, "onProgress">, onProgress?: (stage: string, p: number) => void): Promise<{ bake: WorldBake; report: QAReport }> {
+export function generateInWorker(spec: WorldSpec, style: StyleBible, options: Omit<GenerateOptions, "onProgress">, onProgress?: (stage: string, p: number) => void): Promise<{ bake: WorldBake; report: QAReport; thumbnail?: Uint8Array }> {
   const id = `gen_${++seq}`;
   const w = getWorker();
   return new Promise((resolve, reject) => {
@@ -21,7 +21,7 @@ export function generateInWorker(spec: WorldSpec, style: StyleBible, options: Om
       if (msg.type === "progress") onProgress?.(msg.stage, msg.p);
       else if (msg.type === "done") {
         w.removeEventListener("message", handler);
-        resolve({ bake: msg.bake, report: JSON.parse(msg.reportJson) as QAReport });
+        resolve({ bake: msg.bake, report: JSON.parse(msg.reportJson) as QAReport, thumbnail: msg.thumbnail });
       } else {
         w.removeEventListener("message", handler);
         reject(new Error(msg.message));

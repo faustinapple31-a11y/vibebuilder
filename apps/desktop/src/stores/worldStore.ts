@@ -83,6 +83,12 @@ interface WorldState {
 
 const defaultLayers: Record<ViewerLayer, boolean> = { terrain: true, water: true, buildings: true, vegetation: true, props: true, landmarks: true, paths: true, lighting: true };
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let text = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+
 async function loadBakeFromProject(projectPath: string): Promise<WorldBake | null> {
   const json = await readJsonFile<WorldBakeJSON>(path.join(projectPath, "assets", "world", "WorldBake.json"));
   if (!json || !json.terrain) return null;
@@ -214,7 +220,7 @@ export const useWorld = create<WorldState>((set, get) => ({
       const version = nextVersion(cur.meta.worldVersion);
       const seedOverride = opts.newSeed ? (spec.seed + 1 + Math.floor(Math.random() * 1000)) % 4294967295 : undefined;
       const specToUse = seedOverride !== undefined && !opts.layers ? { ...spec, seed: seedOverride } : spec;
-      const { bake, report } = await generateInWorker(
+      const { bake, report, thumbnail } = await generateInWorker(
         specToUse,
         style,
         // previous is always passed: locked placements (manual inserts, hero meshes) and external mesh prefabs survive
@@ -226,6 +232,7 @@ export const useWorld = create<WorldState>((set, get) => ({
       const files = exportWorldFiles({ bake, spec: specToUse, style, projectSlug: slug, materialOverrides: materialOverrides(get().textures?.manifest ?? null), meshAssets: await loadMeshManifest(cur.path) });
       await fs.writeFiles(cur.path, files.map((f) => [f.path, f.content]));
       await fs.writeText(path.join(cur.path, "qa", "report.json"), JSON.stringify(report, null, 2));
+      if (thumbnail) await fs.writeBinaryBase64(path.join(cur.path, "assets", "thumbnail.png"), bytesToBase64(thumbnail));
       // version
       const parent = get().versions[0]?.id ?? null;
       await versionsRepo.insert({ projectId: cur.row.id, worldId: specToUse.id, version, parentVersionId: parent, label: opts.label ?? (opts.layers ? `regenerate ${opts.layers.join("+")}` : "generate"), spec: specToUse, style, stats: bake.stats, score: report.score });
