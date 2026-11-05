@@ -1,15 +1,15 @@
 import type { IAgentProvider, FileIO } from "./types";
 import type { ProcessRunner } from "./runner";
-import { SESSION_DEFAULTS, askModel, type EnhancerModel } from "./prompt-enhancer";
-import { runBlenderJob, type BlenderJob, type BlenderReport } from "./blender-job";
+import { SESSION_DEFAULTS, askModel } from "./prompt-enhancer";
+import { CONCEPT_VIEWS, runBlenderConcept, runBlenderJob, type BlenderJob, type BlenderReport, type ConceptView } from "./blender-job";
 
 /**
  * The 3D model pipeline, the twin of the map's hidden brief. The user sees none of the first three steps:
  *   1. a small model rewrites the request into a modelling brief ("une épée" stays the intent);
- *   2. Sonnet draws reference images from that brief;
- *   3. Sonnet receives the images and the brief and writes the Blender script;
- *   4. Blender builds the model and exports GLB and FBX; one review pass compares it with the references.
- * Claude produces no pixels: the references are SVG drawings, rasterized by the caller when it can.
+ *   2. Claude Design, on Opus 5.5, builds a 3D concept in Blender, as detailed as it can, with no triangle
+ *      budget; it is rendered from every side;
+ *   3. those renders and the brief go back to Opus 5.5, which writes the game-ready Blender script;
+ *   4. Blender builds the model and exports GLB and FBX; one review pass compares it with the concept.
  */
 export interface ModelContext {
   /** "landmark", "prop", "building", "vegetation" or "rock". */
@@ -96,6 +96,11 @@ export function briefAsPlainPrompt(brief: string, limit = 580): string {
   return cut.slice(0, Math.max(cut.lastIndexOf(". ") + 1, 200));
 }
 
+/** The 3D design and the game model are both made by Opus 5.5, whatever the settings say. */
+export const DESIGN_MODEL = "claude-opus-5-5";
+/** Measured on 5 Nov 2026: Opus 5.5 needed more than 10 minutes for a detailed design script. */
+const OPUS_TIMEOUT_MS = 1_500_000;
+
 export interface ModelAgentOptions {
   provider?: IAgentProvider;
   cwd: string;
@@ -103,7 +108,7 @@ export interface ModelAgentOptions {
   signal?: AbortSignal;
 }
 
-async function ask(prompt: string, options: ModelAgentOptions, model: EnhancerModel, timeoutMs: number, images?: string[]): Promise<string> {
+async function ask(prompt: string, options: ModelAgentOptions, model: "haiku" | typeof DESIGN_MODEL, timeoutMs: number, images?: string[]): Promise<string> {
   const { provider, cwd, signal } = options;
   const base = provider && SESSION_DEFAULTS[provider.id]?.(model);
   if (!provider || !base) throw new Error("no agent can design the model");
@@ -134,72 +139,50 @@ export async function enhanceModelPrompt(request: string, context: ModelContext,
   }
 }
 
-export type ReferenceView = "front" | "side" | "three_quarter";
-export interface ModelReference {
-  view: ReferenceView;
-  svg: string;
-}
-
-export function buildReferencePrompt(brief: string): string {
-  return `You are a concept artist preparing the model sheet a 3D modeller works from.
-
-${brief}
-
-Draw the object three times, each as a standalone SVG with viewBox="0 0 768 768":
-- front: straight on, flat, the proportions exact.
-- side: straight from the right, same scale and same ground line as the front.
-- three_quarter: seen from the front right, slightly above, showing the volumes.
-
-Rules: a plain light grey background, the object filling two thirds of the frame, flat fills from the brief's palette, a darker shade on the side away from the light, a thick dark outline around the silhouette. Draw the real structure: every mass, form and accent the brief names. Only shapes: rect, circle, ellipse, polygon, path, line, g. No text, no script, no images, no filters.
-
-Answer with exactly these three blocks and nothing else:
-<reference view="front"><svg ...>...</svg></reference>
-<reference view="side"><svg ...>...</svg></reference>
-<reference view="three_quarter"><svg ...>...</svg></reference>`;
-}
-
-/** Keeps drawing elements only: the SVG comes from a model and may be opened by the webview. */
-export function sanitizeSvg(svg: string): string | null {
-  if (/<\s*(script|foreignObject|image|iframe|style|use|a)\b/i.test(svg) || /\son\w+\s*=/i.test(svg) || /(href|src)\s*=|javascript:|url\(\s*['"]?http/i.test(svg)) return null;
-  return /^<svg[\s>]/.test(svg.trim()) && /<\/svg>\s*$/.test(svg) ? svg.trim() : null;
-}
-
-export function parseReferences(answer: string): ModelReference[] {
-  const out: ModelReference[] = [];
-  for (const m of answer.matchAll(/<reference view="(front|side|three_quarter)">\s*([\s\S]*?)\s*<\/reference>/g)) {
-    const svg = sanitizeSvg(m[2]!);
-    if (svg) out.push({ view: m[1] as ReferenceView, svg });
-  }
-  return out;
-}
-
-/** Step 2. Returns what could be drawn: the model can still be built from the brief alone. */
-export async function drawModelReferences(brief: string, options: ModelAgentOptions): Promise<ModelReference[]> {
-  return parseReferences(await ask(buildReferencePrompt(brief), options, "sonnet", 240_000));
-}
-
 const BLENDER_RULES = `Write Blender 5 Python. Define a single function build() that creates the model in the empty scene.
 - Blender coordinates: Z up, ground at z = 0, the front of the object faces -Y, 1 unit = 1 stud.
 - Allowed imports: bpy, bmesh, math, mathutils, random. No file access, no export, no camera, no light: those are handled for you.
 - Already defined: mat(name, "#rrggbb", roughness=0.75, metallic=0.0). Every object gets its colour with obj.data.materials.append(mat(...)). Use only the brief's palette.
 - Model real forms, not stacked primitives: bmesh or mesh operators, extrusions, tapers, lathe-like profiles from vertex rings, BEVEL modifiers on hard edges (width about 2% of the model, 2 segments), SOLIDIFY for thin shells, MIRROR for symmetry.
 - Every part overlaps its neighbour: nothing floats. The base meets z = 0.
-- Keep it game-ready: under 15000 triangles, no subdivision above level 1, no booleans that can fail.
-- Modifiers are applied for you. Objects may stay separate: they are joined for you.`;
+- Modifiers are applied for you. Objects may stay separate: they are joined for you.
+- Blender 5 names: bmesh.ops.create_uvsphere, create_icosphere, create_cone, create_cube, create_circle, create_grid. A bmesh sphere takes u_segments, v_segments, radius.
+- Your own helper names must not start with an underscore.
+- Blender runs headless: there is no viewport and little operator context. Prefer bmesh and the data API; after bmesh, call bm.to_mesh(me) then bm.free(), or the mesh stays empty. bmesh.ops.bevel takes clamp_overlap=True on thin parts. Wrap bm.faces.new in try/except. create_icosphere needs subdivisions of 2 or more to look round.
+- Symmetric by design? Build half and mirror it. Anything meant to be centred is centred; anything meant to sit on a surface touches it.
+- One dominant shape family and one accent family, straight against curve on the main masses. Small details stay under 15% of the silhouette.
+- Spend geometry on the top silhouette and the focal feature, not evenly: segment count follows the radius, small round parts need their own.
+- Faceted style: a 1-segment chamfer on edges. Smooth style: 2 segments. A bevel under 2 pixels at play distance is wasted, so landmarks get double.
+- A creature or character gets one exaggerated feature and open gaps between its masses, so the outline reads as a filled shape.`;
 
-export function buildBlenderPrompt(brief: string, context: ModelContext, references: ModelReference[], images: string[] = []): string {
-  const drawings = images.length
-    ? "The reference images listed below show the object: follow their proportions and forms."
-    : references.length
-      ? `Reference drawings of the object, as SVG on a 768 canvas. Read their coordinates for the proportions:\n${references.map((r) => `${r.view}:\n${r.svg}`).join("\n\n")}`
-      : "";
+const BUDGET_RULES = "- Game-ready: under 15000 triangles, no subdivision above level 1, no booleans that can fail.";
+
+const CONCEPT_RULES = `- This is the design, not the game asset: no triangle budget. Go as far as the form deserves, up to 300000 triangles.
+- Sculpt real volume: subdivision surface on organic forms, displaced or hand-placed detail, individual scales, rivets, planks, folds, wear. No flat placeholder surfaces.`;
+
+export function buildConceptPrompt(brief: string, context: ModelContext): string {
+  return `You are the lead 3D concept designer of a game studio. Design this object in 3D, in Blender, with as much detail as you can.
+
+${brief}
+${context.heightStuds ? `\nHeight in the game: ${context.heightStuds} studs.` : ""}
+
+Write compact code: small reusable helpers and loops, not one line per part, under 500 lines. The silhouette must stay readable; the detail serves it. Your design is rendered from the front, the right, the back and in three-quarter view, then handed to the modellers: every side must be designed, not only the front.
+
+${BLENDER_RULES}
+${CONCEPT_RULES}
+
+Answer with the script only, inside <script></script>.`;
+}
+
+export function buildBlenderPrompt(brief: string, context: ModelContext, images: string[] = []): string {
   return `You are a senior game prop artist working in Blender.
 
 ${brief}
 ${context.heightStuds ? `\nHeight in the game: ${context.heightStuds} studs. The model is rescaled to that height for you.` : ""}
-${drawings}
+${images.length ? "\nThe images listed below are renders of the approved 3D design, from several sides. Read each one. Match its silhouette, proportions, forms and colours, and turn it into a game-ready model: keep what reads at game distance, simplify the rest." : ""}
 
 ${BLENDER_RULES}
+${BUDGET_RULES}
 
 Answer with the script only, inside <script></script>.`;
 }
@@ -215,21 +198,53 @@ export interface CreateModelOptions extends ModelAgentOptions {
   files: FileIO;
   blender: string;
   job: BlenderJob;
-  /** Where the hidden working files go: the Blender job, and the rasterized references. */
+  /** Where the hidden working files go: the Blender scripts and the renders of the 3D design. */
   workDir: string;
-  /** Turns a reference into a PNG the agents can see; returns its path. Without it they read the SVG. */
-  rasterize?: (reference: ModelReference) => Promise<string | null>;
-  /** Images the user supplied: they outrank the drawings. */
+  /** Images the user supplied: they go with the renders. */
   extraImages?: string[];
-  onStep?: (step: "brief" | "references" | "modelling" | "building" | "review" | "done", detail?: string) => void;
+  onStep?: (step: "brief" | "design" | "modelling" | "building" | "review" | "done", detail?: string) => void;
 }
 
 export interface CreatedModel {
   brief: string;
-  references: ModelReference[];
-  referenceImages: string[];
+  /** Renders of the 3D design; empty when the design failed and the model came from the brief alone. */
+  designImages: string[];
+  designScript?: string;
   report: BlenderReport;
   script: string;
+}
+
+const script = (answer: string): string => {
+  const code = parseBlenderScript(answer);
+  if (!code) throw new Error("the agent returned no Blender script");
+  return code;
+};
+
+/** Writes a script and runs it; a refusal goes back to the agent, because most are a wrong name in Blender's API. */
+async function writeAndBuild(prompt: string, model: Parameters<typeof ask>[2], options: ModelAgentOptions, timeoutMs: number, images: string[], build: (code: string) => Promise<BlenderReport>, onRetry?: (error?: string) => void): Promise<{ code: string; report: BlenderReport }> {
+  let code = script(await ask(prompt, options, model, timeoutMs, images));
+  let report = await build(code);
+  for (let attempt = 0; attempt < 2 && !report.ok; attempt++) {
+    onRetry?.(report.error);
+    code = script(await ask(`${prompt}\n\nYour previous script:\n${code}\n\nBlender refused it:\n${report.error}\n\nFix it. Answer with the whole script.`, options, model, timeoutMs, images));
+    report = await build(code);
+  }
+  return { code, report };
+}
+
+/** Step 2: the 3D design, rendered from every side. Returns nothing rather than stop the model. */
+async function designIn3D(brief: string, context: ModelContext, options: CreateModelOptions): Promise<{ images: string[]; script?: string }> {
+  const { workDir, blender, runner, files } = options;
+  const renders = Object.fromEntries((Object.keys(CONCEPT_VIEWS) as ConceptView[]).map((v) => [v, `${workDir}/design_${v}.png`])) as Record<ConceptView, string>;
+  const build = (code: string) => runBlenderConcept(code, renders, `${workDir}/design.json`, blender, runner, files, `${workDir}/design.py`);
+  try {
+    const { code, report } = await writeAndBuild(buildConceptPrompt(brief, context), DESIGN_MODEL, options, OPUS_TIMEOUT_MS, [], build, (e) => options.onStep?.("design", e));
+    if (report.ok) return { images: Object.values(renders), script: code };
+    options.onStep?.("design", `no design: ${report.error}`);
+  } catch (e) {
+    options.onStep?.("design", `no design: ${(e as Error).message}`);
+  }
+  return { images: [] };
 }
 
 /** The whole hidden chain from a request to GLB and FBX. Throws when Blender cannot produce a model. */
@@ -238,48 +253,37 @@ export async function createModel(request: string, context: ModelContext, option
   const step = onStep ?? (() => undefined);
   step("brief");
   const { brief } = await enhanceModelPrompt(request, context, options);
-  step("references");
-  const references = await drawModelReferences(brief, options).catch(() => [] as ModelReference[]);
-  const images: string[] = [...(options.extraImages ?? [])];
-  for (const r of references) {
-    const png = await options.rasterize?.(r).catch(() => null);
-    if (png) images.push(png);
-  }
-  step("modelling");
-  const write = async (prompt: string, seen: string[]) => {
-    const script = parseBlenderScript(await ask(prompt, options, "sonnet", 300_000, seen));
-    if (!script) throw new Error("the modelling agent returned no Blender script");
-    return script;
-  };
-  const build = (code: string) => runBlenderJob(code, job, blender, runner, files, `${workDir}/job.py`);
-  let script = await write(buildBlenderPrompt(brief, context, references, images), images);
-  step("building");
-  let report = await build(script);
-  if (!report.ok) {
-    // the error goes back once: most failures are a wrong operator argument in a new Blender version
-    step("modelling", report.error);
-    script = await write(`${buildBlenderPrompt(brief, context, references, images)}\n\nYour previous script:\n${script}\n\nBlender refused it:\n${report.error}\n\nFix it. Answer with the whole script.`, images);
-    report = await build(script);
-  }
-  if (!report.ok) throw new Error(`Blender could not build the model: ${(report.error ?? "").slice(-300)}`);
+  step("design");
+  const design = await designIn3D(brief, context, options);
+  const images = [...(options.extraImages ?? []), ...design.images];
 
-  // one review: the render against the references
+  step("modelling");
+  const build = (code: string) => runBlenderJob(code, job, blender, runner, files, `${workDir}/job.py`);
+  const prompt = buildBlenderPrompt(brief, context, images);
+  const first = await writeAndBuild(prompt, DESIGN_MODEL, options, OPUS_TIMEOUT_MS, images, build, (e) => step("modelling", e));
+  if (!first.report.ok) throw new Error(`Blender could not build the model: ${(first.report.error ?? "").slice(-300)}`);
+  let { code, report } = first;
+
+  // one review: the render against the design
   step("review");
-  const seen = [...images, job.preview];
-  const reviewed = await write(
-    `${buildBlenderPrompt(brief, context, references, images)}\n\nYour script:\n${script}\n\nThe last image is the render of your model. Compare it with the brief${images.length ? " and the references" : ""}: silhouette, proportions, missing forms, floating parts, colours. Rewrite the script to fix what is wrong and add the structure that is missing. Answer with the whole script.`,
-    seen,
-  ).catch(() => null);
+  const answer = await ask(
+    `${prompt}\n\nYour script:\n${code}\n\nThe last image is the render of your model. Review it as a strict art director against the brief${design.images.length ? " and the design renders" : ""}, in this order. First correctness: is a symmetric object lopsided, a centred feature off-centre, anything floating or sunk? Then surface: pinches, seams, stray faceting. Then style: would the silhouette read at 64 pixels from every side, are large, medium and small forms clearly separate, do proportions look designed rather than stiff primitives, do the edges catch light, is the palette disciplined? Rewrite the script to fix what fails and add the structure that is missing. Answer with the whole script.`,
+    options,
+    DESIGN_MODEL,
+    OPUS_TIMEOUT_MS,
+    [...images, job.preview],
+  ).catch(() => "");
+  const reviewed = parseBlenderScript(answer);
   if (reviewed) {
     const better = await build(reviewed);
     // a review that breaks the model must not cost the first version
     if (better.ok) {
-      script = reviewed;
+      code = reviewed;
       report = better;
     } else {
-      report = await build(script);
+      report = await build(code);
     }
   }
   step("done");
-  return { brief, references, referenceImages: images, report, script };
+  return { brief, designImages: design.images, designScript: design.script, report, script: code };
 }

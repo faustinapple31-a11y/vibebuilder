@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshyMeshProvider, runMeshGeneration, type MeshJobOptions, type MeshProvider, type MeshResult } from "@worldforge/ai-providers";
-import { createModel, findBlender, pickEnhancerProvider, type ModelContext, type ModelReference } from "@worldforge/agents";
+import { createModel, findBlender, pickEnhancerProvider, type ModelContext } from "@worldforge/agents";
 import { newId, type Part, type PrefabMeshSource, type PrefabVariant, type Vec3 } from "@worldforge/core";
 import { useSettings } from "@/stores/settingsStore";
 import { getProvider } from "./agents";
@@ -68,24 +68,6 @@ export function modelAgent(): ReturnType<typeof getProvider> | null {
   return id ? getProvider(id) : null;
 }
 
-/** SVG → PNG through the webview: the agents see an image, not markup. */
-async function rasterizeReference(reference: ModelReference, file: string): Promise<string | null> {
-  const url = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(reference.svg)))}`;
-  const img = new Image();
-  img.src = url;
-  await img.decode();
-  const canvas = document.createElement("canvas");
-  canvas.width = 768;
-  canvas.height = 768;
-  const c = canvas.getContext("2d");
-  if (!c) return null;
-  c.fillStyle = "#e6e6e6";
-  c.fillRect(0, 0, 768, 768);
-  c.drawImage(img, 0, 0, 768, 768);
-  await fs.writeBinaryBase64(file, canvas.toDataURL("image/png").split(",")[1]!);
-  return file;
-}
-
 export interface BlenderMeshOptions {
   prompt: string;
   name?: string;
@@ -97,11 +79,11 @@ export interface BlenderMeshOptions {
   onProgress?: (message: string, progress: number) => void;
 }
 
-const MODEL_STEPS = { brief: ["Understanding the request…", 8], references: ["Sketching…", 20], modelling: ["Modelling in Blender…", 45], building: ["Building the mesh…", 65], review: ["Reviewing the model…", 80], done: ["Finishing…", 96] } as const;
+const MODEL_STEPS = { brief: ["Understanding the request…", 8], design: ["Designing in 3D…", 15], modelling: ["Modelling in Blender…", 55], building: ["Building the mesh…", 70], review: ["Reviewing the model…", 82], done: ["Finishing…", 96] } as const;
 
 /**
- * The model pipeline: hidden brief, hidden references, Blender, GLB + FBX. Only the user's own words are stored
- * on the asset; the brief, the drawings and the script stay in the hidden work folder.
+ * The model pipeline: hidden brief, hidden 3D design on Opus 5.5, Blender, GLB + FBX. Only the user's own words are stored
+ * on the asset; the brief, the design and the script stay in the hidden work folder.
  */
 export async function generateBlenderMeshAsset(projectDir: string, opts: BlenderMeshOptions): Promise<MeshAssetRecord> {
   const provider = modelAgent();
@@ -129,7 +111,6 @@ export async function generateBlenderMeshAsset(projectDir: string, opts: Blender
     job,
     workDir: work,
     extraImages,
-    rasterize: (r) => rasterizeReference(r, `${work}/ref_${r.view}.png`),
     onStep: (step) => opts.onProgress?.(MODEL_STEPS[step][0], MODEL_STEPS[step][1]),
   });
   await fs.writeText(`${work}/brief.txt`, model.brief);

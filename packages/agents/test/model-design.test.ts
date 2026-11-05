@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  blenderConceptScript,
   blenderJobScript,
   blenderScriptProblem,
   briefAsPlainPrompt,
   buildBlenderPrompt,
+  buildConceptPrompt,
   buildLocalModelBrief,
   buildModelBriefPrompt,
   parseBlenderScript,
   parseModelBrief,
-  parseReferences,
-  sanitizeSvg,
+  DESIGN_MODEL,
 } from "@worldforge/agents";
 
 const job = { glb: "a.glb", fbx: "a.fbx", preview: "a.png", report: "a.json", palette: "p.png", heightStuds: 8, maxTriangles: 20000 };
@@ -35,21 +36,31 @@ describe("the hidden model brief", () => {
   });
 });
 
-describe("the hidden reference drawings", () => {
-  const svg = '<svg viewBox="0 0 768 768"><rect width="10" height="10" fill="#123456"/></svg>';
-
-  it("reads the three views and drops what could run in the webview", () => {
-    const answer = `<reference view="front">${svg}</reference><reference view="side"><svg><script>x()</script></svg></reference><reference view="three_quarter">${svg}</reference>`;
-    expect(parseReferences(answer).map((r) => r.view)).toEqual(["front", "three_quarter"]);
-    expect(sanitizeSvg('<svg onload="x()"></svg>')).toBeNull();
-    expect(sanitizeSvg('<svg><image href="http://x/y.png"/></svg>')).toBeNull();
+describe("the hidden 3D design", () => {
+  it("runs on Opus 5.5, in 3D, with no triangle budget", () => {
+    expect(DESIGN_MODEL).toBe("claude-opus-5-5");
+    const prompt = buildConceptPrompt("OBJECT: x", {});
+    expect(prompt).toContain("no triangle budget");
+    expect(prompt).not.toContain("under 15000 triangles");
   });
 
-  it("reach the modelling agent as images when there are some, as drawings otherwise", () => {
-    expect(buildBlenderPrompt("OBJECT: x", {}, [{ view: "front", svg }])).toContain(svg);
-    const withImages = buildBlenderPrompt("OBJECT: x", {}, [{ view: "front", svg }], ["front.png"]);
-    expect(withImages).not.toContain(svg);
-    expect(withImages).toContain("reference images");
+  it("is rendered from every side, and exports nothing", () => {
+    const python = blenderConceptScript("def build():\n    pass", { front: "f.png", right: "r.png", back: "b.png", three_quarter: "q.png" }, "d.json");
+    for (const view of ["f.png", "r.png", "b.png", "q.png"]) expect(python).toContain(view);
+    expect(python).not.toContain("export_scene");
+  });
+
+  it("reaches the modelling agent as images, and the budget applies there", () => {
+    const prompt = buildBlenderPrompt("OBJECT: x", {}, ["front.png"]);
+    expect(prompt).toContain("renders of the approved 3D design");
+    expect(prompt).toContain("under 15000 triangles");
+    expect(buildBlenderPrompt("OBJECT: x", {})).not.toContain("approved 3D design");
+  });
+
+  it("cannot have its wrapper shadowed by an agent's helper", () => {
+    const python = blenderJobScript("def _finish(a):\n    pass\ndef build():\n    pass", job);
+    expect(python).toContain("def _wf_finish()");
+    expect(python).toContain("_wf_finish()");
   });
 });
 

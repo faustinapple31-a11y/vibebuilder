@@ -2,7 +2,7 @@ import type { FileIO } from "./types";
 import type { ProcessRunner } from "./runner";
 
 /**
- * Runs a modelling script in Blender, headless: models are made in Blender, never in Roblox Studio.
+ * Runs modelling scripts in Blender, headless: models are made in Blender, never in Roblox Studio.
  * The agent writes `def build():`; everything around it is fixed here: one mesh, the asked height, base on
  * the ground, a palette texture so colours survive the FBX import, the triangle budget, the exports.
  */
@@ -24,6 +24,8 @@ export interface BlenderReport {
   /** Width, depth, height in studs. */
   size?: [number, number, number];
   materials?: number;
+  /** Edges with one face: a closed model has none. */
+  openEdges?: number;
 }
 
 const ALLOWED_IMPORTS = new Set(["bpy", "bmesh", "math", "mathutils", "random"]);
@@ -44,15 +46,15 @@ export function blenderScriptProblem(code: string): string | null {
   return /^def build\(\s*\)\s*:/m.test(code) ? null : "the script must define build()";
 }
 
-/** The complete Python file Blender runs. */
-export function blenderJobScript(code: string, job: BlenderJob): string {
-  const j = (v: unknown) => JSON.stringify(v);
-  return `import bpy, bmesh, math, mathutils, random, json, traceback
-random.seed(7)
-REPORT = ${j(job.report)}
+const j = (v: unknown) => JSON.stringify(v);
 
-def _report(data):
-    with open(REPORT, "w", encoding="utf8") as f:
+/** Imports, the report writer and mat(). The wrapper's own names start with _wf_: an agent's helpers must not shadow them. */
+const prelude = (report: string) => `import bpy, bmesh, math, mathutils, random, json, traceback
+random.seed(7)
+_WF_REPORT = ${j(report)}
+
+def _wf_report(data):
+    with open(_WF_REPORT, "w", encoding="utf8") as f:
         json.dump(data, f)
 
 def mat(name, color, roughness=0.75, metallic=0.0):
@@ -66,12 +68,78 @@ def mat(name, color, roughness=0.75, metallic=0.0):
     m.roughness = roughness
     m.metallic = metallic
     return m
+`;
 
+export const CONCEPT_VIEWS = { front: [0, -1, 0.12], right: [1, 0, 0.12], back: [0, 1, 0.12], three_quarter: [0.7, -0.8, 0.4] } as const;
+export type ConceptView = keyof typeof CONCEPT_VIEWS;
+
+/** The 3D design: no triangle budget, no export, only renders of the concept from every side. */
+export function blenderConceptScript(code: string, renders: Record<ConceptView, string>, report: string): string {
+  return `${prelude(report)}
+# ---- the design agent's concept
+${code}
+# ---- end of the concept
+
+def _wf_concept():
+    build()
+    objs = [o for o in bpy.data.objects if o.type in {"MESH", "CURVE", "META", "SURFACE", "FONT"}]
+    if not objs:
+        raise RuntimeError("build() created no mesh")
+    scene = bpy.context.scene
+    deps = bpy.context.evaluated_depsgraph_get()
+    lo = mathutils.Vector((1e9, 1e9, 1e9)); hi = -lo
+    tris = 0
+    for o in objs:
+        ev = o.evaluated_get(deps)
+        for c in ev.bound_box:
+            w = ev.matrix_world @ mathutils.Vector(c)
+            lo = mathutils.Vector(map(min, lo, w)); hi = mathutils.Vector(map(max, hi, w))
+        me = ev.to_mesh()
+        me.calc_loop_triangles()
+        tris += len(me.loop_triangles)
+        ev.to_mesh_clear()
+    centre = (lo + hi) / 2
+    dist = max(hi - lo) * 2.5
+    cam = bpy.data.objects.new("_wf_cam", bpy.data.cameras.new("_wf_cam"))
+    scene.collection.objects.link(cam)
+    cam.data.clip_end = dist * 10
+    scene.camera = cam
+    world = bpy.data.worlds.new("_wf_w")
+    world.use_nodes = True
+    next(n for n in world.node_tree.nodes if n.type == "BACKGROUND").inputs[0].default_value = (0.8, 0.82, 0.85, 1)
+    scene.world = world
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.light = "STUDIO"
+    scene.display.shading.color_type = "MATERIAL"
+    scene.display.shading.show_shadows = True
+    scene.display.shading.show_cavity = True
+    scene.render.resolution_x = 1024
+    scene.render.resolution_y = 1024
+    scene.render.image_settings.file_format = "PNG"
+    for path, d in _WF_VIEWS:
+        cam.location = centre + mathutils.Vector(d).normalized() * dist
+        cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
+        scene.render.filepath = path
+        bpy.ops.render.render(write_still=True)
+    _wf_report({"ok": True, "triangles": tris, "size": list(hi - lo)})
+
+_WF_VIEWS = ${j((Object.keys(CONCEPT_VIEWS) as ConceptView[]).map((k) => [renders[k], CONCEPT_VIEWS[k]]))}
+try:
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    _wf_concept()
+except Exception:
+    _wf_report({"ok": False, "error": traceback.format_exc()[-1500:]})
+`;
+}
+
+/** The complete Python file Blender runs for the final model. */
+export function blenderJobScript(code: string, job: BlenderJob): string {
+  return `${prelude(job.report)}
 # ---- the agent's model
 ${code}
 # ---- end of the agent's model
 
-def _finish():
+def _wf_finish():
     build()
     meshes = [o for o in bpy.data.objects if o.type in {"MESH", "CURVE", "META", "SURFACE", "FONT"}]
     if not meshes:
@@ -98,8 +166,17 @@ def _finish():
         v.co = ((v.co.x - cx) * s * -1, (v.co.y - cy) * s * -1, (v.co.z - z0) * s)
     me.update()
 
+    # clean mesh gates: no loose geometry, outward normals, no n-gons
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    open_edges = sum(1 for e in bm.edges if len(e.link_faces) == 1)
+    tris = len(bm.faces)
+    bm.to_mesh(me); bm.free(); me.update()
+
     # triangle budget of a Roblox MeshPart
-    bm = bmesh.new(); bm.from_mesh(me); tris = sum(len(f.verts) - 2 for f in bm.faces); bm.free()
     if tris > ${job.maxTriangles}:
         d = obj.modifiers.new("budget", "DECIMATE")
         d.ratio = ${job.maxTriangles} / tris
@@ -191,13 +268,13 @@ def _finish():
 
     bm = bmesh.new(); bm.from_mesh(me); tris = sum(len(f.verts) - 2 for f in bm.faces); bm.free()
     d = obj.dimensions
-    _report({"ok": True, "triangles": tris, "size": [d.x, d.y, d.z], "materials": len(mats)})
+    _wf_report({"ok": True, "triangles": tris, "size": [d.x, d.y, d.z], "materials": len(mats), "openEdges": open_edges})
 
 try:
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    _finish()
+    _wf_finish()
 except Exception:
-    _report({"ok": False, "error": traceback.format_exc()[-1500:]})
+    _wf_report({"ok": False, "error": traceback.format_exc()[-1500:]})
 `;
 }
 
@@ -214,15 +291,24 @@ export async function findBlender(runner: ProcessRunner, files: FileIO): Promise
   return null;
 }
 
-/** Runs one job and returns what the script reported. */
-export async function runBlenderJob(code: string, job: BlenderJob, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs = 180): Promise<BlenderReport> {
-  const problem = blenderScriptProblem(code);
-  if (problem) return { ok: false, error: problem };
-  await files.writeText(scriptPath, blenderJobScript(code, job));
+async function runBlender(python: string, report: string, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs: number): Promise<BlenderReport> {
+  await files.writeText(scriptPath, python);
   await runner.runCapture(blender, ["--background", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", scriptPath], undefined, timeoutSecs);
   try {
-    return JSON.parse(await files.readText(job.report)) as BlenderReport;
+    return JSON.parse(await files.readText(report)) as BlenderReport;
   } catch {
     return { ok: false, error: "Blender stopped without a report" };
   }
+}
+
+/** Runs the final model and returns what the script reported. */
+export async function runBlenderJob(code: string, job: BlenderJob, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs = 180): Promise<BlenderReport> {
+  const problem = blenderScriptProblem(code);
+  return problem ? { ok: false, error: problem } : runBlender(blenderJobScript(code, job), job.report, blender, runner, files, scriptPath, timeoutSecs);
+}
+
+/** Renders the 3D design from every side. */
+export async function runBlenderConcept(code: string, renders: Record<ConceptView, string>, report: string, blender: string, runner: ProcessRunner, files: FileIO, scriptPath: string, timeoutSecs = 300): Promise<BlenderReport> {
+  const problem = blenderScriptProblem(code);
+  return problem ? { ok: false, error: problem } : runBlender(blenderConceptScript(code, renders, report), report, blender, runner, files, scriptPath, timeoutSecs);
 }

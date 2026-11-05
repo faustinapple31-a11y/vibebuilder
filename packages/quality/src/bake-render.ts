@@ -488,12 +488,15 @@ export function cameras(bake: WorldBake): { name: string; cam: Camera; far: numb
   }
   if (focal) {
     // the store image: on the walk from the spawn, low and close, the landmark filling the upper frame
-    const d = Math.min(Math.hypot(focal.position[0] - spawn[0], focal.position[2] - spawn[2]) * 0.62, 130);
+    const landmark = bake.placements.find((p) => p.id === `landmark_${focal.id}`);
+    const height = landmark ? (bake.prefabs[landmark.prefab]?.[landmark.variant]?.bounds.max[1] ?? 30) * landmark.scale : 30;
+    // the subject fills 30 to 45% of the frame: a wide shot of the map loses the click
+    const d = Math.max(45, Math.min(height * 2.6, 200));
     // three-quarter view: straight on, a building reads as a flat front
     const a = Math.atan2(focal.position[2] - spawn[2], focal.position[0] - spawn[0]) + 0.55;
     const subject: Vec3 = [focal.position[0], focal.position[1] + 16, focal.position[2]];
     const p = clearOf(clearOfProps(eye(focal.position[0] - Math.cos(a) * d, focal.position[2] - Math.sin(a) * d, 12)), subject);
-    out.push({ name: "thumbnail", cam: { pos: p, yaw: a, pitch: Math.atan2(subject[1] - p[1], d) + 0.1, fov: 1.0 }, far: 900 });
+    out.push({ name: "thumbnail", cam: { pos: p, yaw: a + 0.17, pitch: Math.atan2(subject[1] - p[1], d) + 0.1, fov: 1.0 }, far: 900 });
   }
   const village = bake.zones.find((z) => z.kind === "settlement");
   if (village) {

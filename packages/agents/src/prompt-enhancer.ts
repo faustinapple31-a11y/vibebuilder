@@ -20,7 +20,7 @@ const MAX_BRIEF_LENGTH = 8000;
 export type EnhancerModel = "haiku" | "sonnet";
 
 /** Providers that take the prompt on stdin: the enhancer's prompt is too long for a command line on Windows. */
-export const SESSION_DEFAULTS: Partial<Record<AgentProviderId, (model?: EnhancerModel) => Omit<SessionOptions, "cwd">>> = {
+export const SESSION_DEFAULTS: Partial<Record<AgentProviderId, (model?: string) => Omit<SessionOptions, "cwd">>> = {
   "claude-code": (model = "haiku") => ({
     model,
     permissionMode: "acceptEdits",
