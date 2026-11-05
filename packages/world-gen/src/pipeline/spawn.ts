@@ -2,6 +2,7 @@ import { clamp, deriveSeed, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { hasLineOfSight, inBounds, isWaterAt, normToWorld, slopeAtWorld, type GenContext } from "../context";
 import { LANDMARK_PREFAB } from "./landmarks";
+import { layoutKeepOut } from "./layout";
 import { computeLighting } from "./lighting";
 import { flattenArea, circlePoly } from "./sites";
 
@@ -143,7 +144,14 @@ export function clearViewAxis(ctx: GenContext): void {
   // a low plant takes the place of a nearby tree, so the foreground keeps its dressing (the critic counts it)
   const low = ["bush", "fern", "flower_patch", "grass_tuft"].find((id) => ctx.prefabs[id]?.length);
   const replacements: typeof ctx.placements = [];
+  const gameplay = layoutKeepOut(ctx) !== null;
   ctx.placements = ctx.placements.filter((p) => {
+    // a tycoon spawn faces its first plot: a farmhouse of the hamlet standing in that line is the one that goes
+    if (gameplay && p.category === "building" && !p.locked && !p.fixed && !p.id.startsWith("layout_")) {
+      const d = Math.hypot(p.position[0] - sx, p.position[2] - sz);
+      const a = Math.atan2(p.position[2] - sz, p.position[0] - sx) - heading;
+      return d > reach || Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > 0.14;
+    }
     if (p.category !== "vegetation" || p.locked || p.fixed) return true;
     const d = Math.hypot(p.position[0] - sx, p.position[2] - sz);
     if (d < 30 || d > reach) return true;

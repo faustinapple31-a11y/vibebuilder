@@ -14,7 +14,7 @@ export function defaultBudget(worldW: number, worldD: number): PerformanceBudget
     maxInstances: {
       vegetation: s(3200),
       rock: s(450),
-      building: s(40),
+      building: s(110), // a city's scenery towers count here too; the parts cap still guards the total
       prop: s(500),
       landmark: 8,
       path: s(220),

@@ -140,6 +140,16 @@ describe("the focal landmark in the first view", () => {
     expect(measureFirstView(bake).focalAngle).toBeGreaterThanOrEqual(8);
   });
 
+  it("surrounds a city with a skyline instead of an empty lot", () => {
+    const { spec } = interpretPrompt("ville cyberpunk néon la nuit");
+    const style = getStylePreset(spec.stylePreset);
+    const bake = generateWorld(spec, style);
+    const ids = critiqueBake(bake, spec, style).problems.map((p) => p.id);
+    expect(ids).not.toContain("background_empty");
+    expect(ids).not.toContain("focal_in_fog");
+    expect(measureFirstView(bake).openness).toBeGreaterThanOrEqual(0.6);
+  });
+
   it("keeps landmarks off the fighting floor of an arena", () => {
     const { spec } = interpretPrompt("arène de combat dans un volcan");
     const style = getStylePreset(spec.stylePreset);

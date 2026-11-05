@@ -447,14 +447,14 @@ function addLandmarkPlacements(ctx: GenContext): void {
 /** A landmark is never culled, so where a terrace step crosses its base the ground rises to meet it. */
 /**
  * A skyline at the far end of a city must not vanish because the style's haze ends first. Thick fog is
- * handled by the spawn, which comes closer; this only stretches what is left, up to twice the range.
+ * handled by the spawn, which comes closer; this only stretches what is left, up to 2.5 times the range.
  */
 function keepFocalOutOfFog(ctx: GenContext): void {
   const focal = ctx.landmarks.find((l) => l.role === "focal");
   const end = ctx.lighting?.fogEnd;
   if (!focal || !end || !ctx.spawn) return;
   const distance = Math.hypot(focal.position[0] - ctx.spawn.position[0], focal.position[2] - ctx.spawn.position[2]);
-  const wanted = Math.min(distance / 0.8, end * 2);
+  const wanted = Math.min(distance / 0.8, end * 2.5);
   if (wanted <= end) return;
   const k = wanted / end;
   ctx.lighting = { ...ctx.lighting!, fogEnd: wanted, fogStart: (ctx.lighting!.fogStart ?? 0) * k };

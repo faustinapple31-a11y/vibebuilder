@@ -5,6 +5,7 @@
  *   npx tsx scripts/preview-map.ts "village médiéval dans une forêt"      # 1 world, 4 views + plan
  *   npx tsx scripts/preview-map.ts --panel                                # the audit panel, 1 view each
  *   npx tsx scripts/preview-map.ts "<prompt>" --width 1600 --out demo-output/look
+ *   (each world with a focal also gets <slug>-thumbnail.png, a 1920×1080 store image)
  *   npx tsx scripts/preview-map.ts --spec a/worlds/main/world.spec.json --spec b/worlds/main/world.spec.json
  *
  * No Roblox, no browser: a small software rasterizer (z-buffer, flat-shaded oriented boxes for every
@@ -503,6 +504,15 @@ function cameras(bake: WorldBake): { name: string; cam: Camera; far: number }[] 
     const drop = -Math.atan2(p[1] - (focal.position[1] + 18), d);
     out.push({ name: "landmark", cam: { pos: p, yaw: a, pitch: Math.min(-0.05, drop), fov: 1.05 }, far: 760 });
   }
+  if (focal) {
+    // the store image: on the walk from the spawn, low and close, the landmark filling the upper frame
+    const d = Math.min(Math.hypot(focal.position[0] - spawn[0], focal.position[2] - spawn[2]) * 0.62, 130);
+    // three-quarter view: straight on, a building reads as a flat front
+    const a = Math.atan2(focal.position[2] - spawn[2], focal.position[0] - spawn[0]) + 0.55;
+    const subject: Vec3 = [focal.position[0], focal.position[1] + 16, focal.position[2]];
+    const p = clearOf(clearOfProps(eye(focal.position[0] - Math.cos(a) * d, focal.position[2] - Math.sin(a) * d, 12)), subject);
+    out.push({ name: "thumbnail", cam: { pos: p, yaw: a, pitch: Math.atan2(subject[1] - p[1], d) + 0.1, fov: 1.0 }, far: 900 });
+  }
   const village = bake.zones.find((z) => z.kind === "settlement");
   if (village) {
     const d = village.radius + 90;
@@ -553,6 +563,15 @@ async function main(): Promise<void> {
     const views = panel ? cameras(bake).slice(0, 1) : cameras(bake);
     const imgs: string[] = [];
     for (const { name, cam, far } of views) {
+      // Roblox asks for 1920×1080 experience thumbnails
+      if (name === "thumbnail") {
+        const frame = renderView(bake, cam, 1920, 1080, far);
+        const file = `${slug}-thumbnail.png`;
+        writeFileSync(join(outDir, file), await encodePng(1920, 1080, frame.px, 3));
+        imgs.push(file);
+        console.log(`  ${file}`);
+        continue;
+      }
       const frame = renderView(bake, cam, width, height, far);
       const file = `${slug}-${name}.png`;
       writeFileSync(join(outDir, file), await encodePng(width, height, frame.px, 3));

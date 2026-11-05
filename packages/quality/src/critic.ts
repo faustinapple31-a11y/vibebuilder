@@ -67,7 +67,9 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
     }
   }
   const bandLandFraction = bandTotal > 0 ? bandLand / bandTotal : 1;
-  if (bg < 0.08 * Math.max(0.25, bandLandFraction)) {
+  // a share of placements undercounts a city: 1800 bins and lamp posts dwarf 40 towers that fill the horizon
+  const skyline = bake.placements.filter((p) => p.layer === "background" && (bake.prefabs[p.prefab]?.[p.variant]?.bounds.max[1] ?? 0) * p.scale > 20).length;
+  if (bg < 0.08 * Math.max(0.25, bandLandFraction) && skyline < 24) {
     composition -= 1.5;
     problems.push({ id: "background_empty", severity: "medium", message: `background has too few silhouettes (${(bg * 100).toFixed(0)}% of placements in the edge band, ${(bandLandFraction * 100).toFixed(0)}% of it is land)`, layer: "composition" });
   }
@@ -291,12 +293,14 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
   let lighting = 10;
   const L = bake.lighting;
   const night = L.clockTime < 5.5 || L.clockTime > 19;
-  if (night && L.brightness > 2) {
+  // in a vacuum the black sky is not night and no fog hangs: the sun stays hard, as lighting.ts builds it
+  const airless = style.id === "space_station" || (style.kits.vegetation === "none" && style.kits.biomes.includes("moon"));
+  if (night && !airless && L.brightness > 2) {
     lighting -= 2;
     problems.push({ id: "lighting_too_bright", severity: "low", message: "night scene but lighting is too bright", layer: "lighting" });
     fixes.push({ type: "spec_patch", path: "lighting.brightness", op: "set", value: clamp(spec.lighting.brightness - 0.25, 0, 1) });
   }
-  if (spec.lighting.mood === "moonlit" || spec.lighting.mood === "eerie") {
+  if (!airless && (spec.lighting.mood === "moonlit" || spec.lighting.mood === "eerie")) {
     if (L.atmosphere.density < 0.3) {
       atmosphere -= 2;
       problems.push({ id: "fog_too_thin", severity: "low", message: "mysterious mood but fog is thin", layer: "lighting" });

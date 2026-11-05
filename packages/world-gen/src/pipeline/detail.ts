@@ -293,6 +293,31 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
   const towerIds = urbanKit ? ["skyscraper", "skyscraper_ruin", "radio_tower", "storage_tank", "cable_pole"].filter((id) => ctx.prefabs[id]?.length) : [];
   let towers = 0;
   let placed = 0;
+  // a concrete world has no forest to hide the gap: seen from above, a city was a few blocks in an empty lot.
+  // Beyond the streets it thins out into scenery towers, never in the spawn's line of sight to its target.
+  const site = ctx.sites[0];
+  if (barren && towerIds.length > 0 && site && site.radius > 60) {
+    const [px, , pz] = ctx.spawn.position;
+    const view = Math.atan2(ctx.spawn.lookAt[2] - pz, ctx.spawn.lookAt[0] - px);
+    const blocks = ["apartment_block", "skyscraper"].filter((id) => ctx.prefabs[id]?.length);
+    for (let r = site.radius + 50; r < Math.max(ctx.worldW, ctx.worldD) * 0.7 && towers < 64; r += 58) {
+      const count = Math.floor((r * Math.PI * 2) / 58);
+      for (let i = 0; i < count && towers < 64; i++) {
+        if (!rng.chance(0.62)) continue;
+        const a = (i / count) * Math.PI * 2 + rng.float(-0.05, 0.05);
+        const x = site.center[0] + Math.cos(a) * r;
+        const z = site.center[1] + Math.sin(a) * r;
+        const d = Math.hypot(x - px, z - pz);
+        const off = Math.atan2(z - pz, x - px) - view;
+        if (d < 110 || Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < 0.35) continue;
+        const id = blocks[rng.int(0, blocks.length - 1)] ?? towerIds[0]!;
+        if (add(id, x, z, { scale: rng.float(0.8, 1.25), rotationY: Math.round(rng.float(0, 3)) * (Math.PI / 2), importance: 6.8, big: true, margin: 5 })) {
+          towers++;
+          placed++;
+        }
+      }
+    }
+  }
   // clump centres along the border band, then a handful of silhouettes around each
   const perSide = Math.max(7, Math.round(Math.min(ctx.worldW, ctx.worldD) / 75));
   const sides: [number, number][] = [];
@@ -349,9 +374,9 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
     }
     const biome = biomeAt(ctx, cx, cz);
     // a skyline clump: two or three towers, then back to the natural silhouettes
-    if (towerIds.length > 0 && towers < 22 && rng.chance(0.55)) {
+    if (towerIds.length > 0 && towers < 86 && rng.chance(0.55)) {
       const n = rng.int(1, 3);
-      for (let k = 0; k < n && towers < 22; k++) {
+      for (let k = 0; k < n && towers < 86; k++) {
         const a = rng.float(0, Math.PI * 2);
         const r = rng.float(6, 26);
         const x = cx + Math.cos(a) * r;
