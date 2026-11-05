@@ -212,7 +212,7 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
   }
   // the rim of the clearing, not its floor: the spawn keeps a 24-stud walkable circle (an occupant),
   // so anything closer than that is rejected and the apron would come out empty
-  const slots = street.length > 0 ? 32 : 18;
+  const slots = street.length > 0 ? 44 : 18;
   for (let i = 0; i < slots; i++) {
     const a = (i / slots) * Math.PI * 2 + rng.float(-0.1, 0.1);
     const r = rng.float(27, 41);

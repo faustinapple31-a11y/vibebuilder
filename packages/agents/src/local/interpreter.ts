@@ -295,7 +295,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     landmarks,
     settlements,
     roads,
-    vegetation: { density, clustering: 0.6, species, sizeVariation: 0.55, giantMushrooms },
+    vegetation: { density, clustering: 0.8, species, sizeVariation: 0.65, giantMushrooms },
     props: { density: 0.55, sets: [...sets] },
     lighting: { timeOfDay, mood, brightness: night ? 0.5 : 0.75, shadows: true },
     atmosphere: { fogDensity, fogColor: fam.fog.color, haze: fogDensity, skyTint: fam.palette.sky },
