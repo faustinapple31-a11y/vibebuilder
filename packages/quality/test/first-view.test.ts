@@ -57,6 +57,15 @@ describe("first view from the spawn", () => {
     expect(measureFirstView(generateWorld(spec, city)).dressing).toBeGreaterThanOrEqual(15);
   });
 
+  it("keeps landmarks readable however thick an agent asks the fog to be", () => {
+    const { spec } = interpretPrompt("une map d'horreur");
+    const thick: WorldSpec = { ...spec, lighting: { ...spec.lighting, mood: "eerie" }, atmosphere: { ...spec.atmosphere, fogDensity: 0.95 } };
+    const horror = getStylePreset(thick.stylePreset);
+    const bake = generateWorld(thick, horror);
+    expect(bake.lighting.fogEnd).toBeGreaterThanOrEqual(160);
+    expect(critiqueBake(bake, thick, horror).problems.map((p) => p.id)).not.toContain("fog_too_thick");
+  });
+
   it("is flagged by the critic when something stands right in front of the camera", () => {
     const bake = generateWorld(base, style);
     const [sx, sy, sz] = bake.spawn.position;

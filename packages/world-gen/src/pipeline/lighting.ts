@@ -142,7 +142,8 @@ export function computeLighting(ctx: GenContext): RobloxLightingSettings {
     globalShadows: spec.lighting.shadows,
     shadowSoftness: L.shadowSoftness,
     fogStart: F.start / fogMul,
-    fogEnd: clamp(F.end / fogMul, 120, 5000),
+    // never so thick that landmarks vanish: agents asked for 0.6–0.75 on eerie maps, which ended at 125–147 studs
+    fogEnd: clamp(F.end / fogMul, 160, 5000),
     fogColor,
     atmosphere: {
       density: clamp(F.atmosphereDensity * lerp(0.6, 1.4, spec.atmosphere.fogDensity), 0, 0.38),
