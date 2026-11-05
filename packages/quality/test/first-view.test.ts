@@ -130,6 +130,16 @@ describe("the focal landmark in the first view", () => {
     expect((front[0]! * dx + front[1]! * dz) / Math.hypot(dx, dz)).toBeGreaterThan(0.99);
   });
 
+  it("builds what was asked for: a manor is not a castle, a chalet stands in the snow", () => {
+    const { spec: haunted } = interpretPrompt("manoir hanté dans un marais");
+    expect(haunted.landmarks[0]?.type).toBe("manor");
+    const { spec: mountain } = interpretPrompt("montagne enneigée avec un chalet");
+    expect(mountain.landmarks[0]?.type).toBe("chalet");
+    expect(mountain.stylePreset).toBe("winter");
+    const bake = generateWorld(mountain, getStylePreset(mountain.stylePreset));
+    expect(measureFirstView(bake).focalAngle).toBeGreaterThanOrEqual(8);
+  });
+
   it("keeps landmarks off the fighting floor of an arena", () => {
     const { spec } = interpretPrompt("arène de combat dans un volcan");
     const style = getStylePreset(spec.stylePreset);

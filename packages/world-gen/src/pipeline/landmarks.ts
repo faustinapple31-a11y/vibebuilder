@@ -10,6 +10,8 @@ export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; hei
   ruins: { prefab: "ancient_ruins", height: 22, footprint: 30 },
   tower: { prefab: "tower", height: 50, footprint: 14 },
   castle: { prefab: "castle", height: 46, footprint: 60 },
+  manor: { prefab: "manor", height: 42, footprint: 34 },
+  chalet: { prefab: "chalet", height: 26, footprint: 20 },
   statue: { prefab: "statue", height: 36, footprint: 12 },
   windmill: { prefab: "windmill", height: 40, footprint: 14 },
   temple: { prefab: "temple", height: 34, footprint: 32 },

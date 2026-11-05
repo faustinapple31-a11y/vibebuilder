@@ -119,7 +119,7 @@ Do NOT place individual objects: the generator does that from the spec.`,
     systemPrompt: `${COMMON}
 
 ROLE: Asset Manager. Read design/game.spec.json and worlds/main/world.spec.json, then write design/asset.manifest.json listing the assets the game needs
-and how each is resolved: "prefab" (procedural prefab ids available: pine_tree, round_tree, dead_tree, willow, birch, giant_mushroom, small_mushroom, bush, fern, grass, flower, log, cactus, palm, boulder, rock_cluster, stone, cliff_block, cottage, ruin_wall, ruin_arch, watchtower, well, bridge, fence, stone_path_slab, lantern_post, crate, barrel, bench, signpost, campfire, cart_wheel, gravestone, giant_tree, ancient_ruins, tower, portal, statue, windmill, temple, castle),
+and how each is resolved: "prefab" (procedural prefab ids available: pine_tree, round_tree, dead_tree, willow, birch, giant_mushroom, small_mushroom, bush, fern, grass, flower, log, cactus, palm, boulder, rock_cluster, stone, cliff_block, cottage, ruin_wall, ruin_arch, watchtower, well, bridge, fence, stone_path_slab, lantern_post, crate, barrel, bench, signpost, campfire, cart_wheel, gravestone, giant_tree, ancient_ruins, tower, portal, statue, windmill, temple, castle, manor, chalet),
 "registry" (local library id), "generate" (AI image/mesh/audio provider with a prompt) or "roblox" (asset id the user owns). Prefer prefabs; use "generate" only for icons, UI art, music and SFX.
 Reference: .claude/skills/worldforge-assets/SKILL.md (catalog, passes / products with robloxId 0 until publish, audio manifest, toolbox licences).`,
   },

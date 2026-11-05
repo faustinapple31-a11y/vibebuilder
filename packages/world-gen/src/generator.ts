@@ -248,6 +248,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
 
   // ---- lighting
   ctx.lighting = regenerate.has("lighting") || !compatiblePrevious ? computeLighting(ctx) : compatiblePrevious.lighting;
+  keepFocalOutOfFog(ctx);
 
   // ---- keep the spawn clearing clear (reused layers may predate a moved spawn)
   const [spx, , spz] = ctx.spawn.position;
@@ -444,6 +445,21 @@ function addLandmarkPlacements(ctx: GenContext): void {
 }
 
 /** A landmark is never culled, so where a terrace step crosses its base the ground rises to meet it. */
+/**
+ * A skyline at the far end of a city must not vanish because the style's haze ends first. Thick fog is
+ * handled by the spawn, which comes closer; this only stretches what is left, up to twice the range.
+ */
+function keepFocalOutOfFog(ctx: GenContext): void {
+  const focal = ctx.landmarks.find((l) => l.role === "focal");
+  const end = ctx.lighting?.fogEnd;
+  if (!focal || !end || !ctx.spawn) return;
+  const distance = Math.hypot(focal.position[0] - ctx.spawn.position[0], focal.position[2] - ctx.spawn.position[2]);
+  const wanted = Math.min(distance / 0.8, end * 2);
+  if (wanted <= end) return;
+  const k = wanted / end;
+  ctx.lighting = { ...ctx.lighting!, fogEnd: wanted, fogStart: (ctx.lighting!.fogStart ?? 0) * k };
+}
+
 function levelLandmarkPads(ctx: GenContext): void {
   const h = ctx.heights;
   for (const p of ctx.placements) {
@@ -456,7 +472,7 @@ function levelLandmarkPads(ctx: GenContext): void {
       for (let x = 0; x < ctx.width; x++) {
         const i = z * ctx.width + x;
         const [wx, wz] = h.toWorld(x, z);
-        if (Math.hypot(wx - x0, wz - z0) > r + 1 || h.data[i]! >= top) continue;
+        if (Math.hypot(wx - x0, wz - z0) > r + ctx.cellSize || h.data[i]! >= top) continue;
         h.data[i] = top;
         ctx.water.data[i] = Number.NaN; // a lighthouse at the shore stands on its own rock, not over the sea
       }
@@ -465,7 +481,7 @@ function levelLandmarkPads(ctx: GenContext): void {
 }
 
 /** Landmarks with a front, whose door or face is what the player is meant to walk to. */
-const FRONTED = new Set(["castle", "temple", "church", "barn", "gas_station", "torii_gate", "portal", "statue", "pyramid"]);
+const FRONTED = new Set(["castle", "manor", "chalet", "temple", "church", "barn", "gas_station", "torii_gate", "portal", "statue", "pyramid"]);
 
 /** A random yaw showed the blank back of a castle from the spawn. Prefab front is -Z, see buildings.ts. */
 function faceLandmarksToSpawn(ctx: GenContext): void {

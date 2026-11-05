@@ -137,6 +137,8 @@ export const LANDMARK_TYPES = [
   "ruins",
   "tower",
   "castle",
+  "manor",
+  "chalet",
   "statue",
   "windmill",
   "temple",

@@ -42,6 +42,8 @@ type ZoneHint = NonNullable<WorldSpecInput["landmarks"]>[number]["preferredZone"
 /** Prompt keywords → landmark type (checked in order; the first match becomes the focal landmark). */
 const LANDMARK_KEYWORDS: [LandmarkType, string[], ZoneHint][] = [
   ["crashed_plane", ["avion", "plane", "airliner", "crash", "boeing", "airbus", "jet"], "clearing"],
+  ["manor", ["manoir", "mansion", "manor", "demeure", "hotel particulier"], "hill"],
+  ["chalet", ["chalet", "lodge", "cabane de montagne", "refuge de montagne", "log cabin"], "plateau"],
   ["castle", ["chateau", "castle", "forteresse", "fortress", "keep"], "hill"],
   ["giant_tree", ["arbre geant", "giant tree", "grand arbre", "arbre-monde", "world tree", "arbre ancien"], "hill"],
   ["pyramid", ["pyramide", "pyramid"], "flat"],

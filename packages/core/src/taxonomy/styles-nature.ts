@@ -109,7 +109,7 @@ export const STYLE_FAMILIES_NATURE: StyleFamilyDef[] = [
     name: "Winter / Arctic",
     description: "Snowy pines, frozen lakes, igloos and log cabins, blue-white light.",
     group: "nature",
-    keywords: ["neige", "snow", "hiver", "winter", "glace", "ice", "arctique", "arctic", "polaire", "polar", "igloo", "noel", "christmas", "ski", "toundra", "tundra"],
+    keywords: ["montagne enneigee", "snowy mountain", "enneigee", "enneige", "snowy", "neige", "snow", "hiver", "winter", "glace", "ice", "arctique", "arctic", "polaire", "polar", "igloo", "noel", "christmas", "ski", "toundra", "tundra"],
     geometry: "chunky_low_poly",
     palette: { primary: "#e8f0f8", secondary: "#8aa0b8", accent: "#ff8040", ground: "#e8eef4", stone: "#8890a0", wood: "#5a4030", foliage: "#3a6a4a", foliageAlt: "#5a8a6a", water: "#5a90c0", roof: "#f0f4f8", wall: "#8a6a48", glow: "#ffe0a0", sky: "#b8d0e8" },
     materials: { ground: "Snow", path: "Snow", roof: "Snow", rock: "Ice" },

@@ -371,17 +371,20 @@ function placeLandmarkGrounds(ctx: GenContext, rng: Rng, add: Add): void {
     const ring = foot + 5;
     paintDisc(ctx, c, ring + 3, pave === TERRAIN_MATERIAL_INDEX.Ground ? TERRAIN_MATERIAL_INDEX.Ground : pave, 0);
     const start = rng.float(0, Math.PI * 2);
+    // nothing stands on the way to the door: prefab front is -Z, turned by rotationY
+    const door = Math.atan2(-Math.cos(p.rotationY), -Math.sin(p.rotationY));
+    const onTheWay = (a: number) => Math.abs(Math.atan2(Math.sin(a - door), Math.cos(a - door))) < 0.5;
     for (let i = 0; i < 4; i++) {
       const a = start + (i / 4) * Math.PI * 2;
       const x = c[0] + Math.cos(a) * ring;
       const z = c[1] + Math.sin(a) * ring;
-      if (isWaterAt(ctx, x, z) || ctx.roadDistance.sample(x, z) < 3 || slopeAtWorld(ctx, x, z) > 0.5) continue;
+      if (onTheWay(a) || isWaterAt(ctx, x, z) || ctx.roadDistance.sample(x, z) < 3 || slopeAtWorld(ctx, x, z) > 0.5) continue;
       if (light) add(light, x, ctx.heights.sample(x, z), z, rotFacingOut(a) + Math.PI, { zone: p.zone, importance: 6 });
       if (seat && i % 2 === 0) {
         const a2 = a + Math.PI / 4;
         const sx = c[0] + Math.cos(a2) * (ring - 1);
         const sz = c[1] + Math.sin(a2) * (ring - 1);
-        if (!isWaterAt(ctx, sx, sz) && ctx.roadDistance.sample(sx, sz) > 3) add(seat, sx, ctx.heights.sample(sx, sz), sz, rotFacingOut(a2) + Math.PI, { zone: p.zone, importance: 5 });
+        if (!onTheWay(a2) && !isWaterAt(ctx, sx, sz) && ctx.roadDistance.sample(sx, sz) > 3) add(seat, sx, ctx.heights.sample(sx, sz), sz, rotFacingOut(a2) + Math.PI, { zone: p.zone, importance: 5 });
       }
     }
   }

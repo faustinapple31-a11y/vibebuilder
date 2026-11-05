@@ -427,7 +427,8 @@ function renderView(bake: WorldBake, cam: Camera, w: number, h: number, far: num
 
 /** Placement rotation: yaw, then the tilt that maps local +Y onto `up` (what the runtime applies). */
 function placementMatrix(rotationY: number, up: Vec3 | undefined): Mat3 {
-  const m = rotY((-rotationY * 180) / Math.PI);
+  // same as CFrame.Angles(0, rotationY, 0): -Z goes to (-sin, 0, -cos)
+  const m = rotY((rotationY * 180) / Math.PI);
   if (!up) return m;
   const len = Math.hypot(up[0], up[1], up[2]) || 1;
   const n: Vec3 = [up[0] / len, up[1] / len, up[2] / len];

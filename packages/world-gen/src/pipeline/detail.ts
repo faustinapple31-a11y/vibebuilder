@@ -177,7 +177,7 @@ function placeVerges(ctx: GenContext, rng: Rng, add: Add): void {
           const off = road.width / 2 + rng.float(2.6, 5);
           const accent = rng.weighted([
             { item: "log", weight: ctx.prefabs["log"]?.length && ctx.style.kits.vegetation !== "none" ? 1 : 0 },
-            { item: "flower_patch", weight: ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" ? 1 : 0 },
+            { item: "flower_patch", weight: ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" && ctx.style.materials.ground !== "Snow" ? 1 : 0 },
             { item: street.length > 0 ? street[rng.int(0, street.length - 1)]! : "stone", weight: street.length > 0 ? 1.6 : 0 },
             { item: "stone", weight: 1 },
           ]);
@@ -223,7 +223,7 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
     // nothing grows here (a city, a moon base): the style's small props dress the clearing instead of pebbles
     if (street.length > 0 && rng.chance(0.75) && add(street[rng.int(0, street.length - 1)]!, x, z, { importance: 6.5, margin: 0.4 })) continue;
     if (mix.length === 0) continue;
-    const prefab = rng.chance(0.25) && ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" ? "flower_patch" : mix[rng.int(0, mix.length - 1)]!;
+    const prefab = rng.chance(0.25) && ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" && ctx.style.materials.ground !== "Snow" ? "flower_patch" : mix[rng.int(0, mix.length - 1)]!;
     add(prefab, x, z, { scale: prefab === "stone" ? rng.float(0.4, 0.9) : rng.float(0.85, 1.25), importance: 6.5, margin: 0.2 });
   }
 }

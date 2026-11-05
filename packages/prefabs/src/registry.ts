@@ -96,6 +96,8 @@ export const PREFAB_DEFINITIONS: PrefabDefinition[] = [
   def("windmill", "landmark", lm.windmill, 4, 16, ["landmark"]),
   def("temple", "landmark", lm.temple, 4, 30, ["landmark"]),
   def("castle", "landmark", lm.castle, 4, 150, ["landmark"]),
+  def("manor", "landmark", lm.manor, 4, 90, ["landmark"]),
+  def("chalet", "landmark", lm.chalet, 4, 60, ["landmark"]),
 
   // ---- universal buildings (kit = style.architecture.style, walk-in interiors)
   def("house", "building", (ctx, v) => house(ctx, v), 10, 90, ["building", "interior"]),

@@ -412,3 +412,126 @@ export function castle(ctx: PrefabContext, variant: number): PrefabVariant {
   b.box([kx + 3.2, poleTop - 2, kz], [6, 3.4, 0.3], style.palette.accent, { material: "Fabric", collide: false, lod: 1 });
   return b.build({ id: `castle/${variant}`, prefab: "castle", category: "landmark", sinkDepth: 1, footprintRadius: H + 8, baseRadius: H + 4, tags: ["landmark", "castle"] });
 }
+
+/** A two-storey house of the rich and the dead: wings, a central tower, tall chimneys, lit windows at the front. */
+export function manor(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const wall = jitterHex(style.palette.wall, jitter(rng, 4), -0.05, jitter(rng, 0.05));
+  const stone = jitterHex(style.palette.stone, jitter(rng, 4), -0.04, -0.04);
+  const roof = style.palette.roof;
+  const material = style.materials.stoneWall;
+  const solid = { material, collide: true, lod: 2 as const };
+  const roofOpts = { material: style.materials.roof, collide: true, lod: 2 as const };
+  const glow = mixHex("#ffc070", style.palette.glow, 0.25);
+  const dark = "#1c1d22";
+  const W = 34; // main block width (X)
+  const D = 18; // main block depth (Z)
+  const H = rng.float(19, 23);
+  const wingW = 13;
+  const wingD = 26;
+  const wingH = H - rng.float(3, 5);
+  const front = -D / 2;
+
+  // stone plinth, main block, roof
+  b.box([0, 1.2, 0], [W + 2, 3.4, D + 2], stone, solid);
+  b.box([0, H / 2, 0], [W, H, D], wall, solid);
+  b.gableRoof([0, H + 4.5, 0], W + 1.6, D + 2.4, 9, roof, roofOpts);
+  b.box([0, H * 0.5, front - 0.1], [W + 0.6, 0.8, 0.6], stone, { material, collide: false, lod: 1 });
+
+  // two wings coming forward: the front of the house wraps around the entrance court
+  for (const sx of [-1, 1]) {
+    const x = sx * (W / 2 + wingW / 2 - 1);
+    const z = -3;
+    b.box([x, 1.2, z], [wingW + 2, 3.4, wingD + 2], stone, solid);
+    b.box([x, wingH / 2, z], [wingW, wingH, wingD], wall, solid);
+    // ridge along Z, gable toward the player
+    const r = new PartListBuilder();
+    r.gableRoof([0, 0, 0], wingD + 1.6, wingW + 2.2, 8, roof, roofOpts);
+    r.rotateY(90).translate([x, wingH + 4, z]);
+    b.merge(r);
+    const face = z - wingD / 2 - 0.1;
+    for (const wy of [wingH * 0.32, wingH * 0.72]) {
+      for (const wx of [-3, 3]) {
+        const lit = rng.chance(0.4);
+        b.box([x + wx, wy, face], [2.4, 4.6, 0.6], lit ? glow : dark, lit ? { material: "Neon", transparency: 0.15, collide: false, lod: 1 } : { material: "SmoothPlastic", collide: false, lod: 0 });
+        b.box([x + wx, wy + 2.7, face], [3.2, 0.6, 0.9], stone, { material, collide: false, lod: 0 });
+      }
+    }
+    // a chimney on each wing
+    b.box([x + sx * 3, wingH + 8, z + 7], [3, 11, 3], stone, { material, collide: true, lod: 1 });
+    b.box([x + sx * 3, wingH + 13.8, z + 7], [3.8, 0.8, 3.8], dark, { material, collide: false, lod: 0 });
+  }
+
+  // central tower over the door, the silhouette seen through the fog
+  const towerW = 9;
+  const towerH = H + rng.float(9, 13);
+  const tz = front - 2;
+  b.box([0, towerH / 2, tz], [towerW, towerH, towerW], wall, solid);
+  b.box([0, towerH - 0.5, tz], [towerW + 1.2, 1.2, towerW + 1.2], stone, { material, collide: false, lod: 1 });
+  b.pyramidRoof([0, towerH + 5.5, tz], towerW + 1.4, towerW + 1.4, 11, roof, roofOpts);
+  const towerFace = tz - towerW / 2 - 0.1;
+  b.box([0, towerH - 6, towerFace], [2.6, 5, 0.6], glow, { material: "Neon", transparency: 0.15, collide: false, lod: 1, light: { type: "point", color: glow, brightness: 1.4, range: 34 } });
+  b.box([0, H * 0.62, towerFace], [2.4, 4.6, 0.6], dark, { material: "SmoothPlastic", collide: false, lod: 0 });
+
+  // door, steps and porch
+  b.box([0, 4.2, towerFace], [4.4, 7.6, 0.7], style.palette.wood, { material: style.materials.trunk, collide: false, lod: 1 });
+  for (let i = 0; i < 3; i++) b.box([0, 0.5 + i * 0.8, towerFace - 3.4 + i * 1.1], [8 - i, 1, 1.4], stone, { material, collide: true, lod: 1 });
+  for (const sx of [-1, 1]) {
+    b.cylinder([sx * 3.6, 4.6, towerFace - 1.6], 1.1, 9.2, stone, { material, collide: true, lod: 1 });
+    // windows of the main block either side of the tower
+    for (const wy of [H * 0.3, H * 0.72]) {
+      for (const wx of [8, 13]) {
+        const lit = rng.chance(0.35);
+        b.box([sx * wx, wy, front - 0.1], [2.4, 4.6, 0.6], lit ? glow : dark, lit ? { material: "Neon", transparency: 0.15, collide: false, lod: 1 } : { material: "SmoothPlastic", collide: false, lod: 0 });
+      }
+    }
+  }
+  b.box([0, 9.6, towerFace - 1.2], [9, 1, 3.4], stone, { material, collide: false, lod: 1 });
+  return b.build({ id: `manor/${variant}`, prefab: "manor", category: "landmark", sinkDepth: 1, footprintRadius: 28, baseRadius: 24, tags: ["landmark", "manor"] });
+}
+
+/** A log chalet: broad eaves, a stone chimney, a balcony facing the view. Warm windows against the cold. */
+export function chalet(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const log = jitterHex(style.palette.wood, jitter(rng, 5), -0.03, jitter(rng, 0.05));
+  const dark = jitterHex(log, 0, 0, -0.1);
+  const stone = jitterHex(style.palette.stone, jitter(rng, 4), -0.03, 0);
+  const material = style.materials.trunk;
+  const W = 22;
+  const D = 16;
+  const H = 12;
+  const glow = mixHex("#ffc070", style.palette.glow, 0.2);
+  const lit = { material: "Neon" as const, transparency: 0.1, collide: false, lod: 1 as const };
+
+  b.box([0, 1, 0], [W + 1.6, 3, D + 1.6], stone, { material: style.materials.stoneWall, collide: true, lod: 2 });
+  b.box([0, H / 2 + 1, 0], [W, H, D], log, { material, collide: true, lod: 2 });
+  // visible log courses on the front and the sides
+  for (let y = 3.5; y < H; y += 2.2) {
+    b.box([0, y, -D / 2 - 0.1], [W + 1, 0.7, 0.6], dark, { material, collide: false, lod: 0 });
+    for (const sx of [-1, 1]) b.box([sx * (W / 2 + 0.1), y, 0], [0.6, 0.7, D + 1], dark, { material, collide: false, lod: 0 });
+  }
+  // roof: ridge along Z so the gable and its deep eaves face the player
+  const r = new PartListBuilder();
+  r.gableRoof([0, 0, 0], D + 7, W + 6, 10, style.palette.roof, { material: style.materials.roof, collide: true, lod: 2 });
+  r.rotateY(90).translate([0, H + 6, 0]);
+  b.merge(r);
+  // gable infill, with a window under the ridge
+  b.box([0, H + 3.6, -D / 2 + 0.4], [W * 0.5, 4.6, 0.8], log, { material, collide: false, lod: 1 });
+  b.box([0, H + 3.6, -D / 2 - 0.1], [3, 3, 0.6], glow, lit);
+  // door and two front windows
+  b.box([0, 5, -D / 2 - 0.1], [4, 7.4, 0.7], dark, { material, collide: false, lod: 1 });
+  for (const sx of [-1, 1]) b.box([sx * 6.6, 7, -D / 2 - 0.1], [3.6, 3.6, 0.6], glow, { ...lit, light: sx === 1 ? { type: "point", color: glow, brightness: 1.3, range: 26 } : undefined });
+  // balcony over the door
+  const by = H + 0.2;
+  b.box([0, by, -D / 2 - 2.2], [W - 2, 0.7, 4.6], log, { material, collide: true, lod: 1 });
+  b.box([0, by + 2, -D / 2 - 4.2], [W - 2, 0.5, 0.5], dark, { material, collide: false, lod: 1 });
+  for (let x = -W / 2 + 2; x <= W / 2 - 2; x += 3) b.box([x, by + 1, -D / 2 - 4.2], [0.4, 2, 0.4], dark, { material, collide: false, lod: 0 });
+  for (const sx of [-1, 1]) b.box([sx * (W / 2 - 2), by / 2 + 0.4, -D / 2 - 4.2], [0.9, by, 0.9], log, { material, collide: true, lod: 1 });
+  // stone chimney with its firewood
+  const cx = variant % 2 === 0 ? W / 2 - 3 : -W / 2 + 3;
+  b.box([cx, (H + 14) / 2, D / 2 - 3], [3.6, H + 14, 3.6], stone, { material: style.materials.stoneWall, collide: true, lod: 1 });
+  for (let i = 0; i < 4; i++) b.cylinder([-W / 2 - 1.2, 1.2 + (i % 2) * 1.1, -3 + i * 1.3], 1.2, 0.9, dark, { material, collide: false, lod: 0, rotation: [90, 0, 0] });
+  return b.build({ id: `chalet/${variant}`, prefab: "chalet", category: "landmark", sinkDepth: 1, footprintRadius: 18, baseRadius: 15, tags: ["landmark", "chalet"] });
+}

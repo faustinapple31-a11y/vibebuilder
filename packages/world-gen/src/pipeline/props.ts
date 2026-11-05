@@ -369,7 +369,7 @@ export function placeRocksAndProps(ctx: GenContext): void {
     const cands = poissonDisk(ctx, rng, 30);
     for (const [x, z] of cands) {
       const biome = biomeAt(ctx, x, z);
-      if (biome !== "meadow" && biome !== "highlands" && biome !== "forest") continue;
+      if (style.materials.ground === "Snow" || (biome !== "meadow" && biome !== "highlands" && biome !== "forest")) continue;
       if (isWaterAt(ctx, x, z) || slopeAtWorld(ctx, x, z) > 0.35 || ctx.roadDistance.sample(x, z) < 3) continue;
       if (rng.next() > (biome === "meadow" ? 0.5 : 0.18) * (0.5 + style.vegetationDensity)) continue;
       add("flower_patch", x, z, { importance: 2.4, margin: 0, scale: rng.float(0.8, 1.3) });
