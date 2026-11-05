@@ -69,7 +69,7 @@ export function chooseSpawn(ctx: GenContext): void {
       const apparent = focal ? Math.atan2(focalHeight, toFocal) : 0;
       // only thick fog overrides the composition: a haunted manor beyond it is gone, a far tower in haze is fine
       const lost = focal && fogReach < 200 ? clamp((toFocal - fogReach) / fogReach, 0, 1) * 6 : 0;
-      const score = Math.min(1, apparent / FOCAL_ANGLE) * 4 - lost + (seesVillage ? 2 : 0) + (seesLandmark ? 2.5 : 0) + (seesTarget ? 3 : 0) + terrainFan(ctx, x, z, looks) * 2 - (landmarkInFace(ctx, x, z, looks) ? 4 : 0) - s * 2 - attempt * 0.03;
+      const score = Math.min(1, apparent / FOCAL_ANGLE) * 4 - lost + (seesVillage ? 2 : 0) + (seesLandmark ? 2.5 : 0) + (seesTarget ? 3 : 0) + terrainFan(ctx, x, z, looks) * 6 - (landmarkInFace(ctx, x, z, looks) ? 4 : 0) - s * 2 - attempt * 0.03;
       if (score > bestScore) {
         bestScore = score;
         best = [x, z];

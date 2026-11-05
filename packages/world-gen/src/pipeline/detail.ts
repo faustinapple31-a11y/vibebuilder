@@ -226,6 +226,18 @@ function placeSpawnApron(ctx: GenContext, rng: Rng, add: Add): void {
     const prefab = rng.chance(0.25) && ctx.prefabs["flower_patch"]?.length && ctx.style.kits.vegetation !== "none" && ctx.style.materials.ground !== "Snow" ? "flower_patch" : mix[rng.int(0, mix.length - 1)]!;
     add(prefab, x, z, { scale: prefab === "stone" ? rng.float(0.4, 0.9) : rng.float(0.85, 1.25), importance: 6.5, margin: 0.2 });
   }
+  // whatever the slots above managed, the first frame needs company: on bare sand or ash most of them fail
+  const nearby = () => ctx.placements.filter((p) => p.prefab !== "spawn_plaza" && p.category !== "path" && Math.hypot(p.position[0] - sx, p.position[2] - sz) < 44).length;
+  const fill = street.length > 0 ? street : mix;
+  let count = nearby();
+  for (let tries = 0; tries < 90 && count < 20 && fill.length > 0; tries++) {
+    const a = rng.float(0, Math.PI * 2);
+    const r = rng.float(15, 42);
+    const off = Math.atan2(Math.sin(a - facing), Math.cos(a - facing));
+    if (Math.abs(off) < 0.3 && r > 24) continue; // the view stays open
+    const prefab = fill[rng.int(0, fill.length - 1)]!;
+    if (add(prefab, sx + Math.cos(a) * r, sz + Math.sin(a) * r, { scale: prefab === "stone" ? rng.float(0.35, 0.9) : rng.float(0.8, 1.25), importance: 7.5, margin: 0 })) count++;
+  }
 }
 
 function styleKits(ctx: GenContext): string[] {
