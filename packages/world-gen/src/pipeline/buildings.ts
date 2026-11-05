@@ -77,7 +77,10 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     const id = rng.weighted(mix);
     return [id, ctx.prefabs[id] ?? []];
   };
-  const gridLike = s.layout === "grid" || (s.layout === "organic" && (s.type === "city_district" || s.type === "town" || s.type === "base"));
+  // an old town grows along its lanes: a medieval village came out as a perfect 3×3 block. Only paved, planned
+  // towns get streets on a grid when the spec leaves the layout organic
+  const paved = ["asphalt_road", "concrete_road", "neon_road", "metal_walkway"].includes(ctx.style.kits.road);
+  const gridLike = s.layout === "grid" || (s.layout === "organic" && (s.type === "city_district" || s.type === "base" || (s.type === "town" && paved)));
   if (gridLike) {
     layoutGrid(ctx, site, rng, pick);
     return;
