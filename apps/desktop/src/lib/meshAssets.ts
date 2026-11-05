@@ -1,9 +1,13 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshyMeshProvider, runMeshGeneration, type MeshJobOptions, type MeshProvider, type MeshResult } from "@worldforge/ai-providers";
+import { createModel, findBlender, pickEnhancerProvider, type ModelContext, type ModelReference } from "@worldforge/agents";
 import { newId, type Part, type PrefabMeshSource, type PrefabVariant, type Vec3 } from "@worldforge/core";
+import { useSettings } from "@/stores/settingsStore";
+import { getProvider } from "./agents";
 import { aiTransport } from "./aiProviders";
-import { readJsonFile, writeJsonFile } from "./files";
+import { readJsonFile, tauriFiles, writeJsonFile } from "./files";
+import { createTauriProcessRunner } from "./runner";
 import { fs, path } from "./tauri";
 
 /**
@@ -55,6 +59,96 @@ export async function generateMeshAsset(projectDir: string, opts: GenerateMeshAs
   const provider = meshProvider();
   const result: MeshResult = await runMeshGeneration(provider, opts, { onProgress: (i) => opts.onProgress?.(i.message, i.progress) });
   return saveMeshResult(projectDir, result, opts);
+}
+
+/** The agent that can run the hidden model chain, or null. */
+export function modelAgent(): ReturnType<typeof getProvider> | null {
+  const { defaults, providers } = useSettings.getState();
+  const id = pickEnhancerProvider(defaults.provider, providers);
+  return id ? getProvider(id) : null;
+}
+
+/** SVG → PNG through the webview: the agents see an image, not markup. */
+async function rasterizeReference(reference: ModelReference, file: string): Promise<string | null> {
+  const url = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(reference.svg)))}`;
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = 768;
+  canvas.height = 768;
+  const c = canvas.getContext("2d");
+  if (!c) return null;
+  c.fillStyle = "#e6e6e6";
+  c.fillRect(0, 0, 768, 768);
+  c.drawImage(img, 0, 0, 768, 768);
+  await fs.writeBinaryBase64(file, canvas.toDataURL("image/png").split(",")[1]!);
+  return file;
+}
+
+export interface BlenderMeshOptions {
+  prompt: string;
+  name?: string;
+  heightStuds?: number;
+  category?: MeshAssetRecord["category"];
+  context?: ModelContext;
+  /** A reference the user supplied, base64 PNG or JPEG. */
+  image?: { data: string; extension: string };
+  onProgress?: (message: string, progress: number) => void;
+}
+
+const MODEL_STEPS = { brief: ["Understanding the request…", 8], references: ["Sketching…", 20], modelling: ["Modelling in Blender…", 45], building: ["Building the mesh…", 65], review: ["Reviewing the model…", 80], done: ["Finishing…", 96] } as const;
+
+/**
+ * The model pipeline: hidden brief, hidden references, Blender, GLB + FBX. Only the user's own words are stored
+ * on the asset; the brief, the drawings and the script stay in the hidden work folder.
+ */
+export async function generateBlenderMeshAsset(projectDir: string, opts: BlenderMeshOptions): Promise<MeshAssetRecord> {
+  const provider = modelAgent();
+  if (!provider) throw new Error("No agent is available: sign in to Claude Code first.");
+  const runner = createTauriProcessRunner();
+  const blender = await findBlender(runner, tauriFiles);
+  if (!blender) throw new Error("Blender was not found. Install Blender 4.2 or newer.");
+  const id = newId("m", 8);
+  const work = path.join(projectDir, MESH_ASSET_DIR, ".work", id).replace(/\\/g, "/");
+  await fs.mkdirp(work);
+  const heightStuds = opts.heightStuds ?? 10;
+  const job = { glb: `${work}/model.glb`, fbx: `${work}/model.fbx`, preview: `${work}/preview.png`, report: `${work}/report.json`, palette: `${work}/palette.png`, heightStuds, maxTriangles: 20000 };
+  const extraImages: string[] = [];
+  if (opts.image) {
+    const file = `${work}/user.${opts.image.extension}`;
+    await fs.writeBinaryBase64(file, opts.image.data);
+    extraImages.push(file);
+  }
+  const model = await createModel(opts.prompt, { ...opts.context, heightStuds, category: opts.category }, {
+    provider,
+    cwd: work,
+    runner,
+    files: tauriFiles,
+    blender,
+    job,
+    workDir: work,
+    extraImages,
+    rasterize: (r) => rasterizeReference(r, `${work}/ref_${r.view}.png`),
+    onStep: (step) => opts.onProgress?.(MODEL_STEPS[step][0], MODEL_STEPS[step][1]),
+  });
+  await fs.writeText(`${work}/brief.txt`, model.brief);
+  await fs.writeText(`${work}/model.py`, model.script);
+  const [glb, fbx, thumbnail] = await Promise.all([fs.readBinaryBase64(job.glb), fs.readBinaryBase64(job.fbx), fs.readBinaryBase64(job.preview)]);
+  return saveMeshResult(
+    projectDir,
+    {
+      provider: "blender",
+      jobId: id,
+      glb: { data: glb, mimeType: "model/gltf-binary", extension: "glb" },
+      fbx: { data: fbx, mimeType: "application/octet-stream", extension: "fbx" },
+      thumbnail: { data: thumbnail, mimeType: "image/png", extension: "png" },
+      polycountTarget: 20000,
+      quality: "refined",
+      prompt: opts.prompt,
+    },
+    { prompt: opts.prompt, name: opts.name, quality: "refined", heightStuds, category: opts.category },
+  );
 }
 
 export async function saveMeshResult(projectDir: string, result: MeshResult, opts: GenerateMeshAssetOptions): Promise<MeshAssetRecord> {

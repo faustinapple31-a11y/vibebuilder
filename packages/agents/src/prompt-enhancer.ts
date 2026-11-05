@@ -20,7 +20,7 @@ const MAX_BRIEF_LENGTH = 8000;
 export type EnhancerModel = "haiku" | "sonnet";
 
 /** Providers that take the prompt on stdin: the enhancer's prompt is too long for a command line on Windows. */
-const SESSION_DEFAULTS: Partial<Record<AgentProviderId, (model?: EnhancerModel) => Omit<SessionOptions, "cwd">>> = {
+export const SESSION_DEFAULTS: Partial<Record<AgentProviderId, (model?: EnhancerModel) => Omit<SessionOptions, "cwd">>> = {
   "claude-code": (model = "haiku") => ({
     model,
     permissionMode: "acceptEdits",
@@ -232,10 +232,10 @@ export function composeBriefedRequest(request: string, brief: string): string {
   return `User request:\n"""\n${request}\n"""\n\n${briefSection(brief)}\n\n${worldKnowledgeSection(`${request}\n${brief}`)}`;
 }
 
-async function askModel(provider: IAgentProvider, session: Awaited<ReturnType<IAgentProvider["startSession"]>>, prompt: string, signal: AbortSignal): Promise<string> {
+export async function askModel(provider: IAgentProvider, session: Awaited<ReturnType<IAgentProvider["startSession"]>>, prompt: string, signal: AbortSignal, images?: string[]): Promise<string> {
   let text = "";
   let result: string | undefined;
-  for await (const ev of provider.sendPrompt(session, prompt, { resume: false, signal })) {
+  for await (const ev of provider.sendPrompt(session, prompt, { resume: false, signal, images })) {
     if (ev.type === "text") text = ev.partial ? text + ev.text : ev.text;
     if (ev.type === "done") result = ev.result;
   }

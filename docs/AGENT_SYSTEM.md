@@ -203,3 +203,17 @@ Pour les rôles produisant des données structurées, le prompt contient :
 4. les contraintes (budgets, taille, style).
 
 L'orchestrateur relit le fichier, valide, et renvoie les erreurs Zod formatées si besoin.
+
+## 4d. Modèles 3D : brief caché, références cachées, Blender
+
+`createModel` (`packages/agents/src/model-design.ts`) enchaîne, sans rien montrer à l'utilisateur :
+Haiku réécrit la demande en brief, Sonnet dessine trois vues en SVG (converties en PNG par l'app),
+Sonnet écrit le script Blender à partir du brief et des images, Blender construit le modèle sans fenêtre,
+puis une passe de revue compare le rendu au brief. `blender-job.ts` fixe tout autour du script de l'agent :
+hauteur, base au sol, budget de triangles, texture palette, exports GLB et FBX.
+
+Les modèles ne sont jamais faits dans Roblox Studio. Le script vient d'un modèle et tourne chez le client :
+`blenderScriptProblem` refuse imports et appels dangereux, et Blender tourne avec `--factory-startup` et
+`--disable-autoexec`. C'est un filtre, pas un bac à sable.
+
+Essai : `npx tsx scripts/design-model.ts "un coffre de pirate" --height 6` (environ quatre appels Claude).

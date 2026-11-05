@@ -6,6 +6,8 @@ export * from "./registry";
 export * from "./local/interpreter";
 export * from "./prompt-enhancer";
 export * from "./prompt-library";
+export * from "./blender-job";
+export * from "./model-design";
 export * from "./game-review";
 export * from "./knowledge";
 export { BaseCliProvider, summarizeToolInput, tryJson } from "./providers/base";

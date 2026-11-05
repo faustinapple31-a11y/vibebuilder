@@ -2,7 +2,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Box, CloudUpload, Image as ImageIcon, MapPin, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button, Input, Label, Select, Slider, Switch, Textarea } from "@/components/ui";
-import { deleteMeshAsset, generateMeshAsset, importGlbAsset, updateMeshAsset, type MeshAssetRecord } from "@/lib/meshAssets";
+import { deleteMeshAsset, generateBlenderMeshAsset, generateMeshAsset, importGlbAsset, modelAgent, updateMeshAsset, type MeshAssetRecord } from "@/lib/meshAssets";
 import { fs, path } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/stores/projectStore";
@@ -30,6 +30,7 @@ export function HeroMeshPanel({ selected, onSelect }: { selected: MeshAssetRecor
   const publish = useRoblox((s) => s.publishMeshAsset);
   const insertInStudio = useRoblox((s) => s.insertMeshAssetInStudio);
   const mcp = useRoblox((s) => s.mcp);
+  const [engine, setEngine] = useState<"blender" | "meshy">("blender");
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
   const [quality, setQuality] = useState<Quality>("refined");
@@ -64,7 +65,21 @@ export function HeroMeshPanel({ selected, onSelect }: { selected: MeshAssetRecor
     setProgress(0);
     setStatus("Starting generation…");
     try {
-      const record = await generateMeshAsset(project.path, {
+      const onProgress = (m: string, p: number) => {
+        setStatus(m);
+        setProgress(p);
+      };
+      const record = engine === "blender"
+        ? await generateBlenderMeshAsset(project.path, {
+            prompt: prompt.trim() || name || "hero model",
+            name: name.trim() || undefined,
+            heightStuds: height,
+            category,
+            context: style ? { styleName: style.name, palette: [style.palette.primary, style.palette.secondary, style.palette.accent, style.palette.stone, style.palette.wood] } : undefined,
+            image: image ? { data: image.data, extension: image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg" } : undefined,
+            onProgress,
+          })
+        : await generateMeshAsset(project.path, {
         prompt: (prompt.trim() || name || "hero model") + (image ? "" : styleHint),
         quality,
         artStyle,
@@ -74,10 +89,7 @@ export function HeroMeshPanel({ selected, onSelect }: { selected: MeshAssetRecor
         name: name.trim() || undefined,
         heightStuds: height,
         category,
-        onProgress: (m, p) => {
-          setStatus(m);
-          setProgress(p);
-        },
+        onProgress,
       });
       await refresh();
       onSelect(record);
@@ -157,7 +169,7 @@ export function HeroMeshPanel({ selected, onSelect }: { selected: MeshAssetRecor
     onSelect(null);
   };
 
-  const providerOk = !!keys.meshy;
+  const providerOk = engine === "blender" ? !!modelAgent() : !!keys.meshy;
   return (
     <div className="space-y-3 text-xs">
       <div className="flex items-center gap-2 text-sm font-semibold">
@@ -165,6 +177,10 @@ export function HeroMeshPanel({ selected, onSelect }: { selected: MeshAssetRecor
       </div>
       <div className="text-[11px] text-faint">Text or reference image → textured PBR mesh (Meshy) → GLB for the viewer + FBX published as a Roblox Model asset → placed in the world and spawned in-game with InsertService.</div>
 
+      <Select value={engine} onChange={(e) => setEngine(e.target.value as "blender" | "meshy")}>
+        <option value="blender">Blender (made by the agents)</option>
+        <option value="meshy">Meshy (API key)</option>
+      </Select>
       <Textarea rows={2} placeholder="An ancient moss-covered stone golem statue holding a glowing lantern, fantasy, game asset" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       <div className="grid grid-cols-2 gap-2">
         <Input placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
