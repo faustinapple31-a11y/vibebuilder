@@ -212,6 +212,26 @@ de triangles, rendu sous quatre angles ; Opus 5.5 écrit ensuite le script du mo
 rendus, Blender le construit sans fenêtre, puis une passe de revue compare le rendu au concept. `blender-job.ts` fixe tout autour du script de l'agent :
 hauteur, base au sol, budget de triangles, texture palette, exports GLB et FBX.
 
+Les contrôles du maillage (`mesh-gates.ts`, d'après les fiches *Mesh Gates* et *Spending Triangles* du vault) sont
+mesurés par Blender sur le maillage fini, pas jugés à l'œil : pièces qui flottent (groupes de pièces qui ne touchent ni le
+sol ni rien qui le touche, avec leur position dans les axes de l'agent), symétrie miroir (part de la surface dont le
+reflet tombe à moins de 2 % de la taille), appui au sol, « poussière » (pièces de moins de 0,4 stud), arêtes ouvertes,
+triangles avant décimation, part des triangles dans le quart haut, remplissage des silhouettes à 64 px. La revue reçoit
+ces défauts en tête de prompt, avec le modèle rendu sous les quatre angles du design à côté d'un avatar de 5 studs
+(jamais exporté) et une planche de silhouettes noires à 64 px. Une version n'en remplace une autre que si elle ne
+rate pas les contrôles plus gravement (`gateScore` : un défaut « high » pèse plus que tous les « medium ») ; s'il reste
+un défaut « high » (une pièce qui flotte), une passe de réparation ciblée suit. `CreatedModel.problems` liste ce qui
+échoue encore.
+
+Les seuils sont calibrés sur de vrais maillages : `packages/agents/test/fixtures/models/` contient un coffre propre, le
+même avec une gemme qui flotte et une lanterne dont la tête est décentrée de 0,45 stud. Avec un Python qui sait
+`import bpy` (`pip install bpy==5.2.3` ; sous Linux sans écran, `libegl1` et `EGL_PLATFORM=surfaceless`) :
+`WF_BPY_PYTHON=<python> npx vitest run packages/agents/test/mesh-gates.blender.test.ts`. Sans cette variable le test est
+sauté.
+
+Workbench peint le fond avec `world.color`, pas avec les nœuds du World : les rendus de design et d'aperçu passent par
+`_wf_backdrop` (fond clair, transformation de vue *Standard* pour que les couleurs hex du brief restent exactes).
+
 Les modèles ne sont jamais faits dans Roblox Studio. Le script vient d'un modèle et tourne chez le client :
 `blenderScriptProblem` refuse imports et appels dangereux, et Blender tourne avec `--factory-startup` et
 `--disable-autoexec`. C'est un filtre, pas un bac à sable.

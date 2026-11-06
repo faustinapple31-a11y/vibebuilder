@@ -45,6 +45,8 @@ async function main(): Promise<void> {
   console.log(`\nbrief:\n${model.brief}\n`);
   writeFileSync(`${out}/${slug}.py`, model.script);
   console.log(`${model.designImages.length} design renders, ${model.report.triangles} triangles, size ${model.report.size?.map((n) => n.toFixed(1)).join(" × ")} → ${job.glb}`);
+  console.log(model.problems.length ? `mesh gates still failing:\n${model.problems.map((p) => `  [${p.severity}] ${p.text}`).join("\n")}` : "mesh gates: all passed");
+  console.log(`review renders: ${out}/final_*.png, silhouettes: ${out}/silhouette.png`);
 }
 
 void main().catch((e) => {

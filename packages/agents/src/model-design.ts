@@ -2,6 +2,7 @@ import type { IAgentProvider, FileIO } from "./types";
 import type { ProcessRunner } from "./runner";
 import { SESSION_DEFAULTS, askModel } from "./prompt-enhancer";
 import { CONCEPT_VIEWS, runBlenderConcept, runBlenderJob, type BlenderJob, type BlenderReport, type ConceptView } from "./blender-job";
+import { gateProblemsForPrompt, gateScore, modelGateProblems, type GateProblem } from "./mesh-gates";
 
 /**
  * The 3D model pipeline, the twin of the map's hidden brief. The user sees none of the first three steps:
@@ -9,7 +10,9 @@ import { CONCEPT_VIEWS, runBlenderConcept, runBlenderJob, type BlenderJob, type 
  *   2. Claude Design, on Opus 5.5, builds a 3D concept in Blender, as detailed as it can, with no triangle
  *      budget; it is rendered from every side;
  *   3. those renders and the brief go back to Opus 5.5, which writes the game-ready Blender script;
- *   4. Blender builds the model and exports GLB and FBX; one review pass compares it with the concept.
+ *   4. Blender builds the model and exports GLB and FBX, measures the mesh gates (mesh-gates.ts) and renders it
+ *      from the design's sides and as 64 px silhouettes; one review pass compares it with the concept, with the
+ *      measured defects in hand, and one repair pass follows when a serious gate still fails.
  */
 export interface ModelContext {
   /** "landmark", "prop", "building", "vegetation" or "rock". */
@@ -202,7 +205,7 @@ export interface CreateModelOptions extends ModelAgentOptions {
   workDir: string;
   /** Images the user supplied: they go with the renders. */
   extraImages?: string[];
-  onStep?: (step: "brief" | "design" | "modelling" | "building" | "review" | "done", detail?: string) => void;
+  onStep?: (step: "brief" | "design" | "modelling" | "building" | "review" | "repair" | "done", detail?: string) => void;
 }
 
 export interface CreatedModel {
@@ -212,6 +215,8 @@ export interface CreatedModel {
   designScript?: string;
   report: BlenderReport;
   script: string;
+  /** The mesh gates the delivered model still fails, if any. */
+  problems: GateProblem[];
 }
 
 const script = (answer: string): string => {
@@ -247,15 +252,43 @@ async function designIn3D(brief: string, context: ModelContext, options: CreateM
   return { images: [] };
 }
 
+/** The review: the renders of the finished model against the design, with the measured defects in hand. */
+export function buildReviewPrompt(prompt: string, code: string, problems: GateProblem[], hasDesign: boolean, job: BlenderJob): string {
+  const finals = Object.values(job.views ?? {});
+  const seen = [
+    hasDesign && "design_*.png are the approved design",
+    finals.length ? `${finals.map((f) => f.split("/").pop()).join(", ")} are your model from the same sides` : `${job.preview.split("/").pop()} is your model in three-quarter view`,
+    job.silhouette && `${job.silhouette.split("/").pop()} shows it as black silhouettes at 64 pixels (front, side, three-quarter), the size a player reads it at`,
+  ].filter(Boolean);
+  return `${prompt}
+
+Your script:
+${code}
+
+${gateProblemsForPrompt(problems)}
+
+Images: ${seen.join("; ")}.
+Review it as a strict art director against the brief${hasDesign ? " and the design" : ""}, in this order. First the measured problems above. Then correctness: is a symmetric object lopsided, a centred feature off-centre, anything floating or sunk? Then surface: pinches, seams, stray faceting. Then style: does each silhouette read as this object, are large, medium and small forms clearly separate, do proportions look designed rather than stiff primitives, do the edges catch light, is the palette disciplined? Rewrite the script to fix what fails and add the structure that is missing. Answer with the whole script.`;
+}
+
+/** The final job with the review's renders: the design's sides and the silhouettes, in the work folder. */
+export function withReviewRenders(job: BlenderJob, workDir: string): BlenderJob {
+  const views = job.views ?? (Object.fromEntries((Object.keys(CONCEPT_VIEWS) as ConceptView[]).map((v) => [v, `${workDir}/final_${v}.png`])) as Record<ConceptView, string>);
+  return { ...job, views, silhouette: job.silhouette ?? `${workDir}/silhouette.png` };
+}
+
 /** The whole hidden chain from a request to GLB and FBX. Throws when Blender cannot produce a model. */
 export async function createModel(request: string, context: ModelContext, options: CreateModelOptions): Promise<CreatedModel> {
-  const { job, blender, runner, files, workDir, onStep } = options;
+  const { blender, runner, files, workDir, onStep } = options;
+  const job = withReviewRenders(options.job, workDir);
   const step = onStep ?? (() => undefined);
+  const gates = (report: BlenderReport) => modelGateProblems(report, { heightStuds: job.heightStuds, maxTriangles: job.maxTriangles, category: context.category });
   step("brief");
   const { brief } = await enhanceModelPrompt(request, context, options);
   step("design");
   const design = await designIn3D(brief, context, options);
   const images = [...(options.extraImages ?? []), ...design.images];
+  const reviewImages = [...images, ...Object.values(job.views ?? {}), ...(job.silhouette ? [job.silhouette] : [])];
 
   step("modelling");
   const build = (code: string) => runBlenderJob(code, job, blender, runner, files, `${workDir}/job.py`);
@@ -263,27 +296,33 @@ export async function createModel(request: string, context: ModelContext, option
   const first = await writeAndBuild(prompt, DESIGN_MODEL, options, OPUS_TIMEOUT_MS, images, build, (e) => step("modelling", e));
   if (!first.report.ok) throw new Error(`Blender could not build the model: ${(first.report.error ?? "").slice(-300)}`);
   let { code, report } = first;
+  let problems = gates(report);
 
-  // one review: the render against the design
-  step("review");
-  const answer = await ask(
-    `${prompt}\n\nYour script:\n${code}\n\nThe last image is the render of your model. Review it as a strict art director against the brief${design.images.length ? " and the design renders" : ""}, in this order. First correctness: is a symmetric object lopsided, a centred feature off-centre, anything floating or sunk? Then surface: pinches, seams, stray faceting. Then style: would the silhouette read at 64 pixels from every side, are large, medium and small forms clearly separate, do proportions look designed rather than stiff primitives, do the edges catch light, is the palette disciplined? Rewrite the script to fix what fails and add the structure that is missing. Answer with the whole script.`,
-    options,
-    DESIGN_MODEL,
-    OPUS_TIMEOUT_MS,
-    [...images, job.preview],
-  ).catch(() => "");
-  const reviewed = parseBlenderScript(answer);
-  if (reviewed) {
-    const better = await build(reviewed);
-    // a review that breaks the model must not cost the first version
-    if (better.ok) {
-      code = reviewed;
-      report = better;
+  /** Builds a candidate and keeps it unless it is broken or fails the gates worse; the files on disk follow the kept one. */
+  const attempt = async (answer: string): Promise<void> => {
+    const candidate = parseBlenderScript(answer);
+    if (!candidate) return;
+    const built = await build(candidate);
+    const found = built.ok ? gates(built) : [];
+    if (built.ok && gateScore(found) <= gateScore(problems)) {
+      code = candidate;
+      report = built;
+      problems = found;
     } else {
+      // a review that breaks the model must not cost the earlier version
       report = await build(code);
     }
+  };
+
+  step("review", problems.map((p) => p.gate).join(", ") || undefined);
+  await attempt(await ask(buildReviewPrompt(prompt, code, problems, design.images.length > 0, job), options, DESIGN_MODEL, OPUS_TIMEOUT_MS, reviewImages).catch(() => ""));
+
+  // the review may trade one defect for another: a serious gate gets one focused repair
+  const serious = problems.filter((p) => p.severity === "high");
+  if (serious.length) {
+    step("repair", serious.map((p) => p.gate).join(", "));
+    await attempt(await ask(`${prompt}\n\nYour script:\n${code}\n\n${gateProblemsForPrompt(serious)}\n\nFix only these, keep everything else as it is. Answer with the whole script.`, options, DESIGN_MODEL, OPUS_TIMEOUT_MS, reviewImages).catch(() => ""));
   }
   step("done");
-  return { brief, designImages: design.images, designScript: design.script, report, script: code };
+  return { brief, designImages: design.images, designScript: design.script, report, script: code, problems };
 }

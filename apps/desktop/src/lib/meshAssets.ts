@@ -79,7 +79,7 @@ export interface BlenderMeshOptions {
   onProgress?: (message: string, progress: number) => void;
 }
 
-const MODEL_STEPS = { brief: ["Understanding the request…", 8], design: ["Designing in 3D…", 15], modelling: ["Modelling in Blender…", 55], building: ["Building the mesh…", 70], review: ["Reviewing the model…", 82], done: ["Finishing…", 96] } as const;
+const MODEL_STEPS = { brief: ["Understanding the request…", 8], design: ["Designing in 3D…", 15], modelling: ["Modelling in Blender…", 55], building: ["Building the mesh…", 70], review: ["Reviewing the model…", 82], repair: ["Fixing what the checks found…", 90], done: ["Finishing…", 96] } as const;
 
 /**
  * The model pipeline: hidden brief, hidden 3D design on Opus 5.5, Blender, GLB + FBX. Only the user's own words are stored
