@@ -207,6 +207,7 @@ export const theme = makeTheme();
  */
 let userScale = 1;
 const containers: GuiObject[] = [];
+const fullScreen = new Set<GuiObject>();
 const listeners: (() => void)[] = [];
 
 /** Viewport factor: 1 on desktop, down to 0.72 on a small phone in portrait. */
@@ -235,12 +236,17 @@ function applyScale(container: GuiObject): void {
 		scale = new Instance("UIScale");
 		scale.Parent = container;
 	}
-	scale.Scale = viewportScale() * userScale;
+	const factor = viewportScale() * userScale;
+	scale.Scale = factor;
+	// a UIScale also scales the frame itself: a full-screen root at 1.1 runs off the right and bottom edges, and at
+	// 0.72 on a phone it huddles in the top-left corner. Its size is compensated so it keeps covering the screen.
+	if (fullScreen.has(container)) container.Size = new UDim2(1 / factor, 0, 1 / factor, 0);
 }
 
 /** Keeps a HUD-level frame scaled with the viewport and the player's setting. */
 export function scaleContainer(container: GuiObject): void {
 	containers.push(container);
+	if (container.Size.X.Scale === 1 && container.Size.Y.Scale === 1) fullScreen.add(container);
 	applyScale(container);
 	const camera = Workspace.CurrentCamera;
 	if (camera) camera.GetPropertyChangedSignal("ViewportSize").Connect(() => applyScale(container));
@@ -368,7 +374,12 @@ export function shadow(target: GuiObject, offset = theme.shadowOffset, transpare
 	s.BorderSizePixel = 0;
 	s.ZIndex = math.max(1, target.ZIndex - 1);
 	corner(s, cornerRadiusOf(target));
+	s.Visible = target.Visible;
 	s.Parent = target.Parent;
+	// a shadow is a sibling: left alone it stays on screen after its panel is hidden or resized
+	target.GetPropertyChangedSignal("Visible").Connect(() => (s.Visible = target.Visible));
+	target.GetPropertyChangedSignal("Size").Connect(() => (s.Size = target.Size));
+	target.GetPropertyChangedSignal("Position").Connect(() => (s.Position = target.Position.add(new UDim2(0, offset, 0, offset))));
 	return s;
 }
 
@@ -719,6 +730,7 @@ export function button(str: string, size: UDim2, position: UDim2, parent: Instan
 	b.Text = "";
 	b.AutoButtonColor = false;
 	b.ZIndex = opts.zIndex ?? 3;
+	b.Parent = parent;
 	const radius = opts.radius ?? math.max(2, theme.radius - 2);
 	corner(b, radius);
 	if (theme.gradients) gradient(b, top, bottom);

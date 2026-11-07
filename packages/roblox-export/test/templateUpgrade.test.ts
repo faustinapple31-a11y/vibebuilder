@@ -25,3 +25,24 @@ describe("template upgrade (older projects receive the gameplay framework)", () 
     for (const p of paths) expect(RUNTIME_TEMPLATE_PREFIXES.some((r) => p.startsWith(r)), p).toBe(false);
   });
 });
+
+/**
+ * Found in the first real playtest in Studio, 7 Nov 2026: compile checks and unit tests could not see these.
+ * A button created without a parent simply never exists, and the HUD ran off the screen.
+ */
+describe("the template's UI kit", () => {
+  const kit = TEMPLATE_FILES["src/ui/kit.ts"]!;
+
+  it("attaches every button it builds", () => {
+    const body = kit.slice(kit.indexOf("export function button("), kit.indexOf("export function pressAnimation"));
+    expect(body).toContain("b.Parent = parent");
+  });
+
+  it("keeps a scaled full-screen root on the screen", () => {
+    expect(kit).toContain("container.Size = new UDim2(1 / factor, 0, 1 / factor, 0)");
+  });
+
+  it("drops the Atmosphere on a foggy world: Roblox ignores FogEnd next to one", () => {
+    expect(TEMPLATE_FILES["src/world/WorldBuilder.ts"]).toContain('child.IsA("Atmosphere")');
+  });
+});

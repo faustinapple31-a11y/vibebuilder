@@ -29,7 +29,7 @@ export class RoundStatus {
 		this.gui.DisplayOrder = 3;
 		this.gui.Parent = pg;
 
-		this.card = panel(new UDim2(0, W, 0, 108), new UDim2(0.5, -W / 2, 0, 96), this.gui, { color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(14, theme.radius), zIndex: 3 });
+		this.card = panel(new UDim2(0, W, 0, 108), new UDim2(0.5, -W / 2, 0, 96), this.gui, { shadow: false, color: theme.pill, transparency: math.max(0.05, theme.panelTransparency), strokeColor: theme.primary[1], strokeThickness: theme.strokeThickness, radius: math.min(14, theme.radius), zIndex: 3 });
 		this.card.Visible = false;
 		this.phase = text("", new UDim2(1, -20, 0, 26), new UDim2(0, 10, 0, 8), this.card, { size: 20, align: Enum.TextXAlignment.Center, zIndex: 5, outline: 2 });
 		this.timer = text("", new UDim2(1, -20, 0, 22), new UDim2(0, 10, 0, 32), this.card, { size: 16, align: Enum.TextXAlignment.Center, color: theme.highlight, zIndex: 5, outline: math.min(2, theme.textOutline) });

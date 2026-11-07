@@ -130,7 +130,7 @@ waitRemoteEvent(Remotes.RoundState).OnClientEvent.Connect((msg) => {
 	const mm = math.floor(m.secondsLeft / 60);
 	const ss = m.secondsLeft % 60;
 	const timer = m.secondsLeft > 0 ? `  ${mm}:${string.format("%02d", ss)}` : "";
-	hud.setBanner(`${m.message}${timer}`);
+	if (!roundStatus) hud.setBanner(`${m.message}${timer}`); // the round card says the same thing
 	roundStatus?.setRoundState(m);
 	teams?.setRoundState(m);
 	if (m.scores) {
