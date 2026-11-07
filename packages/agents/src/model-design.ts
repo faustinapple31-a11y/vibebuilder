@@ -30,15 +30,15 @@ export const MODEL_CRAFT = [
   "One object only, standing on the ground, no scene and no background.",
 ];
 
-const MODEL_EXAMPLES = `Request: un coffre
+const MODEL_EXAMPLES = `Request: une enclume
 <brief>
-OBJECT: a heavy pirate treasure chest, lid half open, gold spilling over the front edge.
-SILHOUETTE: wide low box with a domed lid tilted back, wider than tall.
-MASSES: plank body; domed lid; heap of coins inside.
-FORMS: two iron bands around body and lid, corner brackets, a big lock plate at the front, two side handles, four short feet.
-ACCENTS: loose coins on the ground, one cracked plank, a red gem on the lock.
-PALETTE: #6b4226 wood, #8a5a33 lighter wood, #3a3a40 iron, #e0b040 gold, accent #c8324a.
-FRONT: the lock faces the viewer.
+OBJECT: a blacksmith's anvil on a sawn tree stump, scarred by years of work, a hammer resting on its face.
+SILHOUETTE: long horn on one side, heavy square heel on the other, narrow waist, wide stump below.
+MASSES: anvil body; tree stump; hammer.
+FORMS: stepped face, pritchel holes, iron straps nailed around the stump, hammer head and wedge, bark ring.
+ACCENTS: a chipped edge on the face, one glowing horseshoe, a few sparks of scale on the stump.
+PALETTE: #3b3d44 iron, #5a5d66 worn iron, #6e4a2c stump, #a9825a cut wood, accent #ff8a3c hot metal.
+FRONT: the horn points to the viewer's left.
 </brief>
 
 Request: un lampadaire de rue
@@ -65,7 +65,7 @@ The request is the intent: keep every object, material and style it names, inven
 Craft rules:
 ${MODEL_CRAFT.map((r) => `- ${r}`).join("\n")}
 ${facts.length ? `\n${facts.join("\n")}\n` : ""}
-Examples of the format (never reuse their content):
+Examples of the format only. Never reuse their content, their palette or their wording, even for a similar object: find this object's own character.
 ${MODEL_EXAMPLES}
 
 Request: ${request}

@@ -211,6 +211,8 @@ construit le modèle en 3D dans Blender, sans budget de triangles et à pleine r
 cuit ce design sur un maillage de jeu sous la limite Roblox et exporte GLB et FBX. La qualité passe avant le
 temps : compter environ 30 minutes par modèle, ne pas baisser l'effort d'Opus.
 
+Le GLB porte les trois textures (couleur, relief, rugosité et métal) ; le FBX n'en porte que deux. Préférer le GLB.
+
 Les modèles ne sont jamais faits dans Roblox Studio. Le script vient d'un modèle et tourne chez le client :
 `blenderScriptProblem` refuse imports et appels dangereux, et Blender tourne avec `--factory-startup` et
 `--disable-autoexec`. C'est un filtre, pas un bac à sable.
