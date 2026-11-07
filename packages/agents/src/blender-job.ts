@@ -19,6 +19,22 @@ export interface BlenderJob {
   textures: string;
   heightStuds: number;
   maxTriangles: number;
+  /** Becomes the MeshPart's name: a GLB otherwise arrives as a Model called `Scene`. */
+  name: string;
+  /** Final texture side in pixels. */
+  texture: number;
+}
+
+/**
+ * What a model may cost in a Roblox game. 20,000 triangles is a hard limit per mesh, not a target: a prop placed
+ * many times has to be far lighter, and texture memory goes with pixel count, four times for a doubled side.
+ * Baked at twice the size and reduced, so the small texture stays clean.
+ */
+export function modelBudget(category = "prop"): { maxTriangles: number; texture: number } {
+  if (category === "landmark") return { maxTriangles: 20000, texture: 1024 };
+  if (category === "building") return { maxTriangles: 12000, texture: 1024 };
+  if (category === "vegetation" || category === "rock") return { maxTriangles: 3000, texture: 512 };
+  return { maxTriangles: 8000, texture: 512 };
 }
 
 export interface BlenderReport {
@@ -32,6 +48,7 @@ export interface BlenderReport {
   size?: [number, number, number];
   /** Edges with one face: a closed model has none. */
   openEdges?: number;
+  texture?: number;
 }
 
 const ALLOWED_IMPORTS = new Set(["bpy", "bmesh", "math", "mathutils", "random"]);
@@ -55,9 +72,9 @@ export function blenderScriptProblem(code: string): string | null {
 const j = (v: unknown) => JSON.stringify(v);
 
 /** The complete Python file Blender runs. The wrapper's own names start with _wf_: an agent's helpers must not shadow them. */
-export function blenderJobScript(code: string, job: BlenderJob, opts: { voxels?: number; texture?: number } = {}): string {
+export function blenderJobScript(code: string, job: BlenderJob, opts: { voxels?: number } = {}): string {
   const voxels = opts.voxels ?? 300;
-  const texture = opts.texture ?? 2048;
+  const texture = job.texture * 2;
   return `import bpy, bmesh, math, mathutils, random, json, traceback
 random.seed(7)
 _WF_REPORT = ${j(job.report)}
@@ -215,6 +232,7 @@ def _wf_finish():
     nt.nodes.active = ts
     bpy.ops.object.bake(type="EMIT")
     for img, path in ((albedo, ${j(job.textures)} + "_albedo.png"), (normal, ${j(job.textures)} + "_normal.png"), (surface, ${j(job.textures)} + "_surface.png")):
+        img.scale(${job.texture}, ${job.texture})
         img.filepath_raw = path; img.file_format = "PNG"; img.save(); img.pack()
     nt.links.new(ta.outputs[0], bsdf.inputs[0])
     nt.links.new(ts.outputs[0], split.inputs[0])
@@ -223,8 +241,11 @@ def _wf_finish():
     nt.links.new(tn.outputs[0], nm.inputs["Color"])
     nt.links.new(nm.outputs[0], bsdf.inputs["Normal"])
     bpy.data.objects.remove(hi)
+    lo.name = ${j(job.name)}
+    lo.data.name = ${j(job.name)}
+    scene.name = ${j(job.name)}
 
-    # mesh gates, then the exports
+    # mesh gates, then the exports (the origin is already bottom centre: it becomes the MeshPart pivot)
     bm = bmesh.new(); bm.from_mesh(lo.data)
     bmesh.ops.triangulate(bm, faces=bm.faces)
     open_edges = sum(1 for e in bm.edges if len(e.link_faces) == 1)
@@ -233,7 +254,7 @@ def _wf_finish():
     lo.select_set(True); bpy.context.view_layer.objects.active = lo
     bpy.ops.object.shade_smooth()
     bpy.ops.export_scene.gltf(filepath=${j(job.glb)}, export_format="GLB", use_selection=True, export_apply=True)
-    bpy.ops.export_scene.fbx(filepath=${j(job.fbx)}, use_selection=True, axis_forward="-Z", axis_up="Y", apply_scale_options="FBX_SCALE_ALL", mesh_smooth_type="FACE", path_mode="COPY", embed_textures=True)
+    bpy.ops.export_scene.fbx(filepath=${j(job.fbx)}, use_selection=True, axis_forward="-Z", axis_up="Y", apply_scale_options="FBX_SCALE_UNITS", add_leaf_bones=False, bake_anim=False, mesh_smooth_type="FACE", path_mode="COPY", embed_textures=True)
 
     # the front three-quarter preview
     sun = bpy.data.objects.new("_wf_sun", bpy.data.lights.new("_wf_sun", "SUN"))
@@ -247,7 +268,7 @@ def _wf_finish():
     scene.render.image_settings.file_format = "PNG"
     bpy.ops.render.render(write_still=True)
     d = lo.dimensions
-    _wf_report({"ok": True, "designTriangles": design_tris, "triangles": tris, "size": [d.x, d.y, d.z], "openEdges": open_edges})
+    _wf_report({"ok": True, "designTriangles": design_tris, "triangles": tris, "size": [d.x, d.y, d.z], "openEdges": open_edges, "texture": ${job.texture}})
 
 try:
     bpy.ops.wm.read_factory_settings(use_empty=True)

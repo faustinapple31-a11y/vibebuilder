@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshyMeshProvider, runMeshGeneration, type MeshJobOptions, type MeshProvider, type MeshResult } from "@worldforge/ai-providers";
-import { createModel, findBlender, pickEnhancerProvider, type ModelContext } from "@worldforge/agents";
+import { createModel, findBlender, modelBudget, pickEnhancerProvider, type ModelContext } from "@worldforge/agents";
 import { newId, type Part, type PrefabMeshSource, type PrefabVariant, type Vec3 } from "@worldforge/core";
 import { useSettings } from "@/stores/settingsStore";
 import { getProvider } from "./agents";
@@ -95,7 +95,7 @@ export async function generateBlenderMeshAsset(projectDir: string, opts: Blender
   const work = path.join(projectDir, MESH_ASSET_DIR, ".work", id).replace(/\\/g, "/");
   await fs.mkdirp(work);
   const heightStuds = opts.heightStuds ?? 10;
-  const job = { glb: `${work}/model.glb`, fbx: `${work}/model.fbx`, preview: `${work}/preview.png`, report: `${work}/report.json`, textures: `${work}/model`, heightStuds, maxTriangles: 20000 };
+  const job = { glb: `${work}/model.glb`, fbx: `${work}/model.fbx`, preview: `${work}/preview.png`, report: `${work}/report.json`, textures: `${work}/model`, heightStuds, name: (opts.name ?? opts.prompt).replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 40) || "model", ...modelBudget(opts.category) };
   const extraImages: string[] = [];
   if (opts.image) {
     const file = `${work}/user.${opts.image.extension}`;

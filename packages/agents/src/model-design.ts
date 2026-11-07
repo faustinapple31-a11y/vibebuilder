@@ -160,6 +160,19 @@ const BLENDER_RULES = `Write Blender 5 Python. Define a single function build() 
 - Faceted style: a 1-segment chamfer on edges. Smooth style: 2 segments. A bevel under 2 pixels at play distance is wasted, so landmarks get double.
 - A creature or character gets one exaggerated feature and open gaps between its masses, so the outline reads as a filled shape.`;
 
+/** How far the player usually stands, which sets the smallest detail that survives: about distance / 170 studs. */
+const VIEW_DISTANCE: Record<string, number> = { landmark: 100, building: 50, prop: 20, vegetation: 40, rock: 40 };
+
+function robloxRules(context: ModelContext): string {
+  const distance = VIEW_DISTANCE[context.category ?? "prop"] ?? 30;
+  return `This is an asset for a Roblox game, seen by players on phones:
+- Roblox camera: 70 degrees, a 5-stud avatar standing next to it, usually about ${distance} studs away. The object must read at that distance, as a filled silhouette, from a high three-quarter view.
+- The forms that carry the object are at least ${Math.max(0.15, distance / 170).toFixed(1)} studs thick; finer work survives only as texture, so never let it hold the silhouette.
+- Stylised, chunky, slightly exaggerated proportions, as Roblox players expect: one big idea, no realism for its own sake.
+- Anything a player walks through or stands on is sized for the avatar: doors at least 8 studs tall and 5 wide, steps at most 2 studs, flat walkable tops.
+- It stands on the ground on a flat base, and it is one solid object: no loose parts floating, no hollow backs.`;
+}
+
 const CONCEPT_RULES = `- This is the design, not the game asset: no triangle budget. Go as far as the form deserves, up to 300000 triangles.
 - Colour follows the forms: each part has its own material. Never pick a material per face from noise or random values: on large faces it turns into blocky camouflage.
 - Sculpt real volume: subdivision surface on organic forms, displaced or hand-placed detail, individual scales, rivets, planks, folds, wear. No flat placeholder surfaces.`;
@@ -172,6 +185,8 @@ ${context.heightStuds ? `\nHeight in the game: ${context.heightStuds} studs. The
 ${images.length ? "\nThe images listed below are references from the client: follow them." : ""}
 
 Every side is seen: design them all, not only the front. Your design is baked onto a game mesh for you: fine relief and colour survive as textures, so put them in. Compact code: small reusable helpers and loops, not one line per part, under 500 lines. The silhouette must stay readable; the detail serves it.
+
+${robloxRules(context)}
 
 ${BLENDER_RULES}
 ${CONCEPT_RULES}

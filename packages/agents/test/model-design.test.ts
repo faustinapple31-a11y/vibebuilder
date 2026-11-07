@@ -9,9 +9,10 @@ import {
   parseBlenderScript,
   parseModelBrief,
   DESIGN_MODEL,
+  modelBudget,
 } from "@worldforge/agents";
 
-const job = { glb: "a.glb", fbx: "a.fbx", preview: "a.png", report: "a.json", textures: "t", heightStuds: 8, maxTriangles: 20000 };
+const job = { glb: "a.glb", fbx: "a.fbx", preview: "a.png", report: "a.json", textures: "t", heightStuds: 8, maxTriangles: 20000, name: "coffre", texture: 512 };
 
 describe("the hidden model brief", () => {
   it("keeps the request and the world's palette in what the small model receives", () => {
@@ -51,6 +52,28 @@ describe("the hidden 3D design", () => {
     const python = blenderJobScript("def _finish(a):\n    pass\ndef build():\n    pass", job);
     expect(python).toContain("def _wf_finish()");
     expect(python).toContain("_wf_finish()");
+  });
+});
+
+describe("a model made for a Roblox game", () => {
+  it("costs what its use allows, not the hard limit", () => {
+    expect(modelBudget("landmark")).toEqual({ maxTriangles: 20000, texture: 1024 });
+    expect(modelBudget("prop").maxTriangles).toBeLessThan(10000);
+    expect(modelBudget("vegetation").texture).toBe(512);
+  });
+
+  it("is designed for the avatar, the camera and the phone", () => {
+    const prompt = buildConceptPrompt("OBJECT: x", { category: "landmark" });
+    expect(prompt).toContain("5-stud avatar");
+    expect(prompt).toContain("about 100 studs away");
+    expect(prompt).toContain("doors at least 8 studs tall");
+  });
+
+  it("arrives named, baked larger than it ships", () => {
+    const python = blenderJobScript("def build():\n    pass", job);
+    expect(python).toContain('lo.name = "coffre"');
+    expect(python).toContain('new("albedo", 1024, 1024');
+    expect(python).toContain("img.scale(512, 512)");
   });
 });
 
