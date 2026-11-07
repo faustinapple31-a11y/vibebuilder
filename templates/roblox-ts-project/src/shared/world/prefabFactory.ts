@@ -61,7 +61,7 @@ function makePart(p: PartData, variant?: PrefabVariantData): BasePart {
 	part.BottomSurface = Enum.SurfaceType.Smooth;
 	part.Transparency = p.transparency ?? 0;
 	part.Reflectance = p.reflectance ?? 0;
-	part.CastShadow = p.castShadow ?? true;
+	part.CastShadow = (p.castShadow ?? true) && p.material !== "Neon"; // a glowing part casts no shadow
 	const collide = p.collide ?? true;
 	part.CanCollide = collide;
 	part.CanQuery = collide;

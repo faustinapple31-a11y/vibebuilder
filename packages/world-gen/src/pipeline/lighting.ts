@@ -159,7 +159,7 @@ export function computeLighting(ctx: GenContext): RobloxLightingSettings {
       tintColor: L.colorCorrection.tint,
       brightness: night ? 0.04 : 0,
     },
-    bloom: { intensity: night ? 0.5 : 0.25, size: 24, threshold: night ? 0.85 : 1.2 },
+    bloom: { intensity: night ? 0.5 : 0.25, size: 24, threshold: 1.2 }, // under 1, white walls glow
     sunRays: { intensity: mood === "golden" || mood === "dawn" ? 0.18 : night ? 0.02 : 0.06, spread: 0.6 },
     sky: { sunAngularSize: 18, moonAngularSize: night ? 15 : 11, starCount: night ? 3000 : 1500, celestialBodies: !space },
     technology: "ShadowMap",

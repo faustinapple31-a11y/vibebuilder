@@ -41,7 +41,7 @@
     "Lighting": {
       "$className": "Lighting",
       "$properties": {
-        "Technology": "Future",
+        "Technology": "ShadowMap",
         "ClockTime": 14,
         "Brightness": 2,
         "GlobalShadows": true
