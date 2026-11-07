@@ -1162,14 +1162,23 @@ export class Window {
 		dim.BorderSizePixel = 0;
 		dim.ZIndex = 1;
 		dim.Parent = this.gui;
-		dim.MouseButton1Click.Connect(() => this.setOpen(false));
+		// the backdrop still gets clicks that land on the window, whatever Active says: ask what is under the pointer
+		dim.Activated.Connect((input) => {
+			if (pg.GetGuiObjectsAtPosition(input.Position.X, input.Position.Y).includes(this.window)) return;
+			this.setOpen(false);
+		});
 
 		this.window = panel(new UDim2(0, w, 0, h), new UDim2(0.5, -w / 2, 0.5, -h / 2), this.gui, { radius: 20, strokeThickness: 4, zIndex: 2 });
 		this.window.Name = "Window";
+		// a Frame lets clicks through: without this, a click on the window reaches the backdrop and closes it
+		this.window.Active = true;
+		// the window has a UIScale, its sibling shadow does not: they would never line up
+		lastShadow(this.gui)?.Destroy();
 		this.scale = new Instance("UIScale");
 		this.scale.Parent = this.window;
 		const fit = () => {
-			const vp = this.gui.AbsoluteSize;
+			// a disabled ScreenGui reports no size: the first opening was fitted to nothing
+			const vp = Workspace.CurrentCamera?.ViewportSize ?? this.gui.AbsoluteSize;
 			this.scale.Scale = math.clamp(math.min(vp.X / (w + 40), vp.Y / (h + 40)), 0.55, 1) * uiScale();
 		};
 		this.gui.GetPropertyChangedSignal("AbsoluteSize").Connect(fit);

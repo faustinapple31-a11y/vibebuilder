@@ -127,6 +127,9 @@ waitRemoteEvent(Remotes.WorldProgress).OnClientEvent.Connect((stage, done, total
 waitRemoteEvent(Remotes.HudValue).OnClientEvent.Connect((key, label, value) => hud.setValue(key as string, label as string, value as string));
 waitRemoteEvent(Remotes.RoundState).OnClientEvent.Connect((msg) => {
 	const m = msg as RoundStateMsg;
+	// the server speaks in fixed phrases; the words on screen belong to the game's language
+	if (m.message === "Round in progress") m.message = L.roundInProgress;
+	else if (m.message === "Next round in") m.message = L.nextRoundIn;
 	const mm = math.floor(m.secondsLeft / 60);
 	const ss = m.secondsLeft % 60;
 	const timer = m.secondsLeft > 0 ? `  ${mm}:${string.format("%02d", ss)}` : "";

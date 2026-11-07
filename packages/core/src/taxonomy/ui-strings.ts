@@ -10,6 +10,8 @@ export type UiLocale = (typeof UI_LOCALES)[number];
 /** English is the reference: every other locale must cover exactly these keys. */
 export const UI_STRINGS_EN = {
   // window titles + HUD buttons
+  roundInProgress: "Round in progress",
+  nextRoundIn: "Next round in",
   shop: "Shop",
   inventory: "Inventory",
   backpack: "Backpack",
@@ -90,6 +92,8 @@ export type UiStringKey = keyof typeof UI_STRINGS_EN;
 export type UiStringTable = Record<UiStringKey, string>;
 
 const fr: UiStringTable = {
+  roundInProgress: "Manche en cours",
+  nextRoundIn: "Prochaine manche dans",
   shop: "Boutique",
   inventory: "Inventaire",
   backpack: "Sac",
@@ -154,6 +158,8 @@ const fr: UiStringTable = {
 };
 
 const es: UiStringTable = {
+  roundInProgress: "Ronda en curso",
+  nextRoundIn: "Próxima ronda en",
   shop: "Tienda",
   inventory: "Inventario",
   backpack: "Mochila",
@@ -218,6 +224,8 @@ const es: UiStringTable = {
 };
 
 const pt: UiStringTable = {
+  roundInProgress: "Rodada em andamento",
+  nextRoundIn: "Próxima rodada em",
   shop: "Loja",
   inventory: "Inventário",
   backpack: "Mochila",
@@ -282,6 +290,8 @@ const pt: UiStringTable = {
 };
 
 const de: UiStringTable = {
+  roundInProgress: "Runde läuft",
+  nextRoundIn: "Nächste Runde in",
   shop: "Shop",
   inventory: "Inventar",
   backpack: "Rucksack",

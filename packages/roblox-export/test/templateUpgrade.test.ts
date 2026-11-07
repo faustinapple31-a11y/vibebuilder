@@ -39,6 +39,10 @@ describe("the template's UI kit", () => {
     expect(body).toContain("b.Parent = parent");
   });
 
+  it("does not close a window when the click lands on the window itself", () => {
+    expect(kit).toContain("GetGuiObjectsAtPosition(input.Position.X, input.Position.Y).includes(this.window)");
+  });
+
   it("keeps a scaled full-screen root on the screen", () => {
     expect(kit).toContain("container.Size = new UDim2(1 / factor, 0, 1 / factor, 0)");
   });

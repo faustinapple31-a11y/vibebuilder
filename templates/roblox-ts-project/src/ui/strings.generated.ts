@@ -7,6 +7,8 @@
 import { GameConfig } from "shared/config";
 
 export interface UiStringTable {
+	roundInProgress: string;
+	nextRoundIn: string;
 	shop: string;
 	inventory: string;
 	backpack: string;
@@ -72,6 +74,8 @@ export interface UiStringTable {
 
 export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 	en: {
+		roundInProgress: "Round in progress",
+		nextRoundIn: "Next round in",
 		shop: "Shop",
 		inventory: "Inventory",
 		backpack: "Backpack",
@@ -135,6 +139,8 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Legendary",
 	},
 	fr: {
+		roundInProgress: "Manche en cours",
+		nextRoundIn: "Prochaine manche dans",
 		shop: "Boutique",
 		inventory: "Inventaire",
 		backpack: "Sac",
@@ -198,6 +204,8 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Légendaire",
 	},
 	es: {
+		roundInProgress: "Ronda en curso",
+		nextRoundIn: "Próxima ronda en",
 		shop: "Tienda",
 		inventory: "Inventario",
 		backpack: "Mochila",
@@ -261,6 +269,8 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Legendario",
 	},
 	pt: {
+		roundInProgress: "Rodada em andamento",
+		nextRoundIn: "Próxima rodada em",
 		shop: "Loja",
 		inventory: "Inventário",
 		backpack: "Mochila",
@@ -324,6 +334,8 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Lendário",
 	},
 	de: {
+		roundInProgress: "Runde läuft",
+		nextRoundIn: "Nächste Runde in",
 		shop: "Shop",
 		inventory: "Inventar",
 		backpack: "Rucksack",

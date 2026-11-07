@@ -50,7 +50,7 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       (`src/ui/kits.generated.ts` — every design system of the taxonomy, selected by
  *       `GameConfig.ui.kit`).
  */
-export const TEMPLATE_VERSION = 11;
+export const TEMPLATE_VERSION = 12;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
