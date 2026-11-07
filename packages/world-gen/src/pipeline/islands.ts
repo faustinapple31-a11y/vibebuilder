@@ -125,6 +125,29 @@ export function connectIslands(ctx: GenContext, rng: Rng): void {
     const id = `island_path_${p++}`;
     ctx.paths.push({ id, kind: "road", type: "dirt", points: route, width: 5 });
     carveRoad(ctx, route, 5, "dirt");
+    fillRoadPits(ctx, route, 5);
+  }
+}
+
+/** A path crossing a one-cell sliver of another level drops into a pit and climbs straight out: level it. */
+function fillRoadPits(ctx: GenContext, route: Vec2[], width: number): void {
+  const h = ctx.heights;
+  for (let i = 1; i + 1 < route.length; i++) {
+    const before = h.sample(route[i - 1]![0], route[i - 1]![1]);
+    const after = h.sample(route[i + 1]![0], route[i + 1]![1]);
+    const here = h.sample(route[i]![0], route[i]![1]);
+    if (Math.abs(before - after) > 1 || Math.abs(here - before) < 4) continue;
+    const [cx, cz] = h.toCell(route[i]![0], route[i]![1]);
+    const reach = Math.ceil(width / ctx.cellSize) + 1;
+    for (let dz = -reach; dz <= reach; dz++) {
+      for (let dx = -reach; dx <= reach; dx++) {
+        const x = Math.round(cx) + dx;
+        const z = Math.round(cz) + dz;
+        if (x < 0 || z < 0 || x >= ctx.width || z >= ctx.depth) continue;
+        const [wx, wz] = h.toWorld(x, z);
+        if (Math.hypot(wx - route[i]![0], wz - route[i]![1]) <= width + ctx.cellSize * 0.5) h.data[z * ctx.width + x] = before;
+      }
+    }
   }
 }
 
