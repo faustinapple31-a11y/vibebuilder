@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TEMPLATE_FILES } from "../src/template-files.generated";
 import { FRAMEWORK_TEMPLATE_FILES, RUNTIME_TEMPLATE_PREFIXES, TEMPLATE_VERSION, scaffoldProjectFiles, templateUpgradeFiles } from "../src";
 
 describe("template upgrade (older projects receive the gameplay framework)", () => {
