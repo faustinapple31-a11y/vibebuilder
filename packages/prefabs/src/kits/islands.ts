@@ -116,6 +116,6 @@ export function spawnPlaza(ctx: PrefabContext, variant: number): PrefabVariant {
     b.box([Math.cos(a) * (r - 0.6), 0.7, Math.sin(a) * (r - 0.6)], [1.2, 1.4, seg], jitterHex(stone, 0, 0, -0.1), { material: style.materials.stoneWall, rotation: [0, -((a * 180) / Math.PI), 0], collide: true, lod: 1 });
   }
   // welcome sign: floating title over the hub (billboard), anchored on a tiny invisible part
-  b.box([0, 9, 0], [1, 1, 1], "#ffffff", { transparency: 1, collide: false, castShadow: false, lod: 2, billboard: { text: style.ui.welcomeText ?? "BIENVENUE !", subtitle: style.ui.welcomeSubtitle, color: "#ffd23f", width: 34, height: 9, offsetY: 0 } });
+  b.box([0, 9, 0], [1, 1, 1], "#ffffff", { transparency: 1, collide: false, castShadow: false, lod: 2, billboard: { text: style.ui.welcomeText ?? "BIENVENUE !", subtitle: style.ui.welcomeSubtitle, color: "#ffd23f", width: 14, height: 3.5, offsetY: 8 } });
   return b.build({ id: `spawn_plaza/${variant}`, prefab: "spawn_plaza", category: "prop", sinkDepth: 0.6, footprintRadius: r, tags: ["layout", "spawn"] });
 }

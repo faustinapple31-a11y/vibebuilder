@@ -112,7 +112,8 @@ function think(e: Enemy, now: number): void {
 		const dist = troot.Position.sub(e.root.Position).Magnitude;
 		if (dist < 5) {
 			e.humanoid.MoveTo(e.root.Position);
-			if (now - e.lastAttack > 1.2) {
+			// measured in Studio: at 1.2 s one Raider took 70 HP in 6 s, leaving no time to fight back
+			if (now - e.lastAttack > 2) {
 				e.lastAttack = now;
 				const hum = target.Character!.FindFirstChildOfClass("Humanoid")!;
 				hum.TakeDamage(cfg.damage);
