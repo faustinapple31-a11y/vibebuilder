@@ -141,6 +141,7 @@ export function clearViewAxis(ctx: GenContext): void {
   const heading = Math.atan2(lz - sz, lx - sx);
   // an obby's first platform is 30 studs away, but the view it opens runs on past it
   const reach = Math.max(70, Math.min(220, Math.hypot(lx - sx, lz - sz) * 0.9));
+  const farReach = Math.max(reach, Math.min(420, Math.hypot(lx - sx, lz - sz) * 0.95));
   // a low plant takes the place of a nearby tree, so the foreground keeps its dressing (the critic counts it)
   const low = ["bush", "fern", "flower_patch", "grass_tuft"].find((id) => ctx.prefabs[id]?.length);
   const replacements: typeof ctx.placements = [];
@@ -154,9 +155,10 @@ export function clearViewAxis(ctx: GenContext): void {
     }
     if (p.category !== "vegetation" || p.locked || p.fixed) return true;
     const d = Math.hypot(p.position[0] - sx, p.position[2] - sz);
-    if (d < 30 || d > reach) return true;
+    if (d < 30 || d > farReach) return true;
     const a = Math.atan2(p.position[2] - sz, p.position[0] - sx) - heading;
-    if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > VIEW_AXIS_HALF_ANGLE) return true;
+    // past the near cone only a narrow line stays open: one tree far off must not hide the target
+    if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > (d > reach ? 0.05 : VIEW_AXIS_HALF_ANGLE)) return true;
     const v = ctx.prefabs[p.prefab]?.[p.variant] ?? ctx.prefabs[p.prefab]?.[0];
     if (!v || p.position[1] + v.bounds.max[1] * p.scale < sy + 6) return true;
     if (low && d < 120) replacements.push({ ...p, id: `${p.id}_low`, prefab: low, variant: 0, scale: 1, layer: "foreground" });

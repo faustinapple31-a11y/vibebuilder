@@ -269,7 +269,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     // snapping moved the terrace steps after dressing chose its spots: anything small now straddling a step
     // hangs half its base in the air (a bench, a fence run, a bush), and one object fewer is never noticed
     ctx.placements = ctx.placements.filter((p) => {
-      if (p.locked || p.fixed || p.id.startsWith("layout_") || (p.category !== "prop" && p.category !== "vegetation")) return true;
+      if (p.locked || p.fixed || p.id.startsWith("layout_") || (p.category !== "prop" && p.category !== "vegetation" && p.category !== "rock")) return true;
       const v = ctx.prefabs[p.prefab]?.[p.variant];
       const r = (v?.baseRadius ?? 0) * p.scale;
       if (!v || r < 1.5 || v.tags.includes("floating") || v.tags.includes("layout")) return true;
