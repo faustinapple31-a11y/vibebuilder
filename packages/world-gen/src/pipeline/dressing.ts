@@ -353,7 +353,7 @@ function placeGraveyard(ctx: GenContext, rng: Rng, add: Add): void {
 // ---------------------------------------------------------------- landmark grounds
 const LIGHT_PROPS = ["lantern_post", "torch_post", "stone_lantern", "streetlight", "tiki_torch", "brazier", "floodlight", "energy_pylon", "hologram"];
 const SEAT_PROPS = ["bench", "picnic_table", "hay_bale", "crate", "sci_crate"];
-const NO_GROUNDS = new Set(["pirate_ship", "waterfall_cliff", "crashed_plane", "skyscraper_landmark", "skyscraper_ruin", "stadium", "colosseum", "ferris_wheel", "gas_station", "barn", "dome_base", "radio_tower"]);
+const NO_GROUNDS = new Set(["cliff_block", "pirate_ship", "waterfall_cliff", "crashed_plane", "skyscraper_landmark", "skyscraper_ruin", "stadium", "colosseum", "ferris_wheel", "gas_station", "barn", "dome_base", "radio_tower"]);
 
 function placeLandmarkGrounds(ctx: GenContext, rng: Rng, add: Add): void {
   const light = LIGHT_PROPS.find((id) => ctx.prefabs[id]?.length);

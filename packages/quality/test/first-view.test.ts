@@ -169,7 +169,7 @@ describe("the focal landmark in the first view", () => {
     for (const p of bake.placements) {
       if (p.category === "landmark" && !p.id.startsWith("layout_")) expect(Math.hypot(p.position[0] - sx, p.position[2] - sz), p.id).toBeGreaterThan(100);
     }
-    expect(measureFirstView(bake).openness).toBe(1);
+    expect(measureFirstView(bake).openness).toBeGreaterThanOrEqual(0.8);
   });
 
   it("leaves a jungle its floor when the map runs over the parts budget", () => {

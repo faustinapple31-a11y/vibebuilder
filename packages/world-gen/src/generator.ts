@@ -436,7 +436,7 @@ function addLandmarkPlacements(ctx: GenContext): void {
       position: [l.position[0], l.position[1] - v.sinkDepth * l.scale, l.position[2]],
       rotationY: rng.float(0, Math.PI * 2),
       // a focal must carry the map: a summit block 10 studs tall stood 3° high in the first view
-      scale: l.role === "focal" ? Math.min(3, Math.max(l.scale, 36 / Math.max(1, v.bounds.max[1]))) : l.scale,
+      scale: l.role === "focal" && info.prefab !== "cliff_block" ? Math.min(3, Math.max(l.scale, 36 / Math.max(1, v.bounds.max[1]))) : l.scale,
       layer: l.role === "focal" ? "background" : "midground",
       zone: l.id,
       importance: 10,

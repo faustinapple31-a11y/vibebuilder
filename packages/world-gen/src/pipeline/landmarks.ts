@@ -1,5 +1,6 @@
-import { clamp, deriveSeed, type LandmarkSpec, type Vec2, type Vec3 } from "@worldforge/core";
+import { TERRAIN_MATERIAL_INDEX, clamp, deriveSeed, type LandmarkSpec, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
+import { Simplex2D } from "../noise";
 import { distanceToEdge, hasLineOfSight, normToWorld, progress, type GenContext } from "../context";
 import { layoutKeepOut } from "./layout";
 import { flattenArea, circlePoly } from "./sites";
@@ -17,8 +18,8 @@ export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; hei
   temple: { prefab: "temple", height: 34, footprint: 32 },
   portal: { prefab: "portal", height: 26, footprint: 16 },
   well: { prefab: "well", height: 10, footprint: 6 },
-  mountain_peak: { prefab: "cliff_block", height: 30, footprint: 18 },
-  volcano: { prefab: "cliff_block", height: 30, footprint: 18 },
+  mountain_peak: { prefab: "cliff_block", height: 100, footprint: 110 },
+  volcano: { prefab: "cliff_block", height: 100, footprint: 110 },
   campfire: { prefab: "campfire", height: 4, footprint: 6 },
   bridge: { prefab: "bridge", height: 8, footprint: 16 },
   crashed_plane: { prefab: "crashed_plane", height: 26, footprint: 64 },
@@ -78,7 +79,8 @@ export function placeLandmarks(ctx: GenContext): void {
     if (!pos) continue;
     // flatten footprint and get base height (water landmarks sit at the water surface, terrain untouched)
     const footprint = info.footprint * scaleMult;
-    const base = afloat ? ctx.water.sample(pos[0], pos[1]) : lm.type === "well" && ctx.sites[0] ? ctx.heights.sample(pos[0], pos[1]) : flattenArea(ctx, pos, footprint * 1.4, 1.0, undefined, 0.78);
+    const peak = (lm.type === "mountain_peak" || lm.type === "volcano") && !ctx.plateau && !ctx.islands;
+    const base = peak ? raisePeak(ctx, pos, info.height * scaleMult, info.footprint * 1.45 * scaleMult, lm.type === "volcano") : afloat ? ctx.water.sample(pos[0], pos[1]) : lm.type === "well" && ctx.sites[0] ? ctx.heights.sample(pos[0], pos[1]) : flattenArea(ctx, pos, footprint * 1.4, 1.0, undefined, 0.78);
     const position: Vec3 = [pos[0], base, pos[1]];
     const corridors = viewpoints.map((v) => ({
       from: v.id,
@@ -87,9 +89,41 @@ export function placeLandmarks(ctx: GenContext): void {
     }));
     ctx.landmarks.push({ id: lm.id, type: lm.type, role: lm.role, position, scale: scaleMult, viewCorridors: corridors });
     ctx.zones.push({ id: lm.id, kind: "landmark", polygon: circlePoly(pos, footprint, 12), center: pos, radius: footprint });
-    ctx.occupants.push({ position, radius: footprint, kind: "landmark" });
+    ctx.occupants.push({ position, radius: peak ? 24 : footprint, kind: "landmark" });
   }
   progress(ctx, "landmarks:done", 1);
+}
+
+/**
+ * A mountain is terrain, not a prop: a summit block on a flattened pad read as a boulder on a plinth. The ground
+ * itself rises, with a noisy outline and rock on its upper slopes; a volcano keeps a crater. Returns the summit.
+ */
+function raisePeak(ctx: GenContext, c: Vec2, height: number, radius: number, crater: boolean): number {
+  const h = ctx.heights;
+  const noise = new Simplex2D(deriveSeed(ctx.seed, "peak"));
+  const rock = crater ? TERRAIN_MATERIAL_INDEX.Basalt : TERRAIN_MATERIAL_INDEX.Rock;
+  const floor = h.sample(c[0], c[1]);
+  const [cx, cz] = h.toCell(c[0], c[1]);
+  const reach = Math.ceil((radius * 1.35) / ctx.cellSize);
+  for (let dz = -reach; dz <= reach; dz++) {
+    for (let dx = -reach; dx <= reach; dx++) {
+      const x = Math.round(cx) + dx;
+      const z = Math.round(cz) + dz;
+      if (x < 0 || z < 0 || x >= ctx.width || z >= ctx.depth) continue;
+      const i = z * ctx.width + x;
+      if (!Number.isNaN(ctx.water.data[i]!)) continue;
+      const [wx, wz] = h.toWorld(x, z);
+      const d = Math.hypot(wx - c[0], wz - c[1]);
+      const t = clamp(1 - d / (radius * (1 + noise.fbm(wx / 70, wz / 70, 3) * 0.3)), 0, 1);
+      if (t <= 0) continue;
+      let rise = height * t ** 1.6 * (1 + noise.fbm(wx / 26, wz / 26, 2) * 0.14);
+      if (crater) rise = Math.min(rise, height * 0.78);
+      if (crater && d < radius * 0.13) rise = height * (0.5 + (d / (radius * 0.13)) * 0.28);
+      if (floor + rise > h.data[i]!) h.data[i] = floor + rise;
+      if (t > 0.3) ctx.materials[i] = rock;
+    }
+  }
+  return h.sample(c[0], c[1]);
 }
 
 /**
