@@ -436,12 +436,29 @@ function addLandmarkPlacements(ctx: GenContext): void {
       position: [l.position[0], l.position[1] - v.sinkDepth * l.scale, l.position[2]],
       rotationY: rng.float(0, Math.PI * 2),
       // a focal must carry the map: a summit block 10 studs tall stood 3° high in the first view
-      scale: l.role === "focal" && info.prefab !== "cliff_block" ? Math.min(3, Math.max(l.scale, 36 / Math.max(1, v.bounds.max[1]))) : l.scale,
+      scale: l.role === "focal" && l.type !== "mountain_peak" && l.type !== "volcano" ? Math.min(3, Math.max(l.scale, 36 / Math.max(1, v.bounds.max[1]))) : l.scale,
       layer: l.role === "focal" ? "background" : "midground",
       zone: l.id,
       importance: 10,
     };
     ctx.placements.push(p);
+    if (l.type === "volcano") addLavaFlows(ctx, rng, l.position, l.scale);
+  }
+}
+
+/** Glowing tongues down the slopes: what says "volcano" from the foot of the mountain. */
+function addLavaFlows(ctx: GenContext, rng: Rng, c: readonly [number, number, number], scale: number): void {
+  const variants = ctx.prefabs["lava_strip"]?.length ?? 0;
+  if (variants === 0) return;
+  for (let flow = 0; flow < 7; flow++) {
+    let a = (flow / 7) * Math.PI * 2 + rng.float(-0.3, 0.3);
+    for (let r = 26 * scale, i = 0; r < 130 * scale; r += 11, i++) {
+      a += rng.float(-0.05, 0.05);
+      const x = c[0] + Math.cos(a) * r;
+      const z = c[2] + Math.sin(a) * r;
+      if (!Number.isNaN(ctx.water.sample(x, z))) break;
+      ctx.placements.push({ id: `lava_${flow}_${i}`, prefab: "lava_strip", variant: rng.int(0, variants - 1), category: "prop", position: [x, ctx.heights.sample(x, z), z], rotationY: Math.PI / 2 - a, scale, layer: "background", importance: 9, locked: true, zone: "volcano" });
+    }
   }
 }
 
@@ -505,6 +522,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   if (style) for (const [sp] of VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []) ids.add(SPECIES_PREFAB[sp] ?? sp);
   for (const base of ["grass", "bush", "fern", "flower", "small_mushroom", "log", "boulder", "rock_cluster", "stone", "cliff_block", "cottage", "ruin_wall", "ruin_arch", "well", "bridge", "fence", "stone_path_slab", "lantern_post", "crate", "barrel", "bench", "signpost", "campfire", "cart_wheel", "gravestone", "crystal_cluster", "wisp", "tent", "hay_bale", "cart", "firefly_swarm", "mist_patch", "reeds", "lily_pad", "stone_wall", "market_stall", "lantern_string", "waterfall", "crop_plot", "flower_patch"]) ids.add(base);
   for (const l of spec.landmarks) ids.add(LANDMARK_PREFAB[l.type].prefab);
+  if (spec.landmarks.some((l) => l.type === "volcano")) ids.add("lava_strip");
   // settlement dressing: walls & gates (when the style has a wall kit), fields, piers, road markings
   if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
   for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post", "spawn_plaza"]) ids.add(id);

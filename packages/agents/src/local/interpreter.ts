@@ -263,6 +263,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const dawn = has(t, "aube", "dawn", "lever", "sunrise", "matin", "morning");
   const timeOfDay = night ? 20.5 : dusk ? 18.2 : dawn ? 6.5 : fam.lighting.timeOfDay;
   const mood = night ? "moonlit" : dusk ? "dusk" : dawn ? "dawn" : has(t, "orage", "storm", "pluie", "rain") ? "stormy" : has(t, "nuage", "cloud", "gris", "overcast") ? "overcast" : fam.lighting.mood;
+  const volcanic = has(t, "volcan", "volcano", "magma");
   const fogDensity = has(t, "brume", "brouillard", "fog", "mist", "myster") ? Math.max(0.55, fam.fog.density) : fam.fog.density;
 
   // ---- gameplay layout from the genre (stage / plot / checkpoint counts from the prompt when given)
@@ -299,8 +300,9 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     roads,
     vegetation: { density, clustering: 0.8, species, sizeVariation: 0.65, giantMushrooms },
     props: { density: 0.55, sets: [...sets] },
-    lighting: { timeOfDay, mood, brightness: night ? 0.5 : 0.75, shadows: true },
-    atmosphere: { fogDensity, fogColor: fam.fog.color, haze: fogDensity, skyTint: fam.palette.sky },
+    // a volcano burns: warm dusk and ash haze, whatever the style's own fog says
+    lighting: { timeOfDay: volcanic ? 18 : timeOfDay, mood: volcanic ? "dusk" : mood, brightness: night ? 0.5 : 0.75, shadows: true },
+    atmosphere: volcanic ? { fogDensity: 0.2, fogColor: "#8a3f22", haze: 0.2, skyTint: "#c8552a" } : { fogDensity, fogColor: fam.fog.color, haze: fogDensity, skyTint: fam.palette.sky },
     colorPalette: { primary: fam.palette.primary, secondary: fam.palette.secondary, accent: fam.palette.accent, ground: fam.palette.ground, stone: fam.palette.stone, wood: fam.palette.wood, foliage: fam.palette.foliage, water: fam.palette.water },
     cameraComposition: { spawnFacing: focalId, spawnZone: "clearing" },
     layout,

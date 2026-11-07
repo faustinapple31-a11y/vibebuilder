@@ -79,7 +79,7 @@ export function measureFirstView(bake: WorldBake): FirstView {
     return Math.hypot(p.position[0] - sx, p.position[2] - sz) < 45;
   }).length;
   // a summit block sits on the mountain itself: what reads is how far it rises above the eye
-  const rise = lv && landmark ? (landmark.prefab === "cliff_block" ? landmark.position[1] + lv.bounds.max[1] * landmark.scale - eyeY : lv.bounds.max[1] * landmark.scale) : 0;
+  const rise = lv && landmark ? (landmark.prefab === "cliff_block" || landmark.prefab === "lava_vent" ? landmark.position[1] + lv.bounds.max[1] * landmark.scale - eyeY : lv.bounds.max[1] * landmark.scale) : 0;
   const focalAngle = lv && landmark ? (Math.atan2(rise, targetDist) * 180) / Math.PI : undefined;
   const focalFog = landmark && bake.lighting.fogEnd ? targetDist / bake.lighting.fogEnd : undefined;
   return { openness: open / RAYS, targetVisible: !targetBlocker, targetBlocker, focalAngle, focalFog, dressing, blockers };

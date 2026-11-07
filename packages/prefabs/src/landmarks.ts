@@ -535,3 +535,29 @@ export function chalet(ctx: PrefabContext, variant: number): PrefabVariant {
   for (let i = 0; i < 4; i++) b.cylinder([-W / 2 - 1.2, 1.2 + (i % 2) * 1.1, -3 + i * 1.3], 1.2, 0.9, dark, { material, collide: false, lod: 0, rotation: [90, 0, 0] });
   return b.build({ id: `chalet/${variant}`, prefab: "chalet", category: "landmark", sinkDepth: 1, footprintRadius: 18, baseRadius: 15, tags: ["landmark", "chalet"] });
 }
+
+/** The glowing mouth of a crater: a lake of lava and the rocks standing in it. The mountain itself is terrain. */
+export function lavaVent(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng, style } = ctx;
+  const b = new PartListBuilder();
+  const glow = mixHex("#ff6a1e", style.palette.glow, 0.15);
+  b.cylinder([0, 0.6, 0], 34, 1.6, glow, { material: "Neon", collide: false, lod: 2, light: { type: "point", color: glow, brightness: 3, range: 90 } });
+  b.cylinder([0, 1.1, 0], 20, 1.2, mixHex(glow, "#ffd27a", 0.6), { material: "Neon", collide: false, lod: 1 });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + jitter(rng, 0.4);
+    const r = rng.float(7, 15);
+    b.box([Math.cos(a) * r, 1.2, Math.sin(a) * r], [rng.float(2, 4), rng.float(2, 3.5), rng.float(2, 4)], "#2b2624", { material: "Basalt", collide: false, lod: 1, rotation: [jitter(rng, 18), rng.float(0, 90), jitter(rng, 18)] });
+  }
+  return b.build({ id: `lava_vent/${variant}`, prefab: "lava_vent", category: "landmark", sinkDepth: 0.2, footprintRadius: 17, baseRadius: 2, tags: ["landmark", "volcano"] });
+}
+
+/** One length of a lava flow, laid on the ground down the slope of a volcano. */
+export function lavaStrip(ctx: PrefabContext, variant: number): PrefabVariant {
+  const { rng } = ctx;
+  const b = new PartListBuilder();
+  const hot = mixHex("#ff5a14", "#ffb347", rng.float(0, 0.5));
+  b.box([0, 0.5, 0], [rng.float(6, 9), 1.4, 13], hot, { material: "Neon", collide: false, lod: 2 });
+  b.box([jitter(rng, 1), 1, 0], [2.4, 1, 13], "#ffd27a", { material: "Neon", collide: false, lod: 1 });
+  return b.build({ id: `lava_strip/${variant}`, prefab: "lava_strip", category: "prop", sinkDepth: 0.2, footprintRadius: 7, baseRadius: 1, tags: ["ambience"] });
+}
+

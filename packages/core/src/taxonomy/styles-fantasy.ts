@@ -58,7 +58,7 @@ export const STYLE_FAMILIES_FANTASY: StyleFamilyDef[] = [
     name: "Dark Fantasy",
     description: "Cursed lands: dead trees, ruins, eerie green glow, thick fog.",
     group: "fantasy",
-    keywords: ["dark fantasy", "maudit", "cursed", "sombre", "tenebres", "demon", "necro", "hante", "haunted", "gothique fantasy"],
+    keywords: ["dark fantasy", "volcan", "volcano", "magma", "maudit", "cursed", "sombre", "tenebres", "demon", "necro", "hante", "haunted", "gothique fantasy"],
     geometry: "angular",
     palette: { primary: "#2a2e2a", secondary: "#4a4a58", accent: "#6fbf5f", ground: "#2a2420", stone: "#4c4c54", wood: "#3a2a22", foliage: "#2f3f2a", foliageAlt: "#3f5030", water: "#233038", roof: "#2c2430", wall: "#5a5a60", mushroom: "#5a8f4f", mushroomAlt: "#8a3f5f", glow: "#7fff6f", sky: "#2c3040" },
     tree: "twisted",

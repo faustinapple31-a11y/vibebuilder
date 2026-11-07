@@ -19,7 +19,7 @@ export const LANDMARK_PREFAB: Record<LandmarkSpec["type"], { prefab: string; hei
   portal: { prefab: "portal", height: 26, footprint: 16 },
   well: { prefab: "well", height: 10, footprint: 6 },
   mountain_peak: { prefab: "cliff_block", height: 100, footprint: 110 },
-  volcano: { prefab: "cliff_block", height: 100, footprint: 110 },
+  volcano: { prefab: "lava_vent", height: 100, footprint: 110 },
   campfire: { prefab: "campfire", height: 4, footprint: 6 },
   bridge: { prefab: "bridge", height: 8, footprint: 16 },
   crashed_plane: { prefab: "crashed_plane", height: 26, footprint: 64 },
@@ -121,6 +121,8 @@ function raisePeak(ctx: GenContext, c: Vec2, height: number, radius: number, cra
       if (crater && d < radius * 0.13) rise = height * (0.5 + (d / (radius * 0.13)) * 0.28);
       if (floor + rise > h.data[i]!) h.data[i] = floor + rise;
       if (t > 0.3) ctx.materials[i] = rock;
+      // lava runs down from the rim in narrow tongues: what says "volcano" from the foot of the mountain
+      if (crater && t > 0.12 && Math.abs(noise.fbm(Math.atan2(wz - c[1], wx - c[0]) * 3.2, 7, 2)) < 0.07) ctx.materials[i] = TERRAIN_MATERIAL_INDEX.CrackedLava;
     }
   }
   return h.sample(c[0], c[1]);
