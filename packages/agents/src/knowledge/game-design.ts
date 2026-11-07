@@ -240,4 +240,23 @@ export const GAME_DESIGN_KNOWLEDGE: KnowledgeEntry[] = [
     reliability: "practitioner",
     audience: ["human"],
   },
+  {
+    id: "g_level_teaches",
+    domain: "game-design",
+    topic: "onboarding",
+    title: "The level teaches, and hubs get people out fast",
+    summary: "Show, try, test, combine; and a hub is built for its exits before its decoration.",
+    rules: [
+      "First reward within 30 seconds of control. No long intro: start with the verb.",
+      "Each new mechanic gets a space to show it, try it safely, test it, then combine it.",
+      "One visual cue means one thing: a danger colour is never used as decoration.",
+      "Hub: first station under 15 seconds, exit under 20 for veterans, benches and boards off the spawn line, the main shop on the way out.",
+      "Obby: raise one dial per stage, and put a checkpoint in any chain over 5 or 6 jumps.",
+      "Arena: keep the fight on one screen; low cover or full cover, little in between.",
+    ],
+    tags: ["tutoriel", "tutorial", "onboarding", "hub", "lobby", "obby", "arena", "arene", "premier", "reward"],
+    sources: [{ title: "fwjelaa vault: Teaching Through Level Design, Lobby and Hub Design, Core Loops (CC BY 4.0)", url: "https://creativecommons.org/licenses/by/4.0/" }],
+    reliability: "practitioner",
+    audience: ["design", "enhancer", "human"],
+  },
 ];

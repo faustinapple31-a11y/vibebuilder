@@ -5,6 +5,9 @@ import type { LightingData, WorldBakeData } from "shared/world/types";
 import { buildTerrain, makeHeightSampler } from "./TerrainBuilder";
 import { applyMaterials } from "./Materials";
 
+/** Below this FogEnd the world counts as foggy. */
+const FOG_WORLD_LIMIT = 1500;
+
 /**
  * Builds the whole world from ReplicatedStorage.WorldAssets.WorldBake at runtime.
  * Idempotent: an existing Workspace.World is removed first. Can also be run from
@@ -66,13 +69,20 @@ export function applyLighting(l: LightingData): void {
 		inst.Parent = Lighting;
 		return inst as unknown as T;
 	};
-	const atm = getOrCreate<Atmosphere>("Atmosphere", "WorldForgeAtmosphere");
-	atm.Density = l.atmosphere.density;
-	atm.Offset = l.atmosphere.offset;
-	atm.Color = hexToColor3(l.atmosphere.color);
-	atm.Decay = hexToColor3(l.atmosphere.decay);
-	atm.Glare = l.atmosphere.glare;
-	atm.Haze = l.atmosphere.haze;
+	// Roblox ignores FogStart / FogEnd as soon as Lighting holds an Atmosphere: a foggy world goes without one,
+	// so the distance the generator chose is the one the player gets. A clear world keeps its Atmosphere.
+	const foggy = l.fogEnd < FOG_WORLD_LIMIT;
+	if (foggy) {
+		for (const child of Lighting.GetChildren()) if (child.IsA("Atmosphere")) child.Destroy();
+	} else {
+		const atm = getOrCreate<Atmosphere>("Atmosphere", "WorldForgeAtmosphere");
+		atm.Density = l.atmosphere.density;
+		atm.Offset = l.atmosphere.offset;
+		atm.Color = hexToColor3(l.atmosphere.color);
+		atm.Decay = hexToColor3(l.atmosphere.decay);
+		atm.Glare = l.atmosphere.glare;
+		atm.Haze = l.atmosphere.haze;
+	}
 	const cc = getOrCreate<ColorCorrectionEffect>("ColorCorrectionEffect", "WorldForgeColorCorrection");
 	cc.Saturation = l.colorCorrection.saturation;
 	cc.Contrast = l.colorCorrection.contrast;
