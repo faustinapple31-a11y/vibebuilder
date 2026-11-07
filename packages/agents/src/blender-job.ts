@@ -15,7 +15,7 @@ export interface BlenderJob {
   fbx: string;
   preview: string;
   report: string;
-  /** Prefix of the baked textures: `<prefix>_albedo.png`, `<prefix>_normal.png`. */
+  /** Prefix of the baked textures: `<prefix>_albedo.png`, `_normal.png`, `_surface.png` (roughness and metalness). */
   textures: string;
   heightStuds: number;
   maxTriangles: number;
@@ -130,6 +130,10 @@ def _wf_finish():
     target = mathutils.Vector((0, 0, H * 0.4))
     cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
+    world = bpy.data.worlds.new("_wf_w")
+    world.use_nodes = True
+    next(n for n in world.node_tree.nodes if n.type == "BACKGROUND").inputs[0].default_value = (0.5, 0.55, 0.62, 1)
+    scene.world = world
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.display.shading.light = "STUDIO"
     scene.display.shading.color_type = "MATERIAL"
@@ -174,8 +178,12 @@ def _wf_finish():
     albedo = bpy.data.images.new("albedo", ${texture}, ${texture}, alpha=False)
     normal = bpy.data.images.new("normal", ${texture}, ${texture}, alpha=False)
     normal.colorspace_settings.name = "Non-Color"
+    surface = bpy.data.images.new("surface", ${texture}, ${texture}, alpha=False)
+    surface.colorspace_settings.name = "Non-Color"
     ta = nt.nodes.new("ShaderNodeTexImage"); ta.image = albedo
     tn = nt.nodes.new("ShaderNodeTexImage"); tn.image = normal
+    ts = nt.nodes.new("ShaderNodeTexImage"); ts.image = surface
+    split = nt.nodes.new("ShaderNodeSeparateColor")
     nm = nt.nodes.new("ShaderNodeNormalMap")
     lo.data.materials.append(final)
     scene.render.engine = "CYCLES"
@@ -191,13 +199,27 @@ def _wf_finish():
     bake.use_pass_color = True
     bpy.ops.object.select_all(action="DESELECT")
     hi.select_set(True); lo.select_set(True); bpy.context.view_layer.objects.active = lo
+    # a metal has no diffuse colour: baked as it is, gold comes out black. Colour first, with metal off,
+    # then roughness and metalness as glTF stores them (green, blue), through the emission pass.
+    design_mats = [m for m in me.materials if m]
+    nodes = {m: next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED") for m in design_mats}
+    for b in nodes.values():
+        b.inputs["Metallic"].default_value = 0.0
     nt.nodes.active = ta
     bpy.ops.object.bake(type="DIFFUSE")
     nt.nodes.active = tn
     bpy.ops.object.bake(type="NORMAL", normal_space="TANGENT")
-    for img, path in ((albedo, ${j(job.textures)} + "_albedo.png"), (normal, ${j(job.textures)} + "_normal.png")):
+    for m, b in nodes.items():
+        b.inputs["Emission Color"].default_value = (0.0, m.roughness, m.metallic, 1.0)
+        b.inputs["Emission Strength"].default_value = 1.0
+    nt.nodes.active = ts
+    bpy.ops.object.bake(type="EMIT")
+    for img, path in ((albedo, ${j(job.textures)} + "_albedo.png"), (normal, ${j(job.textures)} + "_normal.png"), (surface, ${j(job.textures)} + "_surface.png")):
         img.filepath_raw = path; img.file_format = "PNG"; img.save(); img.pack()
     nt.links.new(ta.outputs[0], bsdf.inputs[0])
+    nt.links.new(ts.outputs[0], split.inputs[0])
+    nt.links.new(split.outputs[1], bsdf.inputs["Roughness"])
+    nt.links.new(split.outputs[2], bsdf.inputs["Metallic"])
     nt.links.new(tn.outputs[0], nm.inputs["Color"])
     nt.links.new(nm.outputs[0], bsdf.inputs["Normal"])
     bpy.data.objects.remove(hi)
@@ -218,10 +240,6 @@ def _wf_finish():
     scene.collection.objects.link(sun)
     sun.rotation_euler = (math.radians(50), 0, math.radians(150))
     sun.data.energy = 3
-    world = bpy.data.worlds.new("_wf_w")
-    world.use_nodes = True
-    next(n for n in world.node_tree.nodes if n.type == "BACKGROUND").inputs[0].default_value = (0.5, 0.55, 0.62, 1)
-    scene.world = world
     scene.cycles.samples = 24
     scene.render.resolution_x = 768
     scene.render.resolution_y = 768

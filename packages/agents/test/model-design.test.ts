@@ -76,6 +76,9 @@ describe("the Blender script", () => {
     expect(python).toContain("_WF_HEIGHT = 8");
     expect(python).toContain("20000 * 0.95");
     expect(python).toContain('bpy.ops.object.bake(type="NORMAL"');
+    // gold baked with metal on comes out black
+    expect(python.indexOf('b.inputs["Metallic"].default_value = 0.0')).toBeLessThan(python.indexOf('bpy.ops.object.bake(type="DIFFUSE")'));
+    expect(python).toContain('bpy.ops.object.bake(type="EMIT")');
     expect(python).toContain("def build():");
   });
 });
