@@ -9,6 +9,7 @@ export * from "./genres";
 export * from "./kits";
 export * from "./ui-kits";
 export * from "./ui-strings";
+export * from "./content-strings";
 
 export const STYLE_FAMILIES: StyleFamilyDef[] = [...STYLE_FAMILIES_FANTASY, ...STYLE_FAMILIES_MODERN, ...STYLE_FAMILIES_NATURE];
 export const STYLE_FAMILY_INDEX: Record<string, StyleFamilyDef> = Object.fromEntries(STYLE_FAMILIES.map((s) => [s.id, s]));

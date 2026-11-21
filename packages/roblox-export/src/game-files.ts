@@ -1,4 +1,4 @@
-import type { GameSpec } from "@worldforge/core";
+import { localizeGameSpec, type GameSpec } from "@worldforge/core";
 
 /**
  * GameSpec → generated roblox-ts data modules (shop catalog, monetization, animations, audio, NPCs).
@@ -197,7 +197,9 @@ export const RecipeConfig = {
 }
 
 /** All data modules derived from the GameSpec (config.ts is produced by the agents package). */
-export function buildGameFiles(game: GameSpec): GeneratedGameFile[] {
+export function buildGameFiles(spec: GameSpec): GeneratedGameFile[] {
+  // the starter content is written in English: a French game shows French words (localizeGameSpec)
+  const game = localizeGameSpec(spec);
   return [
     { path: "src/shared/catalog.ts", content: buildCatalogTs(game) },
     { path: "src/shared/animations.ts", content: buildAnimationsTs(game) },
