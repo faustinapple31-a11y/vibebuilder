@@ -29,7 +29,7 @@ SIZES = {"round_tree": (18, 18, 26), "birch": (12, 12, 28), "pine_tree": (14, 14
          "castle": (60, 60, 50), "well": (8, 6, 10), "windmill": (20, 20, 40), "acacia": (20, 20, 18), "baobab": (20, 20, 24), "jungle_tree": (18, 18, 36), "apartment_block": (25, 23, 28), "skyscraper": (37, 29, 86)}
 bpy.ops.wm.read_factory_settings(use_empty=True)
 use_textures(wf_textures.build(opt("--textures", os.path.join(os.path.dirname(out), "textures"))))
-from wf_modern import FAMILIES  # noqa: E402
+from wf_families import FAMILIES, WORN  # noqa: E402
 BUILD = {**FLORA, **ARCH, **PROPS, **FAMILIES.get(opt("--arch", ""), {})}
 objs = []
 for spec in opt("--pieces", "round_tree:0-5").split(","):

@@ -634,3 +634,6 @@ ARCH = {
 
 from wf_build import BUILDINGS, ramparts  # noqa: E402,F401
 ARCH.update(BUILDINGS)
+
+from wf_medieval import MEDIEVAL  # noqa: E402
+ARCH.update(MEDIEVAL)

@@ -597,7 +597,7 @@ def spire(m, rng, pal, c, r, h, col, n=20, flare=0.16, dormers=0):
         m.merge(D, Matrix.Translation((x + math.cos(a) * rr, y + math.sin(a) * rr, z + h * 0.2)) @ rotz(math.degrees(a) - 90))
 
 
-def tower(m, rng, pal, c, r, h, col, roof_kind="spire", n=24, levels=3, z0=-2.0):
+def tower(m, rng, pal, c, r, h, col, roof_kind="spire", n=24, levels=3, z0=-2.0, peak=2.25):
     """Round tower: battered foot, string courses, loops, machicolated crown, then battlements or a spire behind them."""
     x, y = c
     shade = lambda q: mul(col, 0.7 + 0.34 * min(1, max(0, (q.z - z0) / (h * 0.55))) + noise.noise(q * 0.14) * 0.12)
@@ -633,8 +633,8 @@ def tower(m, rng, pal, c, r, h, col, roof_kind="spire", n=24, levels=3, z0=-2.0)
         for i in range(5):
             a = i / 5 * math.tau + 0.2
             m.box((x + math.cos(a) * r * 0.78, y + math.sin(a) * r * 0.78, h + 2.4), (0.4, 0.9, 1.9), "Glow", mul(GLASS, 0.5), rot=(0, 0, math.degrees(a)))
-        spire(m, rng, pal, (x, y, h + 4.2), r * 0.95, r * 2.25, pal["roof"], n=n - 4)
-        flag(m, rng, pal, (x, y, h + 4.2 + r * 2.25 + 1.0), h=4.6, w=3.8)
+        spire(m, rng, pal, (x, y, h + 4.2), r * 0.95, r * peak, pal["roof"], n=n - 4)
+        flag(m, rng, pal, (x, y, h + 4.2 + r * peak + 1.0), h=4.6, w=3.8)
     return h
 
 
@@ -669,11 +669,47 @@ def arch(m, rng, x, y, z, r, depth, col, n=11, w=1.4):
         m.box((x + math.cos(a) * r, y, z + math.sin(a) * r), (w * key, depth * (1.06 if key > 1 else 1), r * math.pi / n * 0.97), "Rock", vary(rng, mul(col, 1.1), 0.1), rot=(0, -math.degrees(a), 0), bevel=0.12)
 
 
+def square_tower(m, rng, pal, c, r, h, col, roofed=False):
+    """Square tower with pilaster buttresses, string courses and stepped corbels."""
+    x, y = c
+    m.box((x, y, (h - 12) / 2), (r * 2, r * 2, h + 12), "Slate", lambda q: mul(col, 0.74 + 0.3 * min(1, max(0, q.z / (h * 0.6)))))
+    m.box((x, y, 0.4), (r * 2 + 2.4, r * 2 + 2.4, 6.4), "Rubble", mul(col, 0.78), taper=0.88)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            m.box((x + sx * r, y + sy * r, h / 2 - 1), (2.2, 2.2, h + 1), "Slate", mul(col, 1.03), bevel=0.15)
+    for z in (h * 0.36, h * 0.68):
+        m.box((x, y, z), (r * 2 + 0.8, r * 2 + 0.8, 0.5), "Rock", mul(col, 1.1), bevel=0.12)
+    for a, b in (((-1, -1), (1, -1)), ((1, -1), (1, 1)), ((1, 1), (-1, 1)), ((-1, 1), (-1, -1))):
+        A, B = Vector((x + a[0] * r, y + a[1] * r, 0)), Vector((x + b[0] * r, y + b[1] * r, 0))
+        dv = (B - A).normalized()
+        nv = Vector((dv.y, -dv.x, 0))
+        ang = math.degrees(math.atan2(dv.y, dv.x))
+        for i in range(5):
+            q = A.lerp(B, (i + 0.5) / 5)
+            for step, out in enumerate((0.5, 1.0)):
+                p = q + nv * (out / 2)
+                m.box((p.x, p.y, h - 1.9 + step * 0.8), (0.75, out + 0.3, 0.8), "Rock", vary(rng, col, 0.08), rot=(0, 0, ang), bevel=0.1)
+        q = (A + B) / 2 + nv * 0.6
+        m.box((q.x, q.y, h), (r * 2 + 2.2, 1.4, 0.8), "Slate", mul(col, 1.04), rot=(0, 0, ang))
+        merlons(m, rng, A + nv * 0.8 - dv * 0.6, B + nv * 0.8 + dv * 0.6, h + 0.2, col, loops=False)
+        for z in (h * 0.24 + 3, h * 0.54):
+            f = (A + B) / 2 + nv * 0.05
+            loop_window(m, (f.x, f.y, z), math.degrees(math.atan2(nv.y, nv.x)), col, h=2.8)
+    if roofed:
+        roof(m, rng, pal, r * 2 - 1.6, r * 2 - 1.6, h + 0.8, 1.2, "tile", pal["roof"], over=0.3, sag=0.1, x=x, y=y, timber=False, wall_mat="Slate", wall_col=col)
+    return h
+
+
 def castle(rng, pal, size, variant):
     """Stronghold: talus, curtain walls with machicolations, four corner towers, twin-towered gatehouse, keep, hall and chapel."""
     m = M()
-    col = vary(rng, mul(pal["stone"], 1.12), 0.04)
-    H, wh, th, kh, t = 26.0, 16.0, 25.0, 33.0, 4.0
+    # four ways of holding a hill: concentric, round donjon, square Norman keep, residence with steep roofs
+    plan = ("concentric", "donjon", "norman", "chateau")[variant % 4]
+    pal = dict(pal)
+    col = vary(rng, mul(pal["stone"], {"concentric": 1.12, "donjon": 1.0, "norman": 1.18, "chateau": 1.45}[plan]), 0.04)
+    if plan == "chateau":
+        pal["roof"] = mix(mul(pal["stone"], 0.5), (0.12, 0.16, 0.24), 0.6)
+    H, wh, th, kh, t = {"concentric": (26.0, 16.0, 25.0, 33.0, 4.0), "donjon": (26.0, 13.0, 19.0, 46.0, 4.0), "norman": (25.0, 14.5, 21.0, 40.0, 4.4), "chateau": (26.0, 11.0, 22.0, 26.0, 3.4)}[plan]
     m.box((0, 0, -0.45), (H * 2, H * 2, 1.6), "Cobblestone", mul(pal["stone"], 0.72))
     m.box((0, 0, -6.5), (H * 2 + 5.6, H * 2 + 5.6, 11.6), "Rubble", mul(col, 0.66), taper=0.95)
     for sx in (-1, 1):
@@ -688,11 +724,21 @@ def castle(rng, pal, size, variant):
     merlons(m, rng, (-H + 8, -H - 2.1), (H - 8, -H - 2.1), wh, col)
     heights = [th, th + 4, th + 1.5, th + 7]
     for i, (sx, sy) in enumerate(((-1, -1), (1, -1), (-1, 1), (1, 1))):
-        tower(m, rng, pal, (sx * H, sy * H), 6.6, heights[(i + variant) % 4], col, "spire" if (i + variant) % 4 != 1 else "flat", n=24)
+        if plan == "norman":
+            square_tower(m, rng, pal, (sx * H, sy * H), 6.0, heights[i], col, roofed=i == 3)
+        elif plan == "donjon":
+            tower(m, rng, pal, (sx * H, sy * H), 6.0, th + (i % 2) * 2, col, "flat", n=24)
+        elif plan == "chateau":
+            tower(m, rng, pal, (sx * H, sy * H), 5.2, heights[(i + 1) % 4], col, "spire", n=20, peak=3.4)
+        else:
+            tower(m, rng, pal, (sx * H, sy * H), 6.6, heights[(i + 2) % 4], col, "spire" if i != 1 else "flat", n=24)
     # gatehouse: twin towers, double arch, portcullis, gate leaves, bridge with chains
     gh = wh + 7
     for s in (-1, 1):
-        tower(m, rng, pal, (s * 9.2, H + 1.6), 4.6, gh, col, "spire", n=20, levels=2)
+        if plan == "norman":
+            square_tower(m, rng, pal, (s * 9.4, H + 1.6), 4.4, gh, col)
+        else:
+            tower(m, rng, pal, (s * 9.2, H + 1.6), 4.6, gh, col, "flat" if plan == "donjon" else "spire", n=20, levels=2, peak=3.0 if plan == "chateau" else 2.25)
         banner(m, rng, pal, (s * 9.2, H + 6.35, gh - 5), 90, 2.8, 8.5)
     m.box((0, H + 1.2, 14.5), (11, 7.4, 8.6), "Slate", col, bevel=0.1)
     merlons(m, rng, (-4.6, H + 4.7), (4.6, H + 4.7), 18.6, col, w=1.7, gap=1.2, loops=False)
@@ -714,57 +760,105 @@ def castle(rng, pal, size, variant):
     for s in (-1, 1):
         beam(m, rng, (s * 4.0, H + 5.6, -0.15), (s * 4.0, H + 18.6, -0.15), 0.6, 0.7, pal["wood"])
         m.tube([(s * 4.0, H + 5.2, 11.4), (s * 4.0, H + 11.5, 5.6), (s * 4.0, H + 17.8, 0.5)], [0.16, 0.16, 0.16], "Metal", IRON, n=6)
-    # keep: square, corner turrets, tall windows, steep roof
-    kw, ky = 19.0, -9.5
-    shade = lambda q: mul(col, 0.8 + 0.26 * min(1, max(0, q.z / kh)) + noise.noise(q * 0.15) * 0.1)
-    m.box((0, ky, kh / 2 - 0.5), (kw, kw, kh + 1), "Slate", shade)
-    m.box((0, ky, 2.2), (kw + 2.4, kw + 2.4, 5.2), "Rubble", mul(col, 0.8), taper=0.9)
-    for z in (kh * 0.36, kh * 0.68):
-        m.box((0, ky, z), (kw + 0.7, kw + 0.7, 0.55), "Rock", mul(col, 1.1), bevel=0.14)
-    for a, b in (((-1, -1), (1, -1)), ((1, -1), (1, 1)), ((1, 1), (-1, 1)), ((-1, 1), (-1, -1))):
-        A, B = Vector((a[0] * kw / 2, ky + a[1] * kw / 2, 0)), Vector((b[0] * kw / 2, ky + b[1] * kw / 2, 0))
-        dv = (B - A).normalized()
-        nv = Vector((dv.y, -dv.x, 0))
-        ang = math.degrees(math.atan2(dv.y, dv.x))
-        for i in range(9):
-            c = A.lerp(B, (i + 0.5) / 9)
-            for step, out in enumerate((0.5, 0.95, 1.4)):
-                q = c + nv * (out / 2)
-                m.box((q.x, q.y, kh - 2.5 + step * 0.7), (0.75, out + 0.3, 0.72), "Rock", vary(rng, col, 0.08), rot=(0, 0, ang), bevel=0.1)
-        q = (A + B) / 2 + nv * 0.75
-        m.box((q.x, q.y, kh - 0.2), (kw + 1.5, 1.5, 0.9), "Slate", mul(col, 1.04), rot=(0, 0, ang))
-        merlons(m, rng, A + nv * 0.95 + dv * 3, B + nv * 0.95 - dv * 3, kh, col, loops=False)
-    for sx in (-1, 1):
-        for sy in (-1, 1):  # bartizans
-            bx, by = sx * (kw / 2 + 0.2), ky + sy * (kw / 2 + 0.2)
-            m.tube([(bx, by, kh - 9), (bx, by, kh - 6), (bx, by, kh + 4.4)], [0.5, 2.5, 2.5], "Slate", col, n=14, smooth=False)
-            m.tube([(bx, by, kh - 6.2), (bx, by, kh - 5.8)], [2.8, 2.8], "Rock", mul(col, 1.1), n=14, smooth=False)
-            for k in range(3):
-                a = math.atan2(sy, sx) + (k - 1) * 0.8
-                m.box((bx + math.cos(a) * 2.45, by + math.sin(a) * 2.45, kh + 1.4), (0.3, 0.5, 2.2), "SmoothPlastic", (0.012, 0.012, 0.016), rot=(0, 0, math.degrees(a)))
-            spire(m, rng, pal, (bx, by, kh + 4.4), 2.9, 6.8, pal["roof"], n=14)
-    roof(m, rng, pal, kw - 4.4, kw - 4.4, kh + 1.2, 1.15, "tile", pal["roof"], over=0.4, sag=0.25, axis="y", y=ky, timber=False, wall_mat="Slate", wall_col=col)
-    flag(m, rng, pal, (0, ky, kh + 1.2 + (kw - 4.4) * 0.58), h=7, w=5.2)
-    for z in (kh * 0.22 + 3, kh * 0.52, kh * 0.83):
-        for x in (-5.6, 0, 5.6):
-            if z < 12 and x == 0:
-                continue
-            yy = ky + kw / 2 + 0.1
-            m.box((x, yy, z), (1.5, 0.3, 4.2), "Glow", mul(GLASS, 0.55))
+    if plan in ("concentric", "norman"):
+        kw, ky = (19.0 if plan == "concentric" else 24.0), -9.5
+        shade = lambda q: mul(col, 0.8 + 0.26 * min(1, max(0, q.z / kh)) + noise.noise(q * 0.15) * 0.1)
+        m.box((0, ky, kh / 2 - 0.5), (kw, kw, kh + 1), "Slate", shade)
+        m.box((0, ky, 2.2), (kw + 2.4, kw + 2.4, 5.2), "Rubble", mul(col, 0.8), taper=0.9)
+        for z in (kh * 0.36, kh * 0.68):
+            m.box((0, ky, z), (kw + 0.7, kw + 0.7, 0.55), "Rock", mul(col, 1.1), bevel=0.14)
+        for a, b in (((-1, -1), (1, -1)), ((1, -1), (1, 1)), ((1, 1), (-1, 1)), ((-1, 1), (-1, -1))):
+            A, B = Vector((a[0] * kw / 2, ky + a[1] * kw / 2, 0)), Vector((b[0] * kw / 2, ky + b[1] * kw / 2, 0))
+            dv = (B - A).normalized()
+            nv = Vector((dv.y, -dv.x, 0))
+            ang = math.degrees(math.atan2(dv.y, dv.x))
+            for i in range(9):
+                c = A.lerp(B, (i + 0.5) / 9)
+                for step, out in enumerate((0.5, 0.95, 1.4)):
+                    q = c + nv * (out / 2)
+                    m.box((q.x, q.y, kh - 2.5 + step * 0.7), (0.75, out + 0.3, 0.72), "Rock", vary(rng, col, 0.08), rot=(0, 0, ang), bevel=0.1)
+            q = (A + B) / 2 + nv * 0.75
+            m.box((q.x, q.y, kh - 0.2), (kw + 1.5, 1.5, 0.9), "Slate", mul(col, 1.04), rot=(0, 0, ang))
+            merlons(m, rng, A + nv * 0.95 + dv * 3, B + nv * 0.95 - dv * 3, kh, col, loops=False)
+        for sx in (-1, 1):
+            for sy in (-1, 1):  # bartizans
+                bx, by = sx * (kw / 2 + 0.2), ky + sy * (kw / 2 + 0.2)
+                m.tube([(bx, by, kh - 9), (bx, by, kh - 6), (bx, by, kh + 4.4)], [0.5, 2.5, 2.5], "Slate", col, n=14, smooth=False)
+                m.tube([(bx, by, kh - 6.2), (bx, by, kh - 5.8)], [2.8, 2.8], "Rock", mul(col, 1.1), n=14, smooth=False)
+                for k in range(3):
+                    a = math.atan2(sy, sx) + (k - 1) * 0.8
+                    m.box((bx + math.cos(a) * 2.45, by + math.sin(a) * 2.45, kh + 1.4), (0.3, 0.5, 2.2), "SmoothPlastic", (0.012, 0.012, 0.016), rot=(0, 0, math.degrees(a)))
+                if plan == "concentric":
+                    spire(m, rng, pal, (bx, by, kh + 4.4), 2.9, 6.8, pal["roof"], n=14)
+                else:
+                    for k in range(6):
+                        a = k / 6 * math.tau
+                        m.box((bx + math.cos(a) * 2.3, by + math.sin(a) * 2.3, kh + 5.4), (0.8, 1.2, 1.8), "Slate", col, rot=(0, 0, math.degrees(a)), bevel=0.06)
+        if plan == "norman":  # a timber hoarding hangs from the top of the keep
             for s in (-1, 1):
-                m.box((x + s * 0.95, yy + 0.1, z), (0.45, 0.6, 4.4), "Rock", mul(col, 1.15), bevel=0.1)
-            m.box((x, yy + 0.16, z), (0.16, 0.3, 4.2), "Metal", IRON)
-            for q in (-0.9, 0.5):
-                m.box((x, yy + 0.16, z + q), (1.5, 0.3, 0.14), "Metal", IRON)
-            arch(m, rng, x, yy + 0.1, z + 2.0, 0.95, 0.7, col, n=5, w=0.5)
-            m.box((x, yy + 0.25, z - 2.35), (2.6, 0.9, 0.4), "Rock", mul(col, 1.15), bevel=0.1)
-    door(m, rng, pal, (0, ky + kw / 2 + 1.1, 0.5), 90, 5.0, 8.6, ajar=55)
-    arch(m, rng, 0, ky + kw / 2 + 1.0, 8.8, 2.9, 1.0, col, n=9)
-    for s in (-1, 1):
-        banner(m, rng, pal, (s * 2.8, ky + kw / 2 + 0.6, kh * 0.78), 90, 2.2, 9)
-        lantern(m, (s * 4.0, ky + kw / 2 + 1.6, 7.4), 1.3)
+                m.box((0, ky + s * (kw / 2 + 1.9), kh - 4.4), (kw + 5.6, 2.4, 4.4), "WoodPlanks", vary(rng, pal["wood"], 0.1))
+                m.box((s * (kw / 2 + 1.9), ky, kh - 4.4), (2.4, kw + 1.4, 4.4), "WoodPlanks", vary(rng, pal["wood"], 0.1))
+                for k in range(8):
+                    x = -kw / 2 + kw * (k + 0.5) / 8
+                    beam(m, rng, (x, ky + s * kw / 2, kh - 9.4), (x, ky + s * (kw / 2 + 2.6), kh - 6.8), 0.5, 0.5, pal["wood"])
+                    beam(m, rng, (s * kw / 2, ky + x, kh - 9.4), (s * (kw / 2 + 2.6), ky + x, kh - 6.8), 0.5, 0.5, pal["wood"])
+        roof(m, rng, pal, kw - 4.4, kw - 4.4, kh + 1.2, 1.15, "tile", pal["roof"], over=0.4, sag=0.25, axis="y", y=ky, timber=False, wall_mat="Slate", wall_col=col)
+        flag(m, rng, pal, (0, ky, kh + 1.2 + (kw - 4.4) * 0.58), h=7, w=5.2)
+        for z in (kh * 0.22 + 3, kh * 0.52, kh * 0.83):
+            for x in (-5.6, 0, 5.6):
+                if z < 12 and x == 0:
+                    continue
+                yy = ky + kw / 2 + 0.1
+                m.box((x, yy, z), (1.5, 0.3, 4.2), "Glow", mul(GLASS, 0.55))
+                for s in (-1, 1):
+                    m.box((x + s * 0.95, yy + 0.1, z), (0.45, 0.6, 4.4), "Rock", mul(col, 1.15), bevel=0.1)
+                m.box((x, yy + 0.16, z), (0.16, 0.3, 4.2), "Metal", IRON)
+                for q in (-0.9, 0.5):
+                    m.box((x, yy + 0.16, z + q), (1.5, 0.3, 0.14), "Metal", IRON)
+                arch(m, rng, x, yy + 0.1, z + 2.0, 0.95, 0.7, col, n=5, w=0.5)
+                m.box((x, yy + 0.25, z - 2.35), (2.6, 0.9, 0.4), "Rock", mul(col, 1.15), bevel=0.1)
+        door(m, rng, pal, (0, ky + kw / 2 + 1.1, 0.5), 90, 5.0, 8.6, ajar=55)
+        arch(m, rng, 0, ky + kw / 2 + 1.0, 8.8, 2.9, 1.0, col, n=9)
+        for s in (-1, 1):
+            banner(m, rng, pal, (s * 2.8, ky + kw / 2 + 0.6, kh * 0.78), 90, 2.2, 9)
+            lantern(m, (s * 4.0, ky + kw / 2 + 1.6, 7.4), 1.3)
+    elif plan == "donjon":  # one great round tower, its own ditch and forebuilding
+        ky = -8.0
+        m.tube([(0, ky, -0.2), (0, ky, 3.0), (0, ky, 5.0)], [14.0, 12.4, 10.6], "Rubble", mul(col, 0.8), n=28, smooth=False)
+        tower(m, rng, pal, (0, ky), 10.0, kh, col, "flat", n=30, levels=5, z0=0)
+        tower(m, rng, pal, (7.4, ky + 6.0), 3.0, kh + 9, col, "spire", n=16, levels=3, z0=0, peak=2.6)
+        m.box((0, ky + 12.5, 4.0), (8.0, 8.0, 8.0), "Slate", mul(col, 1.02), bevel=0.12)
+        roof(m, rng, pal, 8.4, 8.4, 8.0, 1.0, "tile", pal["roof"], over=0.6, sag=0.1, axis="y", y=ky + 12.5, timber=False, wall_mat="Slate", wall_col=col)
+        door(m, rng, pal, (0, ky + 16.6, 0.4), 90, 4.4, 7.0, ajar=55)
+        for s in (-1, 1):
+            banner(m, rng, pal, (s * 4.6, ky + 9.4, kh * 0.66), 90, 2.4, 11)
+    else:  # chateau: three wings round a court of honour, steep slates, tall dormers
+        wings = (((0, -16.0), 34.0, 12.0, "x"), ((-17.0, -1.0), 22.0, 10.0, "y"), ((17.0, -1.0), 22.0, 10.0, "y"))
+        for (cx, cy), L, Dp, ax in wings:
+            w, d = (L, Dp) if ax == "x" else (Dp, L)
+            m.box((cx, cy, 9.0), (w, d, 18.0), "Slate", lambda q: mul(col, 0.86 + 0.16 * min(1, q.z / 18)))
+            for z in (0.8, 8.8, 17.6):
+                m.box((cx, cy, z), (w + 0.7, d + 0.7, 0.6), "Rock", mul(col, 1.08), bevel=0.12)
+            roof(m, rng, pal, L, Dp, 18.0, 1.7, "slate", pal["roof"], over=0.7, sag=0.1, flare=0.5, axis=ax, x=cx, y=cy, timber=False, wall_mat="Slate", wall_col=col)
+            n = 6 if ax == "x" else 4
+            for k in range(n):
+                u = -L / 2 + L * (k + 0.5) / n
+                for z in (4.6, 13.2):
+                    if ax == "x":
+                        window(m, rng, pal, (cx + u, cy + Dp / 2 + 0.3, z), 90, 1.8, 4.2, shutters=False, box=False)
+                    else:
+                        s = -1 if cx > 0 else 1
+                        window(m, rng, pal, (cx + s * (Dp / 2 + 0.3), cy + u, z), 0 if s > 0 else 180, 1.8, 4.2, shutters=False, box=False)
+                if ax == "x" and k % 2 == 0:
+                    dormer(m, rng, pal, (cx + u, cy + Dp * 0.46, 18.4), 3.0, 4.4, 3.4, "slate", pal["roof"], mul(col, 1.05))
+            chimney(m, rng, {**pal, "stone": mul(col, 0.9)}, (cx + (L * 0.34 if ax == "x" else 0), cy + (0 if ax == "x" else L * 0.3)), 2.6, 22, 32)
+        for s in (-1, 1):  # stair towers in the corners of the court
+            tower(m, rng, pal, (s * 12.4, -10.0), 3.4, 27.0, col, "spire", n=16, levels=3, z0=0, peak=3.2)
+        door(m, rng, pal, (0, -9.8, 0.5), 90, 5.0, 8.6, ajar=55)
+        for s in (-1, 1):
+            banner(m, rng, pal, (s * 5.4, -9.6, 16.0), 90, 2.2, 8)
     # great hall against the west wall, chapel against the east, both half-timbered above stone
-    for s, length, fn in ((-1, 20.0, "hall"), (1, 15.0, "chapel")):
+    for s, length, fn in (() if plan == "chateau" else ((-1, 20.0, "hall"), (1, 15.0, "chapel"))):
         hx, hy, hw = s * 18.2, 2.0, 9.0
         m.box((hx, hy, 3.8), (hw, length, 8.4), "Slate", mul(col, 1.02))
         roof(m, rng, pal, length, hw, 8.0, 1.1, "tile", mul(pal["roof"], 0.9), over=0.9, sag=0.3, axis="y", x=hx, y=hy, wall_mat="Slate" if fn == "chapel" else "Concrete", wall_col=mul(col, 1.0) if fn == "chapel" else pal["wall"], timber=fn == "hall")
@@ -778,7 +872,7 @@ def castle(rng, pal, size, variant):
     for s in (-1, 1):
         beam(m, rng, (8 + s * 2.0, 10, 1), (8 + s * 2.0, 10, 7), 0.4, 0.4, pal["wood"])
     roof(m, rng, pal, 4.6, 3.4, 6.6, 0.9, "tile", pal["roof"], over=0.6, sag=0.05, flare=0.1, x=8, y=10, timber=False, gables=False)
-    woodpile(m, rng, pal, -10, 12, 0.4, 5, 4, 20)
+    woodpile(m, rng, pal, -10, 16, 0.4, 5, 4, 20)
     for k in range(7):
         bx, by = rng.uniform(-13, -6), rng.uniform(6, 21)
         if k % 2:

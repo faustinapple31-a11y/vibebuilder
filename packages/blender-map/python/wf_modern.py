@@ -412,6 +412,3 @@ WORN = {**MODERN, "house": lambda r, p, s, v: modern_house(r, p, s, v, 0.9), "ho
 SHED = {**MODERN, "house": shed, "house_large": shed}
 ADOBE = {"house": adobe, "house_large": adobe, "shop_building": adobe, "cottage": adobe}
 CARVED = {k: (lambda r, p, s, v: adobe(r, p, s, v, True)) for k in ADOBE}
-
-# architecture style of the Style Bible -> what its buildings are made by; a style that is absent keeps its own PartList
-FAMILIES = {"modern_house": MODERN, "apartment_block": MODERN, "industrial_shed": SHED, "desert_adobe": ADOBE, "egyptian": CARVED}

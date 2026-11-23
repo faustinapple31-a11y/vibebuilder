@@ -63,6 +63,7 @@ const scene = {
   prompt,
   style: spec.stylePreset,
   architecture: style.architecture.style,
+  weathering: style.architecture.weathering,
   seed: bake.meta.seed,
   palette: style.palette,
   materialNames: TERRAIN_MATERIALS,

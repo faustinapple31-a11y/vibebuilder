@@ -22,7 +22,7 @@ from wf_arch import ARCH, ramparts  # noqa: E402
 from wf_props import PROPS, from_parts  # noqa: E402
 import wf_build  # noqa: E402
 import wf_export  # noqa: E402
-from wf_modern import FAMILIES  # noqa: E402
+from wf_families import FAMILIES, WORN  # noqa: E402
 
 T0 = time.time()
 
@@ -251,7 +251,7 @@ ARCHI = scene.get("architecture", "timber_frame")
 BUILD = {**FLORA, **ARCH, **PROPS}
 HOUSES = ("house", "house_large", "shop_building", "cottage", "chalet", "manor")
 if ARCHI in FAMILIES:
-    BUILD.update(FAMILIES[ARCHI])
+    BUILD.update(WORN if ARCHI == "modern_house" and scene.get("weathering", 0) > 0.6 else FAMILIES[ARCHI])
 elif ARCHI in wf_build.LOOKS:
     wf_build.LOOK["now"] = wf_build.LOOKS[ARCHI]
 else:  # a style with its own architecture keeps its own PartList, textured and chamfered
@@ -426,12 +426,12 @@ if tufts:
         if d < 1.2 or rng.random() > math.exp(-near / 60) + 0.05:
             continue
         y, m, _c = gp(round(x / 2) * 2, round(z / 2) * 2)
-        if m != "Grass" or noise.noise(Vector((x * 0.05, z * 0.05, 9))) < -0.12:
+        if m != "Grass" or noise.noise(Vector((x * 0.028, z * 0.028, 9))) + 0.35 * noise.noise(Vector((x * 0.11, z * 0.11, 4))) < 0.02:
             continue
         if any(math.hypot(x - a, z - b) < c for a, b, c in bg.get((int(x // 64), int(z // 64)), ())):
             continue
         t = rng.choice(tufts)
-        s = rng.uniform(0.55, 1.2)
+        s = rng.uniform(0.45, 0.95)
         r = rng.uniform(0, 6.28)
         inst = bpy.data.objects.new("meadow_%d" % extra, t.data)
         inst.matrix_world = Matrix.Translation((x, -z, height(x, z) - 0.05)) @ Matrix.Rotation(r, 4, "Z") @ Matrix.Scale(s, 4)
@@ -636,6 +636,16 @@ if "wide" in wanted:
     span = W * CS
     cx, cz = OX + span / 2, OZ + span / 2
     shoot("wide", Vector((cx - span * 0.42, -(cz - span * 0.42) * 1.0 - 0, max(H) + span * 0.2)), Vector((cx + span * 0.05, -cz - span * 0.02, sum(H) / len(H))), 58)
+if "aerial" in wanted:
+    span = W * CS
+    c = Vector((vil["center"][0], -vil["center"][1], height(*vil["center"]))) if vil else Vector((OX + span / 2, -(OZ + span / 2), sum(H) / len(H)))
+    f = V(focal) if focal else c + Vector((0, 100, 0))
+    aim = c.lerp(f, 0.35)
+    d = (c - f)
+    d.z = 0
+    d = d.normalized() if d.length > 1 else Vector((0, -1, 0))
+    d = Matrix.Rotation(0.7, 3, "Z") @ d
+    shoot("aerial", aim + d * span * 0.36 + Vector((0, 0, span * 0.27)), aim, 58)
 # ---------------------------------------------------------------- checks: Roblox culls back faces, and nothing may float
 for o in place_col.objects:
     o.hide_render = False
@@ -682,7 +692,7 @@ def wound_inside(ob):
 
 
 inverted = {}
-for k, o in kit.items():
+for k, o in (kit.items() if "--inverted" in args else ()):
     if o and len(o.data.polygons) < 9000:
         b, t = wound_inside(o)
         if t and b / t > 0.03:

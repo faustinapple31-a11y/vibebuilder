@@ -8,8 +8,8 @@ import math
 import os
 import numpy as np
 
-VERSION = 10
-LEAF_VERSION = 12
+VERSION = 11
+LEAF_VERSION = 13
 SIZE = 1024
 
 
@@ -190,8 +190,8 @@ def plaster(rng):
     crack_f = fbm(rng, 1.9, 2, 26)
     crack = np.exp(-((crack_f - 0.5) / 0.006) ** 2) * smooth(0.55, 0.8, fbm(rng, 2, 1, 8))
     streak = fbm(rng, 1.6, 2, 60, aniso=(1.0, 0.12))
-    val = 0.86 + (broad - 0.5) * 0.12 + (trowel - 0.5) * 0.09 + (grain - 0.5) * 0.03 - crack * 0.22 - smooth(0.7, 1.05, streak) * 0.07
-    return pack(val, trowel * 0.12 + grain * 0.02 - crack * 0.12, 0.9 + grain * 0.06, 0.8, warm(broad, 0.035))
+    val = 0.86 + (broad - 0.5) * 0.08 + (trowel - 0.5) * 0.05 + (grain - 0.5) * 0.03 - crack * 0.22 - smooth(0.7, 1.05, streak) * 0.07
+    return pack(val, trowel * 0.06 + grain * 0.015 - crack * 0.12, 0.9 + grain * 0.06, 0.8, warm(broad, 0.035))
 
 
 def planks(rng, boards=6):
@@ -529,9 +529,9 @@ def draw_cell(name, n=512):
     rng = rng_of("leaf" + name)
     c = Cell(n)
     if name == "oak":
-        sprig(c, rng, "oak", 64, 0.19, 0.40)
+        sprig(c, rng, "oak", 120, 0.13, 0.43)
     elif name == "beech":
-        sprig(c, rng, "beech", 84, 0.145, 0.42)
+        sprig(c, rng, "beech", 130, 0.11, 0.43)
     elif name == "birch":
         sprig(c, rng, "birch", 96, 0.105, 0.42)
     elif name == "bush":
