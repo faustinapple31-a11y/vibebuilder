@@ -59,8 +59,9 @@ class DETAIL:
     drop = 0.0
 
     @classmethod
-    def set(cls, level):
-        cls.level, cls.drop = level, (0.0, 0.34, 0.8)[level]
+    def set(cls, level, span=40.0):
+        # what is too thin depends on the piece: a bench is made of nothing but thin parts
+        cls.level, cls.drop = level, (0.0, min(0.34, span * 0.012), min(0.8, span * 0.028))[level]
 
 
 GAIN = 1.0 / (tex.NEUTRAL ** 2.2)  # what the neutral map takes away, the vertex colour gives back

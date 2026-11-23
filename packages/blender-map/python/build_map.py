@@ -294,7 +294,7 @@ def levels(key):
     info = info[min(int(variant), len(info) - 1)]
     lo, hi = info["min"], info["max"]
     for lv in (1, 2):
-        DETAIL.set(lv)
+        DETAIL.set(lv, max(hi[0] - lo[0], hi[2] - lo[2], hi[1]))
         rng = random.Random("%s/%s/%d" % (prefab, variant, scene["seed"]))
         m = BUILD[prefab](rng, PAL, (hi[0] - lo[0], hi[2] - lo[2], max(0.5, hi[1])), int(variant)) if prefab in BUILD else from_parts(rng, info["parts"])
         # close up, occlusion is baked: the far versions take its mean darkening

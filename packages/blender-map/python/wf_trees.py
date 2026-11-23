@@ -20,11 +20,11 @@ def card(m, cell, c, axis, side, w, h, col, centre, bend=0.12, soft=0.8, rows=1,
     """
     axis, side = axis.normalized(), side.normalized()
     if DETAIL.level:  # fewer, larger cards: the crown keeps its outline and its density
-        keep, grow = ((2, 1.36), (5, 2.05))[DETAIL.level - 1]
+        keep, grow = ((2, 1.5), (4, 2.05))[DETAIL.level - 1]
         m.cards = getattr(m, "cards", -1) + 1
-        if cell not in ("palm", "fern") and m.cards % keep:
+        if cell not in ("palm", "fern", "twig") and m.cards % keep:
             return
-        if cell not in ("palm", "fern", "spruce", "willow"):
+        if cell not in ("palm", "fern", "spruce", "willow", "twig"):
             c = c - axis * h * (grow - 1) / 2
             w, h = w * grow, h * grow
         elif cell != "palm":
