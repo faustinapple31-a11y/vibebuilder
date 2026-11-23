@@ -9,7 +9,8 @@ import { nearestRoadPoint } from "./urban-plan";
  * nobody sees from the spawn. Chosen from the terrain analysis, never at random.
  */
 export function placeDiscoveries(ctx: GenContext): void {
-  if (ctx.islands || layoutKeepOut(ctx) || ctx.spec.layout?.archetype === "obby_course") return;
+  if (ctx.islands || ctx.spec.layout?.archetype === "obby_course") return;
+  const keepOut = layoutKeepOut(ctx);
   if (ctx.sites.length === 0 && ctx.landmarks.length === 0) return;
   progress(ctx, "discovery", 0);
   const rng = new Rng(deriveSeed(ctx.seed, "discovery"));
@@ -26,6 +27,7 @@ export function placeDiscoveries(ctx: GenContext): void {
       if (isWaterAt(ctx, x, z) || ctx.waterDistance.sample(x, z) < 10) continue;
       const g = ctx.analysis!.at(x, z);
       if (g.slope > 0.4) continue;
+      if (keepOut && Math.hypot(x - keepOut.center[0], z - keepOut.center[1]) < keepOut.radius + 30) continue;
       if (ctx.sites.some((s) => Math.hypot(x - s.center[0], z - s.center[1]) < s.radius * 1.35)) continue;
       if (ctx.occupants.some((o) => Math.hypot(x - o.position[0], z - o.position[2]) < o.radius + 16)) continue;
       if (baseRelief(ctx, x, z, 7) > (ctx.terrainMode === "parts" ? 0.5 : 5)) continue;
@@ -61,6 +63,9 @@ export function placeDiscoveries(ctx: GenContext): void {
     let length = 0;
     for (let i = 1; i < pts.length; i++) length += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]);
     const onBuilding = pts.some((q) => isWaterAt(ctx, q[0], q[1]) || distanceToEdge(ctx, q[0], q[1]) < 20 || ctx.placements.some((p) => p.category === "building" && Math.hypot(p.position[0] - q[0], p.position[2] - q[1]) < (ctx.prefabs[p.prefab]?.[p.variant]?.footprintRadius ?? 8) * 0.95));
+    let climb = 0;
+    for (let i = 1; i < pts.length; i++) climb += Math.abs(ctx.heights.sample(pts[i]![0], pts[i]![1]) - ctx.heights.sample(pts[i - 1]![0], pts[i - 1]![1]));
+    if (ctx.terrainMode !== "parts" && climb / length > 0.38) continue; // a trail, not a ladder
     if (onBuilding || length > Math.hypot(from[0] - s.x, from[1] - s.z) * 2.4 + 20) continue;
     ctx.paths.push({ id: "trail_viewpoint", kind: "road", type: trailType, points: pts, width: 4 });
     carveRoad(ctx, pts, 4, trailType);

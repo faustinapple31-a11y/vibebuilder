@@ -106,6 +106,23 @@ export function chooseSpawn(ctx: GenContext): void {
   } else {
     pos = [ctx.origin[0] + ctx.worldW * 0.5, ctx.origin[1] + ctx.worldD * 0.72];
   }
+  if (isWaterAt(ctx, pos[0], pos[1]) || !inBounds(ctx, pos[0], pos[1], 40)) {
+    // nowhere good was found: the nearest dry, gentle ground, never the sea
+    let bestD = Infinity;
+    let dry: Vec2 = pos;
+    for (let z = ctx.origin[1] + 60; z < ctx.origin[1] + ctx.worldD - 60; z += 12) {
+      for (let x = ctx.origin[0] + 60; x < ctx.origin[0] + ctx.worldW - 60; x += 12) {
+        if (isWaterAt(ctx, x, z) || ctx.waterDistance.sample(x, z) < 34 || slopeAtWorld(ctx, x, z) > 0.3) continue;
+        if (ctx.sites.some((q) => Math.hypot(x - q.center[0], z - q.center[1]) < q.radius * 1.15)) continue;
+        const d = Math.hypot(x - pos[0], z - pos[1]);
+        if (d < bestD) {
+          bestD = d;
+          dry = [x, z];
+        }
+      }
+    }
+    pos = dry;
+  }
   const y = flattenArea(ctx, pos, 30, 0.95);
   const lookTarget: Vec3 = site ? [site.center[0], site.baseHeight, site.center[1]] : focal ? focal.position : [pos[0], y, pos[1] - 100];
   const lookAt: Vec3 = facing ? facing.position : facingSite ? [facingSite.center[0], facingSite.baseHeight, facingSite.center[1]] : lookTarget;

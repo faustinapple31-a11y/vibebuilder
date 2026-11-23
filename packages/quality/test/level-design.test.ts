@@ -45,7 +45,8 @@ describe("level design", () => {
     const houses = b.placements.filter((p) => p.category === "building" && /house/.test(p.prefab));
     houses[1]!.position = [houses[0]!.position[0] + 3, houses[0]!.position[1], houses[0]!.position[2]];
     const after = reviewLevelDesign(b);
-    expect(after.score).toBeLessThan(before.score);
+    expect(after.metrics.overlaps!).toBeGreaterThan(before.metrics.overlaps!);
+    expect(after.criteria.architecture).toBeLessThan(before.criteria.architecture);
     expect(after.problems.some((p) => p.id === "buildings_overlap" && p.fix)).toBe(true);
   }, 60_000);
 

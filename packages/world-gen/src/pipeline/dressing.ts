@@ -185,46 +185,92 @@ function placeWalls(ctx: GenContext, rng: Rng, add: Add): void {
 }
 
 // ---------------------------------------------------------------- fields
+/** Farmland: blocks of tiles that share their furrows, laid beside the farm (or the last houses) that works them. */
 function placeFields(ctx: GenContext, rng: Rng, add: Add): void {
-  if (!ctx.prefabs["farm_field"]?.length) return;
+  const variants = ctx.prefabs["farm_field"];
+  if (!variants?.length) return;
   const spec = ctx.spec;
-  const farmy = spec.biomes.some((b) => b.id === "farmland") || spec.settlements.some((s) => s.type === "farmstead") || spec.props.sets.includes("farm") || ctx.style.kits.props.includes("farm");
+  const planned = ctx.plan.settlements.some((s) => s.districts.some((q) => q.function === "farm"));
+  const farmy = planned || spec.biomes.some((b) => b.id === "farmland") || spec.settlements.some((s) => s.type === "farmstead") || spec.props.sets.includes("farm") || ctx.style.kits.props.includes("farm");
   if (!farmy) return;
   const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
   for (const o of ctx.occupants) hash.insert({ position: o.position, radius: o.radius });
-  const fieldR = 13;
+  const b = variants[0]!.bounds;
+  const tw = b.max[0] - b.min[0] - 0.6;
+  const td = b.max[2] - b.min[2] - 0.6;
+  const cap = Math.round(Math.min(60, (ctx.worldW * ctx.worldD) / 26_000));
   let placed = 0;
   for (const site of ctx.sites) {
-    // a field belongs to someone: around the farms of the plan, else around the outermost houses
     const plan = ctx.plan.settlements.find((s) => s.settlement === site.id);
     const farms = (plan?.parcels ?? []).filter((p) => p.function === "farm").map((p) => p.center);
     const houses = ctx.placements.filter((p) => p.zone === site.id && p.category === "building" && p.prefab !== "well").map((p) => [p.position[0], p.position[2]] as Vec2);
     const outer = [...houses].sort((p, q) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) - Math.hypot(p[0] - site.center[0], p[1] - site.center[1])).slice(0, 4);
-    const owners = farms.length > 0 ? farms : outer;
-    const want = site.spec.type === "farmstead" ? 4 : 2;
+    const owners = farms.length > 0 ? [...farms, ...outer.slice(0, 2)] : outer;
+    const blocks = site.spec.type === "farmstead" ? 4 : Math.max(2, Math.min(6, Math.round(site.spec.buildings / 4)));
     let got = 0;
-    for (let attempt = 0; attempt < 70 && got < want; attempt++) {
+    for (let attempt = 0; attempt < 160 && got < blocks && placed < cap; attempt++) {
       const owner = owners.length > 0 ? owners[attempt % owners.length]! : site.center;
+      const cols = rng.int(2, 3);
+      const rows = rng.int(2, 4);
+      const half = Math.hypot(cols * tw, rows * td) / 2;
       const a = rng.float(0, Math.PI * 2);
-      const r = owners.length > 0 ? fieldR + rng.float(10, 34) : site.radius * rng.float(1.05, 1.4) + fieldR;
-      const x = owner[0] + Math.cos(a) * r;
-      const z = owner[1] + Math.sin(a) * r;
-      if (!inBounds(ctx, x, z, fieldR + 8)) continue;
-      if (isWaterAt(ctx, x, z) || ctx.waterDistance.sample(x, z) < fieldR + 2) continue;
-      if (ctx.roadDistance.sample(x, z) < fieldR + 2) continue;
-      if (slopeAtWorld(ctx, x, z) > 0.3) continue;
-      if (hash.overlaps(x, z, fieldR, 4)) continue;
-      const y = padHeight(ctx, ctx.heights.sample(x, z));
-      levelDisc(ctx, [x, z], fieldR * 1.45, y, 1.0);
-      paintDisc(ctx, [x, z], fieldR * 1.05, TERRAIN_MATERIAL_INDEX.Ground);
-      const rot = rng.chance(0.5) ? rng.float(0, Math.PI * 2) : Math.atan2(-(site.center[0] - x), -(site.center[1] - z));
-      add("farm_field", x, y, z, rot, { zone: site.id, importance: 8 });
-      const occ = { position: [x, y, z] as [number, number, number], radius: fieldR + 1 };
-      hash.insert(occ);
-      ctx.occupants.push({ ...occ, kind: "building" });
+      const r = half * 0.75 + rng.float(10, 42);
+      const c: Vec2 = [owner[0] + Math.cos(a) * r, owner[1] + Math.sin(a) * r];
+      // the furrows follow the contour of the land
+      const gx = ctx.heights.sample(c[0] + 8, c[1]) - ctx.heights.sample(c[0] - 8, c[1]);
+      const gz = ctx.heights.sample(c[0], c[1] + 8) - ctx.heights.sample(c[0], c[1] - 8);
+      const yaw = Math.hypot(gx, gz) > 0.6 ? Math.atan2(gx, gz) : rng.float(0, Math.PI);
+      const cos = Math.cos(yaw);
+      const sin = Math.sin(yaw);
+      const crop = rng.int(0, variants.length - 1);
+      const tiles: { x: number; z: number; y: number; v: number }[] = [];
+      for (let i = 0; i < cols; i++) {
+        for (let k = 0; k < rows; k++) {
+          // a ragged outline: the corner tiles are often missing, rows slide a little
+          if ((i === 0 || i === cols - 1) && (k === 0 || k === rows - 1) && rng.chance(0.35)) continue;
+          const u = (i - (cols - 1) / 2) * tw + (k % 2) * 2.2;
+          const w = (k - (rows - 1) / 2) * td;
+          const x = c[0] + u * cos + w * sin;
+          const z = c[1] - u * sin + w * cos;
+          if (!inBounds(ctx, x, z, 24) || isWaterAt(ctx, x, z) || ctx.waterDistance.sample(x, z) < 14) continue;
+          if (ctx.roadDistance.sample(x, z) < Math.hypot(tw, td) * 0.42) continue;
+          if (hash.overlaps(x, z, Math.hypot(tw, td) * 0.42, 1)) continue;
+          if (baseRelief(ctx, x, z, Math.max(tw, td) * 0.5) > (ctx.terrainMode === "parts" ? 0.5 : 3.6)) continue;
+          if (Math.hypot(x - ctx.spawn.position[0], z - ctx.spawn.position[2]) < 60) continue;
+          tiles.push({ x, z, y: ctx.heights.sample(x, z), v: i === cols - 1 && rng.chance(0.5) ? (crop + 1) % variants.length : crop });
+        }
+      }
+      if (tiles.length < 3) continue;
+      const mean = tiles.reduce((q, t) => q + t.y, 0) / tiles.length;
+      for (const t of tiles) {
+        const y = padHeight(ctx, t.y * 0.6 + mean * 0.4);
+        levelDisc(ctx, [t.x, t.z], Math.hypot(tw, td) * 0.62, y, 0.9);
+        paintDisc(ctx, [t.x, t.z], Math.max(tw, td) * 0.6, TERRAIN_MATERIAL_INDEX.Ground);
+        add("farm_field", t.x, y, t.z, yaw, { zone: site.id, importance: 8, variant: t.v });
+        const occ = { position: [t.x, y, t.z] as [number, number, number], radius: Math.hypot(tw, td) * 0.42 };
+        ctx.occupants.push({ ...occ, kind: "building" });
+        placed++;
+      }
+      for (const t of tiles) hash.insert({ position: [t.x, t.y, t.z], radius: Math.hypot(tw, td) * 0.42 });
+      // a fence along the two sides that face the road, broken by a gap for the cart
+      const fv = ctx.prefabs["fence"];
+      if (fv?.length) {
+        const len = fv[0]!.bounds.max[0] - fv[0]!.bounds.min[0];
+        for (const [su, sw, along] of [[0, 1, 0], [1, 0, 1]] as const) {
+          const n = Math.floor(((along ? rows * td : cols * tw) + 4) / len);
+          for (let q = 0; q < n; q++) {
+            if (q === Math.floor(n / 2)) continue;
+            const o = (q - (n - 1) / 2) * len;
+            const u = su * ((cols * tw) / 2 + 3) + (along ? 0 : o);
+            const w = sw * ((rows * td) / 2 + 3) + (along ? o : 0);
+            const x = c[0] + u * cos + w * sin;
+            const z = c[1] - u * sin + w * cos;
+            if (!inBounds(ctx, x, z, 10) || isWaterAt(ctx, x, z) || ctx.roadDistance.sample(x, z) < 3 || hash.overlaps(x, z, 2, 0) || slopeAtWorld(ctx, x, z) > 0.35) continue;
+            add("fence", x, ctx.heights.sample(x, z), z, yaw + (along ? Math.PI / 2 : 0), { zone: site.id, importance: 5 });
+          }
+        }
+      }
       got++;
-      placed++;
-      if (placed >= 6) return;
     }
   }
 }

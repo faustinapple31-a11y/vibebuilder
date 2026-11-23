@@ -1,7 +1,7 @@
 import { TERRAIN_MATERIAL_INDEX, deriveSeed, type DistrictFunction, type Placement, type PrefabVariant, type SettlementPlan, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
-import { flattenArea } from "./sites";
+import { flattenArea, plazaRadius } from "./sites";
 import { carveRoad, placeStairs, refreshRoadDistance, routeRoad } from "./roads";
 import { nearestRoadPoint, planSettlement } from "./urban-plan";
 
@@ -90,7 +90,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
   const abandoned = s.type === "abandoned_village" || s.type === "ruined_town";
   const ruinRatio = s.type === "ruined_town" ? 0.55 : abandoned ? 0.25 : 0;
   const count = s.buildings;
-  const plazaR = 16 + count * 1.6;
+  const plazaR = plazaRadius(site.radius) * 1.1;
   const placed: Placement[] = [];
   const centerY = site.baseHeight;
 
@@ -193,7 +193,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     const a = baseAngle + (i / Math.max(1, n2)) * Math.PI * 2 + Math.PI / Math.max(1, n2) + (rng.next() - 0.5) * 0.4;
     let ok = false;
     for (let attempt = 0; attempt < 14 && !ok; attempt++) {
-      const r = plazaR + 40 + attempt * 5 + rng.float(0, 12);
+      const r = site.radius * 0.55 + attempt * 5 + rng.float(0, 12);
       const useRuin = rng.chance(ruinRatio) && ruinWalls.length > 0;
       const [pid, pv] = pick();
       ok = tryPlace(useRuin ? "ruin_wall" : pid, useRuin ? ruinWalls : pv, a + (rng.next() - 0.5) * attempt * 0.08, r, rng.chance(0.6));
@@ -293,9 +293,53 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
   // grid just big enough for the requested buildings (plus the plaza cell), capped by the site radius
   const half = Math.min(Math.floor(R / cell), Math.max(1, Math.ceil((Math.sqrt(s.buildings + 2) - 1) / 2)));
   if (half < 1) return;
-  const yaw = rng.float(0, Math.PI / 2);
+  const through = ctx.paths.filter((p) => p.kind === "road");
+  const arrival = through.flatMap((p) => p.points).filter((q) => Math.abs(Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) - half * cell) < cell);
+  const yaw = arrival.length ? Math.atan2(arrival[0]![1] - site.center[1], arrival[0]![0] - site.center[0]) : rng.float(0, Math.PI / 2);
   const cosY = Math.cos(yaw);
   const sinY = Math.sin(yaw);
+  // a road routed before the district existed would cut its blocks: it ends on the ring street instead
+  const bound = (half + 0.5) * cell;
+  const local = (q: Vec2): Vec2 => [(q[0] - site.center[0]) * cosY + (q[1] - site.center[1]) * sinY, -(q[0] - site.center[0]) * sinY + (q[1] - site.center[1]) * cosY];
+  const inside = (q: Vec2) => {
+    const l = local(q);
+    return Math.abs(l[0]) < bound && Math.abs(l[1]) < bound;
+  };
+  const erased = new Set<number>();
+  for (const road of through) {
+    if (!road.points.some((q) => inside(q as Vec2))) continue;
+    const runs: Vec2[][] = [[]];
+    for (const q of road.points as Vec2[]) {
+      if (inside(q)) {
+        if (runs[runs.length - 1]!.length) runs.push([]);
+        const [cx, cz] = ctx.heights.toCell(q[0], q[1]);
+        const rc = Math.ceil(road.width / ctx.cellSize);
+        for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) erased.add((Math.round(cz) + dz) * ctx.width + Math.round(cx) + dx);
+      } else runs[runs.length - 1]!.push(q);
+    }
+    const snap = (q: Vec2): Vec2 => {
+      const l = local(q);
+      const onX = Math.abs(l[0]) >= Math.abs(l[1]);
+      const line = (v: number) => (Math.round(v / cell - 0.5) + 0.5) * cell;
+      const e: Vec2 = onX ? [Math.sign(l[0]) * bound, line(l[1])] : [line(l[0]), Math.sign(l[1]) * bound];
+      return [site.center[0] + e[0] * cosY - e[1] * sinY, site.center[1] + e[0] * sinY + e[1] * cosY];
+    };
+    const kept = runs.filter((r) => r.length > 2);
+    ctx.paths.splice(ctx.paths.indexOf(road), 1);
+    kept.forEach((r, k) => {
+      const first = r[0]!;
+      const last = r[r.length - 1]!;
+      const reach = bound * 1.5 + 20;
+      const near = (q: Vec2) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) < reach;
+      const pts = [...(near(first) && (k > 0 || inside(road.points[0] as Vec2)) ? [snap(first)] : []), ...r, ...(near(last) ? [snap(last)] : [])];
+      ctx.paths.push({ ...road, id: k === 0 ? road.id : `${road.id}_${k}`, points: pts });
+      carveRoad(ctx, pts, road.width, road.type);
+    });
+  }
+  const ground = TERRAIN_MATERIAL_INDEX[["modern_city", "cyberpunk", "industrial"].includes(ctx.style.id) ? "Pavement" : "Ground"];
+  for (const i of erased) if (i >= 0 && i < ctx.materials.length && ctx.materials[i] !== TERRAIN_MATERIAL_INDEX.Water) ctx.materials[i] = ground;
+  // the district stands on one gentle plane, not on forty little pads
+  flattenArea(ctx, site.center, bound * 1.5, 0.82, undefined, 0.8);
   const toWorld = (gx: number, gz: number): Vec2 => [site.center[0] + gx * cosY - gz * sinY, site.center[1] + gx * sinY + gz * cosY];
   // streets: lines through the grid (offset by half a cell so buildings sit between them)
   const type = streetType(ctx);
@@ -348,7 +392,8 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
     return [id, ctx.prefabs[id] ?? []];
   };
   let placed = 0;
-  const target = s.buildings;
+  // a district that asked for thirty buildings on a seven by seven grid left a third of its lots empty
+  const target = city ? Math.max(s.buildings, Math.round((2 * half + 1) ** 2 * 0.9)) : s.buildings;
   const cells: [number, number][] = [];
   for (let gx = -half; gx <= half; gx++) for (let gz = -half; gz <= half; gz++) cells.push([gx, gz]);
   cells.sort((p, q) => Math.hypot(p[0], p[1]) - Math.hypot(q[0], q[1]));

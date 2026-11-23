@@ -136,8 +136,8 @@ export function generateBiomes(ctx: GenContext): void {
       // materials
       const b = biomes[best]!;
       const s = slope.data[i]!;
-      const detail = n2.noise2(wx / 40, wz / 40);
-      const patch = n2.fbm(wx / 18 + 50, wz / 18 - 50, 2); // fine moss / bare-earth patches
+      const detail = n2.noise2(wx / 92, wz / 92);
+      const patch = n2.fbm(wx / 46 + 50, wz / 46 - 50, 2); // moss / bare-earth patches, the size of a clearing
       let mat: TerrainMaterial = detail > 0.35 ? b.prefs.alt : b.prefs.surface;
       const forest = b.id === "dark_forest" || b.id === "forest" || b.id === "pine_forest" || b.id === "mushroom_grove";
       if (forest && patch > 0.45) mat = "Ground"; // bare earth under dense canopy
@@ -166,6 +166,25 @@ export function generateBiomes(ctx: GenContext): void {
       else if (wd < 9 && detail > -0.2) mat = b.id === "snow" ? "Snow" : sandy ? "Sand" : "Ground";
       else if (h > snowLine && b.id !== "desert" && !ctx.cliffMaterial) mat = detail > 0 || h > snowLine + 0.05 ? "Snow" : "Rock"; // snow line (style-driven)
       ctx.materials[i] = TERRAIN_MATERIAL_INDEX[mat];
+    }
+  }
+  // a cell alone in its neighbourhood is noise, not a patch of ground
+  const before = Uint8Array.from(ctx.materials);
+  for (let z = 1; z < depth - 1; z++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = z * width + x;
+      if (before[i] === TERRAIN_MATERIAL_INDEX.Water) continue;
+      let same = 0;
+      const votes = new Map<number, number>();
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const m = before[i + dz * width + dx]!;
+          if (m === before[i]) same++;
+          if (m !== TERRAIN_MATERIAL_INDEX.Water) votes.set(m, (votes.get(m) ?? 0) + 1);
+        }
+      }
+      if (same >= 4) continue;
+      ctx.materials[i] = [...votes].sort((a, b) => b[1] - a[1])[0]![0];
     }
   }
   progress(ctx, "biomes", 1);

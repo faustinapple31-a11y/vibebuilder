@@ -2,6 +2,7 @@ import { lerp, smootherstep, type District, type DistrictFunction, type Parcel, 
 import { WALL_SEGMENT } from "@worldforge/prefabs";
 import { inBounds, isWaterAt, type GenContext, type SettlementSite } from "../context";
 import { GROUND_STEP } from "./ground";
+import { plazaRadius } from "./sites";
 import { carveRoad, placeStairs, refreshRoadDistance, routeRoad } from "./roads";
 
 /**
@@ -141,7 +142,7 @@ function openStreets(ctx: GenContext, site: SettlementSite, rng: Rng, need: numb
         const [ax, az] = p.points[i - 1]!;
         const [bx, bz] = p.points[i]!;
         const d = Math.hypot(bx - cx, bz - cz);
-        if (d > plazaR && d < R * REACH) len += Math.hypot(bx - ax, bz - az) * 2;
+        if (d > plazaR && d < R * 0.8) len += Math.hypot(bx - ax, bz - az) * 2;
       }
     }
     return len;
@@ -198,9 +199,10 @@ function openStreets(ctx: GenContext, site: SettlementSite, rng: Rng, need: numb
   const streetW = Math.max(6, Math.round(mainWidth * 0.75));
   const laneW = Math.max(4, Math.round(mainWidth * 0.5));
   if (bearings.length === 0) bearings.push(Math.atan2(ctx.spawn.position[2] - cz, ctx.spawn.position[0] - cx));
-  for (let round = 0; round < 7 && (frontage() < need * 1.35 || (round === 0 && need >= 180)); round++) {
+  const least = need >= 180 ? Math.min(4, 1 + Math.floor(need / 420)) : 0;
+  for (let round = 0; round < 9 && (frontage() < need * 1.25 || round < least); round++) {
     const gap = gaps()[0]!;
-    if (gap.size < 0.75) break;
+    if (gap.size < 0.6) break;
     // a street out of the plaza through the widest empty sector
     let a = gap.from + gap.size / 2 + (rng.next() - 0.5) * 0.35;
     let done = false;
@@ -211,7 +213,7 @@ function openStreets(ctx: GenContext, site: SettlementSite, rng: Rng, need: numb
     }
     bearings.push(a);
     // then a lane that joins it to its neighbour, so there are two ways round
-    if (done && (frontage() < need * 1.6 || round === 0)) {
+    if (done && (frontage() < need * 1.5 || round < least)) {
       const g = gaps()
         .filter((q) => Math.abs(angle(q.from - a)) < 0.02 || Math.abs(angle(q.from + q.size - a)) < 0.02)
         .sort((p, q) => p.size - q.size)[0];
@@ -270,7 +272,7 @@ function zoneDistricts(ctx: GenContext, site: SettlementSite, programme: Record<
 }
 
 /** How many buildings of each function a settlement of this kind is made of. */
-export function programmeOf(type: string, count: number): Record<DistrictFunction, number> {
+export function programmeOf(type: string, count: number, paved = false): Record<DistrictFunction, number> {
   const p: Record<DistrictFunction, number> = { civic: 0, commerce: 0, craft: 0, residential: 0, farm: 0, military: 0 };
   const share = (k: number) => Math.round(count * k);
   if (type === "base" || type === "outpost") {
@@ -283,7 +285,7 @@ export function programmeOf(type: string, count: number): Record<DistrictFunctio
   const rural = type === "village" || type === "hamlet" || type === "farmstead" || type === "abandoned_village" || type === "camp";
   p.commerce = share(type === "farmstead" || type === "camp" ? 0 : rural ? 0.16 : 0.26);
   p.craft = count >= 6 ? Math.max(1, share(type === "harbor" ? 0.18 : 0.1)) : 0;
-  p.farm = type === "camp" ? 0 : type === "farmstead" ? share(0.5) : rural && count >= 5 ? Math.max(1, share(0.16)) : 0;
+  p.farm = type === "camp" ? 0 : type === "farmstead" ? share(0.5) : rural && count >= 5 ? Math.max(1, share(0.16)) : type === "town" && !paved && count >= 8 ? Math.max(2, share(0.12)) : 0;
   p.residential = Math.max(0, count - p.civic - p.commerce - p.craft - p.farm);
   return p;
 }
@@ -304,8 +306,8 @@ export function planSettlement(
 ): number {
   const R = site.radius;
   const [cx, cz] = site.center;
-  const plazaR = Math.max(14, R * 0.25);
-  const programme = programmeOf(site.spec.type, count);
+  const plazaR = plazaRadius(R);
+  const programme = programmeOf(site.spec.type, count, ["asphalt_road", "concrete_road", "neon_road", "metal_walkway"].includes(ctx.style.kits.road));
   openStreets(ctx, site, rng, count * 30, plazaR);
   const districts = zoneDistricts(ctx, site, programme);
   const plan: SettlementPlan = { settlement: site.id, plaza: { center: [cx, cz], radius: plazaR }, districts, parcels: [], refused: {} };
@@ -394,13 +396,15 @@ export function planSettlement(
     return { plot, pad, y: parts ? street : lerp(sum / c, street, 0.45) };
   };
 
+  let farmAt = 0;
   const score = (slot: Slot, fn: DistrictFunction, rules: SiteRules): number => {
     const px = slot.x + slot.n[0] * 12;
     const pz = slot.z + slot.n[1] * 12;
     const r = Math.hypot(px - cx, pz - cz) / R;
     const outside = fn === "farm" && walled;
-    if (outside ? r * R < wallR + WALL_SEGMENT || r > 1.95 : r > (fn === "farm" ? 1.35 : REACH) || (walled && r * R > wallR - 26)) return -9;
-    let s = -Math.abs(r - (outside ? 1.5 : rules.ring)) * rules.strict;
+    if (outside ? r * R < wallR + WALL_SEGMENT || r > 1.95 : r > (fn === "farm" ? 1.95 : REACH) || (walled && r * R > wallR - 26)) return -9;
+    // one farm at the gates, the next one a field further out
+    let s = -Math.abs(r - (outside ? 1.5 : fn === "farm" ? 1.0 + (farmAt % 3) * 0.4 : rules.ring)) * rules.strict;
     s += (slot.main ? 1 : 0) * rules.mainStreet;
     const ground = ctx.analysis?.at(px, pz);
     s += (ground?.buildable ?? 0.6) * 0.8 + (ground?.altitude ?? 0.5) * rules.high;
@@ -438,6 +442,7 @@ export function planSettlement(
           const y = levelPad(ctx, { ...fit.pad, hx: fit.pad.hx + 2.5, hz: fit.pad.hz + 2.5 }, fit.y, 9);
           const quarter = districts.filter((d) => d.function === fn).sort((p, q) => Math.hypot(p.center[0] - slot.x, p.center[1] - slot.z) - Math.hypot(q.center[0] - slot.x, q.center[1] - slot.z))[0];
           const parcel: Parcel = { id: `${site.id}_plot_${plan.parcels.length}`, district: quarter?.id ?? site.id, function: fn, center: [fit.plot.x, fit.plot.z], rotationY: front, frontage: fit.plot.hx * 2, depth: fit.plot.hz * 2, street: slot.street.id };
+          if (fn === "farm") farmAt++;
           parcel.building = place(b, [fit.pad.x, y, fit.pad.z], facing, scale);
           plan.parcels.push(parcel);
           taken.push(fit.plot);

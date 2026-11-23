@@ -27,12 +27,12 @@ export function generateTerrain(ctx: GenContext): void {
     const wx = origin[0] + x * cellSize;
     const wz = origin[1] + z * cellSize;
     // large forms: domain-warped fbm, remapped to [0,1] and shaped toward soft valleys
-    const n = macro.warped(wx / macroScale, wz / macroScale, 0.7, 5);
+    const n = macro.warped(wx / macroScale, wz / macroScale, 0.7, 3); // broad forms only: what is rough is added where it belongs
     let v = clamp((n + 1) / 2, 0, 1);
     v = Math.pow(v, 1.25);
     // gentle hills mid frequency
-    const hills = macro.fbm(wx / (macroScale * 0.35) + 11.7, wz / (macroScale * 0.35) - 3.1, 4) * 0.5 + 0.5;
-    v = v * 0.7 + hills * 0.3;
+    const hills = macro.fbm(wx / (macroScale * 0.42) + 11.7, wz / (macroScale * 0.42) - 3.1, 2) * 0.5 + 0.5;
+    v = v * 0.78 + hills * 0.22;
     return t.baseHeight + v * amplitude;
   });
 
@@ -45,21 +45,25 @@ export function generateTerrain(ctx: GenContext): void {
   // border rise so the world reads as a contained valley — not over the ocean. The ring is not a smooth
   // lip: a long-wavelength modulation turns it into summits and saddles, so the skyline has a shape and
   // the eye can read distance from it (and the odd pass invites the player to look for a way out).
-  const borderReach = Math.min(worldW, worldD) * 0.115;
+  const span = Math.min(worldW, worldD);
+  const wallAt = deriveSeed(seed, "wall") % 6283 / 1000; // the side the world leans on
   const flatBoost = 1 + Math.max(0, 0.55 - t.relief) * 0.9;
   const oceanFeatures = archipelago ? [] : t.features.filter((f) => f.type === "island" || f.type === "coast");
   const ocean = oceanFeatures.length ? computeOceanMask(ctx, oceanFeatures, ridge) : undefined;
   h.map((x, z, v, i) => {
     const wx = origin[0] + x * cellSize;
     const wz = origin[1] + z * cellSize;
-    const dEdge = Math.min(wx - origin[0], origin[0] + worldW - wx, wz - origin[1], origin[1] + worldD - wz);
+    const dEdge = Math.min(wx - origin[0], origin[0] + worldW - wx, wz - origin[1], origin[1] + worldD - wz) + ridge.fbm(wx / 210 - 5, wz / 210 + 2, 2) * span * 0.05;
+    const bearing = Math.atan2(wz - origin[1] - worldD / 2, wx - origin[0] - worldW / 2);
+    const side = smoothstep(-0.35, 0.75, Math.cos(bearing - wallAt) * 0.75 + ridge.noise2(Math.cos(bearing) * 1.3 + 4, Math.sin(bearing) * 1.3) * 0.6);
+    const borderReach = span * (0.06 + 0.11 * side);
     const m = (1 - smoothstep(0, borderReach, dEdge)) * (1 - (ocean ? ocean.data[i]! : 0));
-    const r = ridge.ridged(wx / 160, wz / 160, 3);
+    const r = ridge.ridged(wx / 300, wz / 300, 4, 2.1, 0.48);
     // summits (≈1.55×) and saddles (≈0.5×) around the ring, over ~800 studs
     const crest = 0.5 + smoothstep(-0.35, 0.45, ridge.noise2(wx / 380 + 11, wz / 380 - 7)) * 1.05;
     // a deliberately flat world (a city, a suburb, a farm) keeps its flat interior but earns a taller
     // frame: without it the horizon is a straight line and the map reads as a table top
-    return v + m * m * (28 + r * 34) * crest * flatBoost;
+    return v + m * m * (12 + side * (20 + r * 46)) * (0.75 + 0.25 * crest) * flatBoost;
   });
   if (ocean) applyOcean(ctx, ocean, ridge);
 
@@ -70,9 +74,9 @@ export function generateTerrain(ctx: GenContext): void {
     const wx = origin[0] + x * cellSize;
     const wz = origin[1] + z * cellSize;
     const s = slope.data[i]!;
-    const slopeMask = 0.35 + smoothstep(0.1, 0.6, s) * 0.65;
-    const d = detail.fbm(wx / 46, wz / 46, 4) * (2.5 + t.roughness * 7) * slopeMask;
-    const micro = detail.noise2(wx / 14 + 3, wz / 14 - 7) * t.roughness * 1.2;
+    const slopeMask = 0.06 + smoothstep(0.25, 0.75, s) * 0.94;
+    const d = detail.fbm(wx / 58, wz / 58, 4) * (2.5 + t.roughness * 7) * slopeMask;
+    const micro = detail.noise2(wx / 14 + 3, wz / 14 - 7) * t.roughness * 1.2 * slopeMask;
     return v + d + micro;
   });
 
@@ -96,6 +100,8 @@ export function generateTerrain(ctx: GenContext): void {
   // hydraulic erosion: rain droplets carve gullies and deposit sediment in the valleys (real drainage patterns)
   progress(ctx, "terrain:hydraulic", 0.8);
   hydraulicErosion(ctx, t.erosion, new Rng(deriveSeed(seed, "droplets")));
+  // ground one walks on is calm: gentle slopes lose their small bumps, cliffs and crests keep every edge
+  calm(ctx);
   // erosion and detail must not lift the sea floor back above the surface
   if (ocean) {
     const sea = seaLevelOf(spec);
@@ -216,23 +222,26 @@ function applyFeature(ctx: GenContext, f: TerrainFeature, ridge: Simplex2D, ampl
             if (e.includes("east")) d = Math.min(d, origin[0] + worldW - wx);
             if (e.includes("west")) d = Math.min(d, wx - origin[0]);
             if (e === "center") d = Math.hypot(wx - (origin[0] + worldW / 2), wz - (origin[1] + worldD / 2));
-            const mm = 1 - smootherstep(reach * 0.25, reach, d);
+            // the foot of a range runs in spurs and bays, never parallel to the edge of the map
+            const foot = reach * 0.82 * (1 + ridge.fbm(wx / 330 + 3, wz / 330 - 9, 2) * 0.55);
+            const mm = 1 - smootherstep(foot * 0.2, foot, d);
             m = Math.max(m, mm);
           }
         }
         if (m <= 0) return v;
-        const r = ridge.ridged(wx / 210, wz / 210, 5, 2.1, 0.55);
-        const big = ridge.fbm(wx / 480 + 40, wz / 480 - 20, 3) * 0.5 + 0.5;
-        return v + m * inten * (r * 0.75 + big * 0.35) * (amplitude * 1.35 + 60);
+        const r = ridge.ridged(wx / 400, wz / 400, 5, 2.15, 0.5);
+        const big = ridge.fbm(wx / 520 + 40, wz / 520 - 20, 2) * 0.5 + 0.5;
+        // foothills first, crests only in the heart of the range
+        return v + (m * big * 0.3 + m * m * (r * 0.8 + 0.2)) * inten * (amplitude * 1.35 + 60);
       });
       break;
     }
     case "hills": {
-      const sc = 200 * f.scale;
+      const sc = 330 * f.scale;
       h.map((x, z, v) => {
         const wx = origin[0] + x * cellSize;
         const wz = origin[1] + z * cellSize;
-        const b = ridge.billow(wx / sc + 7, wz / sc + 3, 3);
+        const b = ridge.billow(wx / sc + 7, wz / sc + 3, 2);
         return v + (b - 0.35) * f.intensity * amplitude * 0.5;
       });
       break;
@@ -289,6 +298,16 @@ function applyFeature(ctx: GenContext, f: TerrainFeature, ridge: Simplex2D, ampl
   }
   void width;
   void depth;
+}
+
+/** Two scales of smoothing, applied only where the broad slope is gentle. */
+function calm(ctx: GenContext): void {
+  const h = ctx.heights;
+  for (const [r, lo, hi] of [[6, 0.26, 0.5], [2, 0.34, 0.6]] as const) {
+    const broad = h.blur(r, 2);
+    const slope = broad.slopeGrid();
+    for (let i = 0; i < h.data.length; i++) h.data[i] = lerp(broad.data[i]!, h.data[i]!, smoothstep(lo, hi, slope.data[i]!));
+  }
 }
 
 /**

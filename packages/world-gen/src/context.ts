@@ -20,6 +20,7 @@ import type {
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
 import type { TerrainAnalysis } from "./terrain-analysis";
+import type { Regions } from "./pipeline/regions";
 import type { Island } from "./pipeline/archipelago";
 
 export type GenLayer = "terrain" | "water" | "roads" | "landmarks" | "buildings" | "vegetation" | "props" | "lighting";
@@ -110,6 +111,8 @@ export interface GenContext {
   /** Natural ground, read once before anything is flattened for a building. */
   analysis?: TerrainAnalysis;
   plan: WorldPlan;
+  /** Woods, clearings, meadows: decided before a tree is planted. */
+  regions?: Regions;
   /** Cells already levelled for a building: a later pad never cuts into them. */
   padMask?: Uint8Array;
 

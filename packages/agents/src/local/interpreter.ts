@@ -179,7 +179,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     return m ? Math.max(1, Math.min(60, Number(m[1]))) : undefined;
   })();
   const interiors = has(t, "interieur", "interior", "inside", "meuble", "furnish", "entrer dans", "walk in") ? true : undefined;
-  if (has(t, "ville", "town", "city", "cite", "metropole", "downtown", "quartier")) {
+  if (has(t, "ville", "town", "city", "cite", "metropole", "downtown", "quartier", "bourg", "bourgade")) {
     // "une ville" in a modern, future or apocalyptic style *is* a city district, not a 16-house town: a
     // cyberpunk or downtown prompt used to come out as a village-sized cluster on an empty map
     const city = modern || famType === "city_district" || has(t, "city", "cite", "metropole", "downtown", "gratte", "skyscraper", "immeuble");
@@ -201,6 +201,23 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   } else if (genre.layout === "settlement" || genre.layout === "open_world" || genre.layout === "city_grid") {
     // most genres want a hub: the family's default settlement
     settlements.push({ id: "hub", type: abandoned ? "abandoned_village" : (famType as never), buildings: count ?? (famType === "city_district" ? 30 : 8), layout: modern ? "grid" : "organic", weathering: abandoned ? 0.8 : 0.35, interiors });
+  }
+
+  // ---- a settlement in proportion with its map: nine houses fill a small map and get lost on a large one
+  const bigTown = has(t, "grand bourg", "grande ville", "grand village", "grande cite", "large settlement", "big town", "large town", "large village", "tres dense", "dense");
+  const mapWidth = has(t, "immense", "enorme", "huge", "gigantesque", "massive") ? 2048 : bigTown ? 1280 : has(t, "grand", "large", "big", "vaste") ? 1536 : has(t, "petit", "small", "tiny", "mini") ? 768 : 1024;
+  const populated = genre.layout === "settlement" || genre.layout === "open_world" || genre.layout === "city_grid" || genre.layout === "campus";
+  if (count === undefined && populated && settlements[0] && !["camp", "outpost", "farmstead", "hamlet"].includes(settlements[0].type as string)) {
+    const k = Math.min(2.2, (mapWidth / 768) ** 1.15) * (bigTown ? 1.35 : 1);
+    settlements[0].buildings = Math.min(settlements[0].type === "city_district" ? 60 : 40, Math.round((settlements[0].buildings ?? 8) * k));
+  }
+  // the ranges do not always stand to the north-west
+  const turn = hashString(prompt) % 4;
+  for (const f of features) if (f.type === "mountains" && f.edges && !mountains) f.edges = (coast ? [["north", "west"], ["north"], ["north", "east"], ["west"]] : [["north", "west"], ["north", "east"], ["east", "south"], ["south", "west"]])[turn] as typeof f.edges;
+  // people settle by water: a rural map without any gets a river, away from its ranges
+  if (!rivers.length && !lakes.length && !coast && !island && !archipelago && !dry && !modern && settlements.length && fam.group !== "future" && hashString(prompt + "river") % 10 < 7) {
+    rivers.push({ id: "river_1", from: (["north", "east", "south", "west"] as const)[turn]!, to: (["south-east", "south-west", "north-west", "north-east"] as const)[turn]!, width: mapWidth > 900 ? 20 : 15, depth: 6, meander: 0.7 });
+    settlements[0]!.near ??= "river_1";
   }
 
   // ---- roads
@@ -279,7 +296,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   };
 
   // ---- size
-  const width = has(t, "immense", "enorme", "huge", "gigantesque", "massive") ? 2048 : has(t, "grand", "large", "big", "vaste") ? 1536 : has(t, "petit", "small", "tiny", "mini") ? 768 : 1024;
+  const width = mapWidth;
 
   const name = titleFromPrompt(prompt, fam);
 

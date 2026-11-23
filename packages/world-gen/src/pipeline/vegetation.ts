@@ -3,6 +3,7 @@ import { Rng } from "@worldforge/core";
 import { Simplex2D, Worley2D } from "../noise";
 import { SpatialHash } from "../grid";
 import { VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
+import { composeRegions } from "./regions";
 import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 
 /** Species mix per biome: [species, weight]. Filtered by spec.vegetation.species. */
@@ -138,6 +139,8 @@ export function placeVegetation(ctx: GenContext): void {
     floor.insert({ position: p.position, radius: 2 });
   }
 
+  const regions = ctx.islands ? undefined : (ctx.regions ??= composeRegions(ctx));
+  if (regions) ctx.plan.regions = regions.shares;
   const spawnClear = 42;
   const edgeMargin = 6;
   const [sx, , sz] = ctx.spawn.position;
@@ -149,12 +152,18 @@ export function placeVegetation(ctx: GenContext): void {
     const b = spec.biomes.find((bb) => bb.id === biome);
     const level = VEG_LEVEL[b?.vegetation ?? "medium"] ?? 0.6;
     if (level === 0) return 0;
-    const cl = (cluster.fbm(x / 95, z / 95, 3) + 1) * 0.5;
-    const clearing = clearings.f1(x / 140, z / 140);
-    const clusterMix = spec.vegetation.clustering;
-    let d = level * globalDensity;
-    d *= 1 - clusterMix + clusterMix * smoothstep(0.25, 0.75, cl) * 1.6;
-    d *= 1 - clusterMix * 0.9 * (1 - smoothstep(0.08, 0.3, clearing)); // clearings
+    let d: number;
+    if (regions) {
+      // inside a wood the trees stand close whatever the average of the map: the average is the composition's job
+      d = big ? regions.trees(x, z) * clamp(0.45 + globalDensity * 0.6, 0.35, 1) : regions.ground(x, z) * level * globalDensity;
+    } else {
+      const cl = (cluster.fbm(x / 95, z / 95, 3) + 1) * 0.5;
+      const clearing = clearings.f1(x / 140, z / 140);
+      const clusterMix = spec.vegetation.clustering;
+      d = level * globalDensity;
+      d *= 1 - clusterMix + clusterMix * smoothstep(0.25, 0.75, cl) * 1.6;
+      d *= 1 - clusterMix * 0.9 * (1 - smoothstep(0.08, 0.3, clearing)); // clearings
+    }
     // exclusions
     const rd = ctx.roadDistance.sample(x, z);
     if (rd < (big ? 5 : 1.5)) return 0;
@@ -173,6 +182,7 @@ export function placeVegetation(ctx: GenContext): void {
     for (const site of ctx.sites) {
       const dv = Math.hypot(x - site.center[0], z - site.center[1]);
       if (big && dv < site.radius * 0.95) return 0;
+      if (regions) continue; // the countryside around it is already part of the composition
       if (big) d *= smoothstep(site.radius * 0.95, site.radius * 1.5, dv) * 0.85 + 0.15 * smoothstep(site.radius * 1.5, site.radius * 2, dv);
       else d *= 0.55 + 0.45 * smoothstep(site.radius * 0.5, site.radius * 1.1, dv);
     }
@@ -205,8 +215,10 @@ export function placeVegetation(ctx: GenContext): void {
     const sizeVar = 1 + (rng.next() * 2 - 1) * spec.vegetation.sizeVariation * 0.45;
     // background trees are larger for silhouettes
     const edgeD = distanceToEdge(ctx, x, z);
-    const bg = 1 + (1 - smoothstep(60, 260, edgeD)) * 0.35;
-    const scale = clamp(scaleBase * sizeVar * bg * (species === "giant_mushroom" ? 0.7 : 1), 0.55, 3.2);
+    const bg = 1 + (1 - smoothstep(60, 260, edgeD)) * 0.2;
+    // a tree is three or four houses tall, not ten; those on the edge of a wood are lower and wider
+    const rim = regions?.classAt(x, z) === "edge" ? 0.82 : 1;
+    const scale = clamp(scaleBase * sizeVar * bg * rim * (species === "giant_mushroom" ? 0.7 : 1), 0.55, 2.1);
     // a trunk must meet the ground: step away from a terrace lip or cliff edge, else skip the tree
     const trunk = Math.max(1.5, (v.baseRadius ?? 0) * scale);
     const at = settleOnGround(ctx, x, z, trunk, Math.min(4, Math.max(2.2, trunk)));
@@ -215,8 +227,10 @@ export function placeVegetation(ctx: GenContext): void {
     const tz = at[1];
     // stepping off the edge may have walked into a road, the water or a settlement: re-run the gate
     if (isWaterAt(ctx, tx, tz) || densityAt(tx, tz, biome, true) <= 0) continue;
-    const radius = v.footprintRadius * scale * 0.55;
-    if (hash.overlaps(tx, tz, radius, 1.5)) continue;
+    // in a wood the crowns touch; in the open each tree keeps its place
+    const deep = regions && !["meadow", "countryside", "clearing"].includes(regions.classAt(tx, tz));
+    const radius = v.footprintRadius * scale * (deep ? 0.36 : 0.55);
+    if (hash.overlaps(tx, tz, radius, deep ? 0.4 : 1.5)) continue;
     const y = ctx.heights.sample(tx, tz) - v.sinkDepth * scale;
     const pos: [number, number, number] = [tx, y, tz];
     hash.insert({ position: pos, radius });
@@ -233,6 +247,22 @@ export function placeVegetation(ctx: GenContext): void {
       biome,
       importance: species === "giant_mushroom" ? 6 : 4 + scale,
     });
+  }
+
+  // ---- avenues: the road into the settlement, planted
+  const avenueSpecies = treeMix(ctx, spec.biomes[0]!.id, allowed).filter(([sp]) => sp !== "dead_tree" && sp !== "giant_mushroom").sort((a, b) => b[1] - a[1])[0]?.[0];
+  const avenuePrefab = avenueSpecies && SPECIES_PREFAB[avenueSpecies];
+  for (const { at: [x, z] } of regions?.avenues ?? []) {
+    const variants = avenuePrefab ? ctx.prefabs[avenuePrefab] : undefined;
+    if (!variants?.length || isWaterAt(ctx, x, z) || slopeAtWorld(ctx, x, z) > 0.4 || ctx.roadDistance.sample(x, z) < 4) continue;
+    if (hash.overlaps(x, z, 4, 1) || Math.hypot(x - sx, z - sz) < spawnClear + 10) continue;
+    const vi = rng.int(0, Math.min(2, variants.length - 1));
+    const v = variants[vi]!;
+    const scale = rng.float(0.82, 0.98);
+    const pos: [number, number, number] = [x, ctx.heights.sample(x, z) - v.sinkDepth * scale, z];
+    hash.insert({ position: pos, radius: 4 });
+    floor.insert({ position: pos, radius: 2 });
+    ctx.placements.push({ id: `veg_${treeCount++}`, prefab: avenuePrefab!, variant: vi, category: "vegetation", position: pos, rotationY: rng.float(0, Math.PI * 2), scale, layer: layerFor(ctx, x, z, true), biome: biomeAt(ctx, x, z), importance: 7 });
   }
 
   // ---- pass 2: undergrowth (small) — denser near roads/spawn (foreground detail)

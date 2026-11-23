@@ -99,8 +99,18 @@ function carveRiver(ctx: GenContext, river: GenContext["spec"]["rivers"][number]
   if (!path) return;
 
   // world polyline, smoothed and resampled
-  const worldPts = path.map(([cx, cz]) => h.toWorld(cx, cz));
-  const smooth = resamplePolyline(chaikin(worldPts, 2), cellSize);
+  // the path follows the grid: keep one point in nine, bend it, and let the curve do the rest
+  const raw = path.map(([cx, cz]) => h.toWorld(cx, cz));
+  const worldPts: Vec2[] = [];
+  for (let i = 0; i < raw.length; i += 9) {
+    const a = raw[Math.max(0, i - 6)]!;
+    const b = raw[Math.min(raw.length - 1, i + 6)]!;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const bend = i === 0 ? 0 : meander.noise2(i / 26, 3.7) * river.width * 1.15 * river.meander;
+    worldPts.push([raw[i]![0] - ((b[1] - a[1]) / len) * bend, raw[i]![1] + ((b[0] - a[0]) / len) * bend]);
+  }
+  worldPts.push(raw[raw.length - 1]!);
+  const smooth = resamplePolyline(chaikin(worldPts, 4), cellSize);
   carveRiverFromPolyline(ctx, river, smooth);
 }
 

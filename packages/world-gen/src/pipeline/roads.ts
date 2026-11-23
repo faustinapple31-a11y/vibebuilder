@@ -37,6 +37,7 @@ export function generateRoads(ctx: GenContext): void {
     placeStairs(ctx, road.id, smooth);
   }
   if (!ctx.islands) connectLandmarks(ctx, rng);
+  if (!ctx.islands) openToTheWorld(ctx, rng);
   if (ctx.islands) connectIslands(ctx, rng);
   const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
   ctx.roadDistance = distanceToPolylinesGrid(ctx.heights, roads, 300);
@@ -72,6 +73,55 @@ function connectLandmarks(ctx: GenContext, rng: Rng): void {
     const width = Math.max(5, Math.round((roads()[0]!.width ?? 8) * 0.7));
     ctx.paths.push({ id, kind: "road", type: roads()[0]!.type, points: pts, width });
     carveRoad(ctx, pts, width, roads()[0]!.type);
+    placeBridges(ctx, id, pts, width);
+    placeStairs(ctx, id, pts);
+  }
+}
+
+/**
+ * A settlement on a single road is a dead end. Where the roads of the spec leave a wide sector without a way in, a
+ * country road goes out to the border by the lowest pass it can reach.
+ */
+function openToTheWorld(ctx: GenContext, rng: Rng): void {
+  const site = [...ctx.sites].sort((a, b) => b.radius - a.radius)[0];
+  if (!site || site.spec.type === "camp" || ctx.spec.layout?.archetype === "obby_course") return;
+  const roads = () => ctx.paths.filter((p) => p.kind === "road");
+  if (roads().length === 0) return;
+  const [cx, cz] = site.center;
+  const bearings = () => {
+    const out: number[] = [];
+    for (const r of roads()) {
+      for (let i = 1; i < r.points.length; i++) {
+        const a = Math.hypot(r.points[i - 1]![0] - cx, r.points[i - 1]![1] - cz) - site.radius * 1.2;
+        const b = Math.hypot(r.points[i]![0] - cx, r.points[i]![1] - cz) - site.radius * 1.2;
+        if (a * b < 0) out.push(Math.atan2(r.points[i]![1] - cz, r.points[i]![0] - cx));
+      }
+    }
+    return out;
+  };
+  const apart = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  const type = roads()[0]!.type;
+  const width = Math.max(5, Math.round(roads()[0]!.width * 0.8));
+  for (let n = 0; n < 2; n++) {
+    const used = bearings();
+    if (used.filter((a, i) => used.slice(0, i).every((b) => apart(a, b) > 0.5)).length >= 3) return;
+    let best: { at: Vec2; v: number } | null = null;
+    for (let k = 0; k < 48; k++) {
+      const a = (k / 48) * Math.PI * 2;
+      if (used.some((b) => apart(a, b) < 0.8)) continue;
+      const q = 1 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+      const at: Vec2 = [ctx.origin[0] + ctx.worldW / 2 + Math.cos(a) * q * (ctx.worldW / 2 - 34), ctx.origin[1] + ctx.worldD / 2 + Math.sin(a) * q * (ctx.worldD / 2 - 34)];
+      if (!Number.isNaN(ctx.water.sample(at[0], at[1]))) continue;
+      const free = Math.min(...used.map((b) => apart(a, b)), 3.1);
+      const v = -ctx.heights.sample(at[0], at[1]) / 14 + free * 3 - Math.hypot(at[0] - cx, at[1] - cz) / 260;
+      if (!best || v > best.v) best = { at, v };
+    }
+    if (!best) return;
+    const pts = routeRoad(ctx, rng, [site.center, best.at], { waterCost: 9 });
+    if (!pts || pts.length < 12) return;
+    const id = `road_out_${n + 1}`;
+    ctx.paths.push({ id, kind: "road", type, points: pts, width });
+    carveRoad(ctx, pts, width, type);
     placeBridges(ctx, id, pts, width);
     placeStairs(ctx, id, pts);
   }

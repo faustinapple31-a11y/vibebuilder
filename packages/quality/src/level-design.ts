@@ -51,7 +51,7 @@ const mean = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.lengt
 function footprints(bake: WorldBake): Footprint[] {
   const out: Footprint[] = [];
   for (const p of bake.placements) {
-    if (p.category !== "building" || p.id.startsWith("layout_") || p.prefab === "well") continue;
+    if (p.category !== "building" || p.id.startsWith("layout_") || p.prefab === "well" || p.prefab === "bridge" || p.prefab === "plank_bridge") continue;
     const v = bake.prefabs[p.prefab]?.[p.variant];
     if (!v) continue;
     const hx = ((v.bounds.max[0] - v.bounds.min[0]) / 2) * p.scale * 0.82; // eaves overhang the walls

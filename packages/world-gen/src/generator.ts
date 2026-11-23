@@ -17,7 +17,7 @@ import { analyzeTerrain } from "./terrain-analysis";
 import { computeMoisture, generateTerrain } from "./pipeline/terrain";
 import { generateWater } from "./pipeline/water";
 import { generateBiomes } from "./pipeline/biomes";
-import { selectSettlementSites, flattenArea } from "./pipeline/sites";
+import { selectSettlementSites, flattenArea, plazaRadius } from "./pipeline/sites";
 import { placeLandmarks, LANDMARK_PREFAB } from "./pipeline/landmarks";
 import { chooseSpawn, clearViewAxis } from "./pipeline/spawn";
 import { carveRoad, generateRoads, placeStairs, refreshRoadDistance } from "./pipeline/roads";
@@ -436,7 +436,7 @@ function restoreSites(ctx: GenContext, prev: WorldBake): void {
     const baseHeight = flattenArea(ctx, z.center, z.radius, 0.55);
     ctx.sites.push({ id: z.id, center: z.center, radius: z.radius, baseHeight, spec: specS });
     ctx.zones.push({ ...z });
-    ctx.occupants.push({ position: [z.center[0], baseHeight, z.center[1]], radius: z.radius * 0.25, kind: "keep" });
+    ctx.occupants.push({ position: [z.center[0], baseHeight, z.center[1]], radius: plazaRadius(z.radius), kind: "keep" });
   }
 }
 

@@ -16,7 +16,8 @@ export function selectSettlementSites(ctx: GenContext): void {
   let idx = 0;
   for (const s of spec.settlements) {
     progress(ctx, `sites:${s.id}`, idx++ / Math.max(1, spec.settlements.length));
-    const radius = 34 + s.buildings * 7.5;
+    // a place grows by its area: four times the houses, twice the radius
+    const radius = 42 + 25 * Math.sqrt(s.buildings);
     let center: Vec2;
     if (s.position) {
       center = normToWorld(ctx, s.position);
@@ -27,9 +28,14 @@ export function selectSettlementSites(ctx: GenContext): void {
     const site: SettlementSite = { id: s.id, center, radius, baseHeight, spec: s };
     ctx.sites.push(site);
     ctx.zones.push({ id: s.id, kind: "settlement", polygon: circlePoly(center, radius, 16), center, radius });
-    ctx.occupants.push({ position: [center[0], baseHeight, center[1]], radius: radius * 0.25, kind: "keep" }); // plaza kept clear
+    ctx.occupants.push({ position: [center[0], baseHeight, center[1]], radius: plazaRadius(radius), kind: "keep" }); // plaza kept clear
   }
   progress(ctx, "sites:done", 1);
+}
+
+/** The square in the middle: a market, never a parade ground. */
+export function plazaRadius(radius: number): number {
+  return Math.max(13, Math.min(30, radius * 0.17));
 }
 
 export function circlePoly(c: Vec2, r: number, n: number): Vec2[] {

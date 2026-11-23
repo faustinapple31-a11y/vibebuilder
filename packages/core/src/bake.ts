@@ -143,6 +143,8 @@ export interface WorldPlan {
   /** Share of the map per terrain class (flat, gentle, steep, summit, valley, shore...). */
   terrain: Record<string, number>;
   settlements: SettlementPlan[];
+  /** Share of the map per region (dense, woods, edge, clearing, grove, meadow, countryside...). */
+  regions?: Record<string, number>;
 }
 
 export interface PathPolyline {
