@@ -2,7 +2,7 @@ import { TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { ShopCatalog, type RobuxItem, type ShopBundle, type ShopItem } from "shared/catalog";
 import { Remotes, waitRemoteFunction, type ShopState } from "shared/net";
-import { abbreviate, acquirePop, badge, body, button, celebrate, coinIcon, cloverIcon, confirmDialog, corner, cursorGlare, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, playEventSound, pressAnimation, rarityFrame, refuse, shadow, stamp, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
+import { abbreviate, serverText, acquirePop, badge, body, button, celebrate, coinIcon, cloverIcon, confirmDialog, corner, cursorGlare, darken, gradient, hoverable, itemIcon, lastShadow, lighten, panel, pill, playEventSound, pressAnimation, rarityFrame, refuse, shadow, stamp, strike, stroke, text, textOnGradient, theme, tooltip, Window } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -268,7 +268,8 @@ export class ShopUi {
 		const l = b.FindFirstChild("Label") as TextLabel | undefined;
 		if (!l) return;
 		const old = l.Text;
-		l.Text = message.size() > 14 ? message.sub(1, 14) + "…" : message;
+		const said = serverText(message);
+		l.Text = said.size() > 18 ? said.sub(1, 18) + "…" : said;
 		l.TextScaled = true;
 		TweenService.Create(b, new TweenInfo(0.12), { BackgroundColor3: theme.bad }).Play();
 		task.delay(1.4, () => {

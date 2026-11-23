@@ -1,3 +1,4 @@
+import { serverText } from "ui/kit";
 import { Players, RunService, SoundService, UserInputService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { Remotes, waitRemoteEvent, type NotifyKind, type PlayerStats, type ProfileStateMsg, type RoundStateMsg, type ShopState } from "shared/net";
@@ -110,7 +111,7 @@ waitRemoteEvent(Remotes.ProfileState).OnClientEvent.Connect((state) => {
 	settings?.setProfile(profile);
 });
 waitRemoteEvent(Remotes.StatsChanged).OnClientEvent.Connect((stats) => hud.setStats(stats as PlayerStats));
-waitRemoteEvent(Remotes.Notify).OnClientEvent.Connect((text, kind) => hud.notify(text as string, typeIs(kind, "string") ? (kind as NotifyKind) : "info"));
+waitRemoteEvent(Remotes.Notify).OnClientEvent.Connect((text, kind) => hud.notify(serverText(text as string), typeIs(kind, "string") ? (kind as NotifyKind) : "info"));
 waitRemoteEvent(Remotes.ShopState).OnClientEvent.Connect((state) => {
 	shop.setState(state as ShopState);
 	inventory?.setShopState(state as ShopState);
@@ -124,7 +125,7 @@ waitRemoteEvent(Remotes.PlaySfx).OnClientEvent.Connect((id) => {
 	hud.playSfx(sfx[key] ?? key);
 });
 waitRemoteEvent(Remotes.WorldProgress).OnClientEvent.Connect((stage, done, total) => hud.setLoading(stage as string, done as number, total as number));
-waitRemoteEvent(Remotes.HudValue).OnClientEvent.Connect((key, label, value) => hud.setValue(key as string, label as string, value as string));
+waitRemoteEvent(Remotes.HudValue).OnClientEvent.Connect((key, label, value) => hud.setValue(key as string, serverText(label as string), value as string));
 waitRemoteEvent(Remotes.RoundState).OnClientEvent.Connect((msg) => {
 	const m = msg as RoundStateMsg;
 	// the server speaks in fixed phrases; the words on screen belong to the game's language

@@ -1,6 +1,6 @@
 import { ShopCatalog } from "shared/catalog";
 import type { ProfileStateMsg, ShopState } from "shared/net";
-import { abbreviate, acquirePop, body, card, celebrate, cursorGlare, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, progressBar, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle } from "./kit";
+import { abbreviate, acquirePop, body, card, celebrate, cursorGlare, emptyIllustration, hoverable, input, itemIcon, panel, prettyName, progressBar, rarityFrame, RARITY_NAMES, resourceIcon, sectionHeader, stroke, tabs, text, textOnGradient, theme, tooltip, Window, type TabsHandle, upperText } from "./kit";
 import { fmt, L } from "./strings.generated";
 
 /**
@@ -145,7 +145,7 @@ export class Inventory {
 				text(item?.name ?? prettyName(id), new UDim2(1, -180, 0, 30), new UDim2(0, 62, 0, 8), row, { size: 22, color: textOnGradient(theme.primary), zIndex: 6 });
 				body(item?.description ?? L.owned, new UDim2(1, -180, 0, 20), new UDim2(0, 62, 0, 36), row, { size: 13, color: textOnGradient(theme.primary), zIndex: 6 });
 				const tag = panel(new UDim2(0, 96, 0, 34), new UDim2(1, -110, 0.5, -17), row, { color: theme.pill, strokeColor: theme.pillStroke, radius: 10, shadow: false, zIndex: 6 });
-				text(L.owned.upper(), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), tag, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
+				text(upperText(L.owned), new UDim2(1, 0, 1, 0), new UDim2(0, 0, 0, 0), tag, { size: 15, align: Enum.TextXAlignment.Center, zIndex: 7, outline: 1.5 });
 			}
 		}
 

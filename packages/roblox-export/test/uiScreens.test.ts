@@ -199,7 +199,7 @@ describe("UI screens of the template", () => {
     expect(TEMPLATE_FILES["src/shared/net.ts"]!.includes("export type NotifyKind")).toBe(true);
     expect(hud.includes("notify(str: string, kind: NotifyKind")).toBe(true);
     expect(hud.includes("this.notifDot.BackgroundColor3 = tone")).toBe(true);
-    expect(TEMPLATE_FILES["src/client/main.client.ts"]!.includes("hud.notify(text as string, typeIs(kind"), "the client should pass the toast kind").toBe(true);
+    expect(TEMPLATE_FILES["src/client/main.client.ts"]!.includes("hud.notify(serverText(text as string), typeIs(kind"), "the client should pass the toast kind").toBe(true);
     // the buff chips are mounted and fed from the shop state
     expect(hud.includes("this.setBuffs = buffRow(")).toBe(true);
     expect(TEMPLATE_FILES["src/client/main.client.ts"]!.includes("hud.setBuffs(")).toBe(true);

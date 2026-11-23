@@ -1,7 +1,7 @@
 import { Players, TweenService, Workspace } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import { DEFAULT_UI_KIT, UI_KITS, type UiBarStyle, type UiCelebrate, type UiClickFx, type UiEnter, type UiHover, type UiKit, type UiOrnament, type UiPress, type UiRarityFx, type UiSound } from "./kits.generated";
-import { L } from "./strings.generated";
+import { fmt, L } from "./strings.generated";
 
 /**
  * UI kit — one of the design systems of `src/ui/kits.generated.ts` (paper cartoon, candy pop, neon
@@ -1304,7 +1304,7 @@ export function sectionHeader(str: string, parent: Instance, order: number): Tex
 	line.ZIndex = 3;
 	gradient(line, theme.accent, lighten(theme.inkSoft, 0.1), 0);
 	line.Parent = holder;
-	return text(str.upper(), new UDim2(1, -8, 0, 28), new UDim2(0, 4, 0, 0), holder, { size: 24, color: theme.textDark, outline: 0, zIndex: 4 });
+	return text(upperText(str), new UDim2(1, -8, 0, 28), new UDim2(0, 4, 0, 0), holder, { size: 24, color: theme.textDark, outline: 0, zIndex: 4 });
 }
 
 /** Rounded gradient row for a list body; returns the card (the holder carries the layout order). */
@@ -1525,7 +1525,24 @@ export function resourceIcon(id: string, size: number, parent: Instance): GuiObj
 }
 
 /** Title-cased label from an item id ("wild_carrot" → "Wild Carrot"). */
+/** string.upper() works on bytes: "Départ" came out as "DéPART". The accents get their capitals too. */
+const ACCENT_CAPITALS: [string, string][] = [["é", "É"], ["è", "È"], ["ê", "Ê"], ["ë", "Ë"], ["à", "À"], ["â", "Â"], ["î", "Î"], ["ï", "Ï"], ["ô", "Ô"], ["ù", "Ù"], ["û", "Û"], ["ü", "Ü"], ["ç", "Ç"], ["ñ", "Ñ"], ["á", "Á"], ["í", "Í"], ["ó", "Ó"], ["ú", "Ú"], ["ã", "Ã"], ["õ", "Õ"], ["ö", "Ö"], ["ä", "Ä"]];
+export function upperText(str: string): string {
+	let out = str.upper();
+	for (const [low, cap] of ACCENT_CAPITALS) out = out.gsub(low, cap)[0];
+	return out;
+}
+
+/** The server speaks English in fixed phrases; the player reads the game's language. */
+export function serverText(str: string): string {
+	const need = str.match("^Need %$? ?(%d+)")[0];
+	if (need !== undefined) return fmt(L.needCoins, { price: need as string, currency: GameConfig.currency.name });
+	const labels: Record<string, string> = { Team: L.hudTeam, Stage: L.hudStage, Level: L.hudLevel, "Hit by": L.hudHitBy };
+	return labels[str] ?? str;
+}
+
 export function prettyName(id: string): string {
+	if (id === "luck") return L.buffLuck;
 	const parts = id.split("_");
 	const out: string[] = [];
 	for (const p of parts) if (p !== "") out.push(p.sub(1, 1).upper() + p.sub(2));
@@ -1568,7 +1585,7 @@ export function rarityFrame(target: GuiObject, tier: number, chip = false): Colo
 	}
 	if (chip && tier > 0) {
 		// a small rarity chip at the bottom of the tile ("RARE")
-		const label = text(RARITY_NAMES[tier]!.upper(), new UDim2(1, -8, 0, 13), new UDim2(0, 4, 1, -15), target, {
+		const label = text(upperText(RARITY_NAMES[tier]!), new UDim2(1, -8, 0, 13), new UDim2(0, 4, 1, -15), target, {
 			size: 10,
 			align: Enum.TextXAlignment.Center,
 			color,
@@ -2104,7 +2121,7 @@ export function abbreviate(value: number): string {
 
 /** A rotated "OWNED" / "CLAIMED" stamp across a tile (ink outline, slight tilt). */
 export function stamp(str: string, target: GuiObject, color: Color3 = theme.bad): TextLabel {
-	const l = text(str.upper(), new UDim2(1, -8, 0, 34), new UDim2(0, 4, 0.5, -17), target, {
+	const l = text(upperText(str), new UDim2(1, -8, 0, 34), new UDim2(0, 4, 0.5, -17), target, {
 		size: 26,
 		align: Enum.TextXAlignment.Center,
 		color,

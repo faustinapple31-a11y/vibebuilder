@@ -7,6 +7,12 @@
 import { GameConfig } from "shared/config";
 
 export interface UiStringTable {
+	hudTeam: string;
+	hudStage: string;
+	hudLevel: string;
+	hudHitBy: string;
+	needCoins: string;
+	buffLuck: string;
 	roundInProgress: string;
 	nextRoundIn: string;
 	shop: string;
@@ -74,6 +80,12 @@ export interface UiStringTable {
 
 export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 	en: {
+		hudTeam: "Team",
+		hudStage: "Stage",
+		hudLevel: "Level",
+		hudHitBy: "Hit by",
+		needCoins: "Need {price} {currency}",
+		buffLuck: "Luck",
 		roundInProgress: "Round in progress",
 		nextRoundIn: "Next round in",
 		shop: "Shop",
@@ -139,6 +151,12 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Legendary",
 	},
 	fr: {
+		hudTeam: "Équipe",
+		hudStage: "Étape",
+		hudLevel: "Niveau",
+		hudHitBy: "Touché par",
+		needCoins: "Il te faut {price} {currency}",
+		buffLuck: "Chance",
 		roundInProgress: "Manche en cours",
 		nextRoundIn: "Prochaine manche dans",
 		shop: "Boutique",
@@ -204,6 +222,12 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Légendaire",
 	},
 	es: {
+		hudTeam: "Equipo",
+		hudStage: "Etapa",
+		hudLevel: "Nivel",
+		hudHitBy: "Golpeado por",
+		needCoins: "Necesitas {price} {currency}",
+		buffLuck: "Suerte",
 		roundInProgress: "Ronda en curso",
 		nextRoundIn: "Próxima ronda en",
 		shop: "Tienda",
@@ -269,6 +293,12 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Legendario",
 	},
 	pt: {
+		hudTeam: "Equipe",
+		hudStage: "Etapa",
+		hudLevel: "Nível",
+		hudHitBy: "Atingido por",
+		needCoins: "Você precisa de {price} {currency}",
+		buffLuck: "Sorte",
 		roundInProgress: "Rodada em andamento",
 		nextRoundIn: "Próxima rodada em",
 		shop: "Loja",
@@ -334,6 +364,12 @@ export const UI_STRINGS: { [locale: string]: UiStringTable } = {
 		legendary: "Lendário",
 	},
 	de: {
+		hudTeam: "Team",
+		hudStage: "Etappe",
+		hudLevel: "Stufe",
+		hudHitBy: "Getroffen von",
+		needCoins: "Du brauchst {price} {currency}",
+		buffLuck: "Glück",
 		roundInProgress: "Runde läuft",
 		nextRoundIn: "Nächste Runde in",
 		shop: "Shop",

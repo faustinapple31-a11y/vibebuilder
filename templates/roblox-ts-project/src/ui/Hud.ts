@@ -1,7 +1,7 @@
 import { Players, TweenService } from "@rbxts/services";
 import { GameConfig } from "shared/config";
 import type { NotifyKind, PlayerStats } from "shared/net";
-import { abbreviate, body, buffRow, button, coinIcon, corner, darken, floatText, gradient, keyHint, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
+import { abbreviate, upperText, body, buffRow, button, coinIcon, corner, darken, floatText, gradient, keyHint, lastShadow, lighten, motion, panel, pill, scaleContainer, shadow, stroke, text, theme, tweenNumber } from "./kit";
 import { L } from "./strings.generated";
 
 /**
@@ -80,7 +80,7 @@ export class Hud {
 		this.coinPill = coinPill.frame;
 		this.coinArt = coinPill.frame.FindFirstChildOfClass("Frame");
 		shadow(coinPill.frame, 4, 0.5);
-		const curName = body(GameConfig.currency.name.upper(), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: theme.text, zIndex: 6 });
+		const curName = body(upperText(GameConfig.currency.name), new UDim2(0, 120, 0, 14), new UDim2(0, 40, 1, -4), coinPill.frame, { size: 10, color: theme.text, zIndex: 6 });
 		curName.Visible = false;
 
 		// hunger bar under the pill (survival only)

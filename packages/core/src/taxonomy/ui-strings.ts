@@ -10,6 +10,12 @@ export type UiLocale = (typeof UI_LOCALES)[number];
 /** English is the reference: every other locale must cover exactly these keys. */
 export const UI_STRINGS_EN = {
   // window titles + HUD buttons
+  hudTeam: "Team",
+  hudStage: "Stage",
+  hudLevel: "Level",
+  hudHitBy: "Hit by",
+  needCoins: "Need {price} {currency}",
+  buffLuck: "Luck",
   roundInProgress: "Round in progress",
   nextRoundIn: "Next round in",
   shop: "Shop",
@@ -92,6 +98,12 @@ export type UiStringKey = keyof typeof UI_STRINGS_EN;
 export type UiStringTable = Record<UiStringKey, string>;
 
 const fr: UiStringTable = {
+  hudTeam: "Équipe",
+  hudStage: "Étape",
+  hudLevel: "Niveau",
+  hudHitBy: "Touché par",
+  needCoins: "Il te faut {price} {currency}",
+  buffLuck: "Chance",
   roundInProgress: "Manche en cours",
   nextRoundIn: "Prochaine manche dans",
   shop: "Boutique",
@@ -158,6 +170,12 @@ const fr: UiStringTable = {
 };
 
 const es: UiStringTable = {
+  hudTeam: "Equipo",
+  hudStage: "Etapa",
+  hudLevel: "Nivel",
+  hudHitBy: "Golpeado por",
+  needCoins: "Necesitas {price} {currency}",
+  buffLuck: "Suerte",
   roundInProgress: "Ronda en curso",
   nextRoundIn: "Próxima ronda en",
   shop: "Tienda",
@@ -224,6 +242,12 @@ const es: UiStringTable = {
 };
 
 const pt: UiStringTable = {
+  hudTeam: "Equipe",
+  hudStage: "Etapa",
+  hudLevel: "Nível",
+  hudHitBy: "Atingido por",
+  needCoins: "Você precisa de {price} {currency}",
+  buffLuck: "Sorte",
   roundInProgress: "Rodada em andamento",
   nextRoundIn: "Próxima rodada em",
   shop: "Loja",
@@ -290,6 +314,12 @@ const pt: UiStringTable = {
 };
 
 const de: UiStringTable = {
+  hudTeam: "Team",
+  hudStage: "Etappe",
+  hudLevel: "Stufe",
+  hudHitBy: "Getroffen von",
+  needCoins: "Du brauchst {price} {currency}",
+  buffLuck: "Glück",
   roundInProgress: "Runde läuft",
   nextRoundIn: "Nächste Runde in",
   shop: "Shop",
