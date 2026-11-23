@@ -100,6 +100,26 @@ function weatherFor(ctx: GenContext): RobloxLightingSettings["weather"] {
 }
 
 /**
+ * Where the sun stands when the player first looks up: behind them and to one side, never behind what they look at. Seen
+ * against the light, every facade of the first view was in shadow. The hour keeps its height in the sky (morning and
+ * afternoon mirror each other); the latitude picks north or south (measured in Studio: -20 lights the -Z faces, 60 the +Z).
+ */
+function sunFor(ctx: GenContext, hour: number): { clockTime: number; latitude: number } {
+  if (hour < 5.5 || hour > 19) return { clockTime: hour, latitude: 20 };
+  const [sx, , sz] = ctx.spawn.position;
+  const [lx, , lz] = ctx.spawn.lookAt;
+  const dx = lx - sx;
+  const dz = lz - sz;
+  const len = Math.hypot(dx, dz) || 1;
+  // low ones only graze the ground: between ten and two the light is flat, before eight it is orange whatever the style
+  const height = Math.min(Math.abs(hour - 12), 4.4);
+  const away = Math.max(1.6, height);
+  const east = Math.abs(dx / len) > 0.25 ? dx < 0 : ctx.seed % 2 === 0;
+  const south = Math.abs(dz / len) > 0.25 ? dz > 0 : ctx.seed % 3 === 0;
+  return { clockTime: Math.abs(hour - 12) > 4.4 ? (east ? Math.min(hour, 24 - hour) : Math.max(hour, 24 - hour)) : east ? 12 - away : 12 + away, latitude: south ? -20 : 60 };
+}
+
+/**
  * Stage: lighting & atmosphere → Roblox Lighting settings (also consumed by the viewer).
  * The StyleBible gives the base; the WorldSpec mood/time/fog modulate it.
  */
@@ -131,11 +151,12 @@ export function computeLighting(ctx: GenContext): RobloxLightingSettings {
   const ambient = mixHex(L.ambient, m.ambientShift, 0.2);
   const outdoor = mixHex(L.outdoorAmbient, m.ambientShift, 0.25);
   return {
-    clockTime: spec.lighting.timeOfDay,
+    ...sunFor(ctx, spec.lighting.timeOfDay),
     brightness: night ? Math.max(brightness, 1.6) : brightness,
     // Night scenes must stay readable: Roblox ambient terms carry the moonlight look, not darkness.
-    ambient: night ? mixHex(ambient, "#9aa6d2", 0.5) : ambient,
-    outdoorAmbient: night ? mixHex(outdoor, "#aab6e0", 0.55) : outdoor,
+    // by day the shadows are filled enough to read the model in them (a medieval street at 58/104 was a black wall)
+    ambient: night ? mixHex(ambient, "#9aa6d2", 0.5) : mixHex(ambient, "#5c5858", 0.35),
+    outdoorAmbient: night ? mixHex(outdoor, "#aab6e0", 0.55) : mixHex(outdoor, "#8a8684", 0.4),
     colorShiftTop: mixHex(L.sunColor, m.ambientShift, 0.3),
     colorShiftBottom: mixHex(fogColor, "#000000", 0.4),
     exposureCompensation: L.exposure + (night ? 1.45 : 0),
@@ -155,7 +176,7 @@ export function computeLighting(ctx: GenContext): RobloxLightingSettings {
     },
     colorCorrection: {
       saturation: clamp(L.colorCorrection.saturation + m.sat, -1, 1),
-      contrast: L.colorCorrection.contrast,
+      contrast: Math.min(L.colorCorrection.contrast, mood === "eerie" || mood === "stormy" ? 0.2 : 0.1),
       tintColor: L.colorCorrection.tint,
       brightness: night ? 0.04 : 0,
     },

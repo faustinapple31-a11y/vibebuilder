@@ -2,13 +2,15 @@
 
 The colour map is a *neutral detail map* (mean close to 1 once decoded): the vertex colours carry the hue, so the same
 stone serves a grey castle, a desert temple and a candy wall, in Blender and in Roblox (SurfaceAppearance x vertex
-colour). Nothing here uses a shader Roblox cannot reproduce: three images and one UV set.
+colour). Verified in Studio: a MeshPart TextureID is multiplied by the vertex colours, a SurfaceAppearance ignores them. So the
+colour map is what Roblox shows, and the relief is painted into it (cavities darker, edges lighter); the normal and
+roughness maps are for MaterialVariants.
 """
 import math
 import os
 import numpy as np
 
-VERSION = 11
+VERSION = 12
 LEAF_VERSION = 13
 SIZE = 1024
 
@@ -124,7 +126,9 @@ def blocks(rng, rows, per_row, joint, n=SIZE, jitter=0.3, courses=None):
 
 
 def pack(value, height, rough, strength, tint=None):
-    v = np.clip(value, 0, 1.25)
+    cav = height - blur(height, 7)
+    fine = height - blur(height, 2)
+    v = np.clip(value * (1 + np.clip(cav * 1.5, -0.22, 0.16) + np.clip(fine * 1.6, -0.12, 0.12)), 0, 1.25)
     col = np.repeat(v[..., None], 3, -1)
     if tint is not None:
         col = col * tint

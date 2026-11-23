@@ -740,7 +740,15 @@ if "--sheet" in args:
     log("sheet: " + " ".join(names))
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "map.blend"), compress=True)
 json.dump({"pieces": sorted(k for k, o in kit.items() if o), "layout": layout, "fallback": sorted(fallback)}, open(os.path.join(OUT, "layout.json"), "w"))
-if "--export" in args:
+# the level each instance needs: near where players walk everything, in the woods the medium one, on the border the far one
+hubs = [(sx, sz, 150)] + [(a, b, c + 70) for a, b, c in kept]
+for q in layout:
+    x, _, z = q["position"]
+    near = min(math.hypot(x - a, z - b) - c for a, b, c in hubs)
+    edge = min(x - OX, OX + (W - 1) * CS - x, z - OZ, OZ + (D - 1) * CS - z)
+    q["lod"] = 0 if q["category"] in ("building", "landmark") or near < 0 else 2 if edge < 90 and near > 220 else 1
+report_q = None
+if "--export" in args or "--quality" in args:
     lods = {k: levels(k) for k, o in sorted(kit.items()) if o}
     size_of = {}
     for k in lods:
@@ -749,7 +757,14 @@ if "--export" in args:
             b = scene["prefabs"][prefab]
             b = b[min(int(v), len(b) - 1)]
             size_of[k] = (b["max"][0] - b["min"][0], b["max"][2] - b["min"][2], b["max"][1])
+    import wf_quality
+    report_q = wf_quality.survey(lods, floating)
+    report_q["instances"] = len(layout)
+    json.dump(report_q, open(os.path.join(OUT, "visual.json"), "w"), indent=1)
+    log("visual survey: %d pieces" % len(report_q["pieces"]))
+if "--export" in args:
     man = wf_export.export(OUT, lods, [o for o in terrain_col.objects if o.name.startswith(("terrain_", "water"))], layout, FILES, size_of, log)
+    log("budget: %s" % json.dumps({k: v for k, v in man["budget"].items() if k != "heavy"}))
     for p in man["problems"][:30]:
         log("check: %s %s" % (p["id"], p["message"]))
 tri = lambda o: sum(len(p.vertices) - 2 for p in o.data.polygons)

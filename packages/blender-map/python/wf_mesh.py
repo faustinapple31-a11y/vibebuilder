@@ -322,7 +322,8 @@ SURFACES = {
 
 
 def textured(nt, bsdf, col, name, files):
-    """Exactly what a Roblox SurfaceAppearance can show: ColorMap x vertex colour, NormalMap, RoughnessMap, alpha."""
+    """Exactly what a Roblox MeshPart shows: TextureID x vertex colour, cut by its alpha (Transparency 0.02). No normal map:
+    a TextureID has none, and a SurfaceAppearance would throw the vertex colours away."""
     def image(kind):
         n = nt.nodes.new("ShaderNodeTexImage")
         n.image = bpy.data.images.load(files[kind], check_existing=True)
@@ -334,15 +335,9 @@ def textured(nt, bsdf, col, name, files):
     nt.links.new(c.outputs[0], mx.inputs[0])
     nt.links.new(col.outputs[0], mx.inputs[1])
     nt.links.new(mx.outputs[0], bsdf.inputs["Base Color"])
-    r = image("rough")
-    nt.links.new(r.outputs[0], bsdf.inputs["Roughness"])
-    nm = image("normal")
-    nn = nt.nodes.new("ShaderNodeNormalMap")
-    nn.inputs["Strength"].default_value = 0.35 if name == "Leaf" else 0.9
-    nt.links.new(nm.outputs[0], nn.inputs["Color"])
-    nt.links.new(nn.outputs[0], bsdf.inputs["Normal"])
+    bsdf.inputs["Roughness"].default_value = SURFACES.get(name, (0.85,))[0]
     if name == "Metal":
-        bsdf.inputs["Metallic"].default_value = 0.75
+        bsdf.inputs["Metallic"].default_value = 0.35
     if name == "Leaf":
         bsdf.inputs["Specular IOR Level"].default_value = 0.06
         tr = nt.nodes.new("ShaderNodeBsdfTranslucent")

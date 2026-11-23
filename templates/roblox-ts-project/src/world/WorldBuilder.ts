@@ -47,6 +47,7 @@ export function loadBake(): WorldBakeData {
 
 export function applyLighting(l: LightingData): void {
 	Lighting.ClockTime = l.clockTime;
+	if (l.latitude !== undefined) Lighting.GeographicLatitude = l.latitude;
 	Lighting.Brightness = l.brightness;
 	Lighting.Ambient = hexToColor3(l.ambient);
 	Lighting.OutdoorAmbient = hexToColor3(l.outdoorAmbient);
@@ -58,8 +59,8 @@ export function applyLighting(l: LightingData): void {
 	Lighting.FogStart = l.fogStart;
 	Lighting.FogEnd = l.fogEnd;
 	Lighting.FogColor = hexToColor3(l.fogColor);
-	Lighting.EnvironmentDiffuseScale = 0.6;
-	Lighting.EnvironmentSpecularScale = 0.4;
+	Lighting.EnvironmentDiffuseScale = 0.5;
+	Lighting.EnvironmentSpecularScale = 0.2; // higher, the sky glazes every beam and tile like plastic
 
 	const getOrCreate = <T extends Instance>(className: keyof CreatableInstances, name: string): T => {
 		const existing = Lighting.FindFirstChild(name);
@@ -136,6 +137,7 @@ export function applyLighting(l: LightingData): void {
 	// grass decoration (property removed from recent Studio builds → guarded, dynamic access)
 	pcall(() => {
 		(Workspace.Terrain as unknown as { Decoration: boolean }).Decoration = l.terrainDecoration === true;
+		(Workspace.Terrain as unknown as { GrassLength: number }).GrassLength = 0.25; // blades as tall as a window hide the houses
 	});
 }
 

@@ -50,7 +50,7 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       (`src/ui/kits.generated.ts` — every design system of the taxonomy, selected by
  *       `GameConfig.ui.kit`).
  */
-export const TEMPLATE_VERSION = 14;
+export const TEMPLATE_VERSION = 15;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
@@ -206,6 +206,7 @@ export function buildRojoProject(slug: string, bake: WorldBake, materialOverride
     $properties: {
       Technology: L.technology ?? "ShadowMap",
       ClockTime: L.clockTime,
+      ...(L.latitude !== undefined ? { GeographicLatitude: L.latitude } : {}),
       Brightness: L.brightness,
       Ambient: rgb(L.ambient),
       OutdoorAmbient: rgb(L.outdoorAmbient),

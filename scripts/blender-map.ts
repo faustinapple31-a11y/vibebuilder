@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { interpretPrompt } from "../packages/agents/src/local/interpreter";
 import { STYLE_FAMILY_INDEX, StyleBibleSchema, TERRAIN_MATERIALS, WorldSpecSchema, styleFamilyToBible } from "../packages/core/src";
-import { critiqueBake } from "../packages/quality/src";
+import { critiqueBake, scoreVisual } from "../packages/quality/src";
 import { generateWorld } from "../packages/world-gen/src";
 
 const args = process.argv.slice(2);
@@ -86,7 +86,12 @@ console.log(`layout ${report.score}/100, ${placements.length} placements, style 
 
 const blender = ["5.3", "5.2", "5.1", "5.0", "4.5"].map((v) => `C:/Program Files/Blender Foundation/Blender ${v}/blender.exe`).find(existsSync);
 if (!blender) throw new Error("Blender not found");
-const r = spawnSync(blender, ["-b", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", resolve("packages/blender-map/python/build_map.py"), "--", sceneFile, out, "--views", flag("--views", "spawn,landmark,village,wide"), "--samples", flag("--samples", "48"), ...(args.includes("--export") ? ["--export"] : []), ...(args.includes("--sheet") ? ["--sheet", flag("--sheet", "plain")] : [])], { encoding: "utf8", maxBuffer: 1 << 28 });
+const r = spawnSync(blender, ["-b", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", resolve("packages/blender-map/python/build_map.py"), "--", sceneFile, out, "--views", flag("--views", "spawn,landmark,village,wide"), "--samples", flag("--samples", "48"), ...(args.includes("--export") ? ["--export"] : []), ...(args.includes("--quality") ? ["--quality"] : []), ...(args.includes("--sheet") ? ["--sheet", flag("--sheet", "plain")] : [])], { encoding: "utf8", maxBuffer: 1 << 28 });
 const lines = `${r.stdout}\n${r.stderr}`.split("\n");
 console.log(lines.filter((l) => /^WF |Error|Traceback|File ".*wf_|File ".*build_map/.test(l)).slice(-40).join("\n"));
+if (existsSync(join(out, "visual.json")) && (args.includes("--export") || args.includes("--quality"))) {
+  const v = scoreVisual(JSON.parse(readFileSync(join(out, "visual.json"), "utf8")));
+  console.log(`visual ${v.score}/100  ${Object.entries(v.criteria).map(([k, n]) => `${k} ${n}`).join("  ")}  | close ${v.distances.close} medium ${v.distances.medium} far ${v.distances.far}`);
+  for (const p of v.problems.slice(0, 24)) console.log(`  [${p.criterion}/${p.distance}] ${p.message} -> ${p.fix}`);
+}
 process.exit(r.status ?? 1);

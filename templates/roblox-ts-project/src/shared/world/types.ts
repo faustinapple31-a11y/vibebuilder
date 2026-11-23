@@ -100,6 +100,7 @@ export interface TerrainOpData {
 
 export interface LightingData {
 	clockTime: number;
+	latitude?: number;
 	brightness: number;
 	ambient: string;
 	outdoorAmbient: string;

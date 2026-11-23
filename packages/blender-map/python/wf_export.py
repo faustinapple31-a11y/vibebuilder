@@ -1,6 +1,6 @@
 """From Blender to Roblox: levels of detail, one mesh per material under the triangle limit, GLB files, a manifest, and
-the checks a piece must pass before it leaves. Textures are exported once; the GLB files carry none (a SurfaceAppearance
-per material is set by the importer), so a hundred pieces share twenty images.
+the checks a piece must pass before it leaves. Textures are exported once; the GLB files carry none (one
+TextureID per material is set by the importer), so a hundred pieces share twenty images.
 """
 import bpy
 import json
@@ -16,6 +16,67 @@ UNTEXTURED = {"Glow", "Neon", "Glass", "Water"}
 
 def tris(me):
     return sum(len(p.vertices) - 2 for p in me.polygons)
+
+
+# ------------------------------------------------------------------ occlusion
+def bake_ao(ob, floor=0.4, distance=6.0):
+    """Occlusion into the vertex colours, ground included: Roblox has no ambient occlusion of its own, so what is not in
+    the colours is not in the game. The mesh is refined first where a face is too large to hold a gradient."""
+    import array
+    sc = bpy.context.scene
+    if not sc.world:
+        sc.world = bpy.data.worlds.new("w")
+    sc.world.light_settings.distance = distance
+    me = ob.data
+    ao = me.color_attributes.new("AO", "FLOAT_COLOR", "CORNER")
+    me.color_attributes.active_color = ao
+    bpy.ops.object.select_all(action="DESELECT")
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    g = bpy.data.meshes.new("ao_ground")
+    r = max(ob.dimensions) * 2 + 10
+    g.from_pydata([(-r, -r, 0), (r, -r, 0), (r, r, 0), (-r, r, 0)], [], [(0, 1, 2, 3)])
+    go = bpy.data.objects.new("ao_ground", g)
+    sc.collection.objects.link(go)
+    go.location = (ob.location.x, ob.location.y, 0)
+    bpy.ops.object.bake(type="AO", target="VERTEX_COLORS")
+    bpy.data.meshes.remove(g)
+    n = len(me.loops) * 4
+    a, c = array.array("f", [0.0]) * n, array.array("f", [0.0]) * n
+    ao.data.foreach_get("color", a)
+    me.color_attributes["Col"].data.foreach_get("color", c)
+    leaf = {i for i, m in enumerate(me.materials) if m.name in ("Leaf", "Glow", "Water")}
+    skip = set()
+    for p in me.polygons:
+        if p.material_index in leaf:
+            skip.update(p.loop_indices)
+    for i in range(0, n, 4):
+        if i // 4 in skip:
+            continue
+        k = floor + (1 - floor) * min(1.0, a[i] * 1.12)
+        c[i] *= k
+        c[i + 1] *= k
+        c[i + 2] *= k
+    me.color_attributes["Col"].data.foreach_set("color", c)
+    me.color_attributes.remove(me.color_attributes["AO"])
+    me.color_attributes.active_color = me.color_attributes["Col"]
+
+
+def refine(ob, size=3.2):
+    """Cuts the large faces: an occlusion gradient needs vertices, and a wall of one quad has none in its middle."""
+    import bmesh
+    me = ob.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    for _ in range(2):
+        long = [e for e in bm.edges if e.calc_length() > size * 1.7 and not any(me.materials[f.material_index].name in ("Leaf", "Glow", "Water", "Glass") for f in e.link_faces)]
+        if not long or len(bm.faces) > 60000:
+            break
+        bmesh.ops.subdivide_edges(bm, edges=long, cuts=1, use_grid_fill=True)
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
 
 
 # ------------------------------------------------------------------ checks
@@ -107,6 +168,22 @@ def split(ob, collection, name):
     return made
 
 
+def budget(man):
+    """Triangles by zone (128 studs) at the level each instance would use, and the zones over what a phone takes."""
+    zones, total = {}, 0
+    for p in man["layout"]:
+        e = man["pieces"].get(p["piece"])
+        if not e:
+            continue
+        lod = e["lods"][min(p.get("lod", 0), len(e["lods"]) - 1)] or e["lods"][0]
+        x, _, z = p["position"]
+        k = "%d,%d" % (x // 128, z // 128)
+        zones[k] = zones.get(k, 0) + lod["tris"]
+        total += lod["tris"]
+    heavy = sorted(((v, k) for k, v in zones.items() if v > 400000), reverse=True)
+    return {"tris": total, "zones": len(zones), "worst": max(zones.values(), default=0), "heavy": [{"zone": k, "tris": v} for v, k in heavy]}
+
+
 def write_glb(path, objs):
     bpy.ops.object.select_all(action="DESELECT")
     for o in objs:
@@ -158,6 +235,7 @@ def export(out, levels, terrain, layout, files, expected, log):
         used |= {m for _, m in parts}
         for o, _ in parts:
             bpy.data.meshes.remove(o.data)
+    manifest["budget"] = budget(manifest)
     for m in sorted(used):
         key = tex.ALIAS.get(m, m)
         info = {"doubleSided": m in DOUBLE, "tile": tex.TILE.get(key)}
@@ -177,7 +255,8 @@ def export(out, levels, terrain, layout, files, expected, log):
                 img.save()
                 bpy.data.images.remove(img)
                 info["maps"][kind] = "textures/" + os.path.basename(dst)
-            info["alpha"] = m == "Leaf"
+            # how a MeshPart must be set for the vertex colours to show (a SurfaceAppearance would ignore them)
+            info["meshPart"] = {"TextureID": info["maps"]["color"], "Color": [255, 255, 255], "Material": "Plastic", "Transparency": 0.02 if m == "Leaf" else 0, "DoubleSided": m in DOUBLE}
         manifest["materials"][m] = info
     json.dump(manifest, open(os.path.join(out, "manifest.json"), "w"))
     log("exported %d terrain chunks, %d materials, %d problems" % (len(terrain), len(used), len(manifest["problems"])))

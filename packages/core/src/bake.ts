@@ -166,6 +166,8 @@ export interface LandmarkPlacement {
 
 export interface RobloxLightingSettings {
   clockTime: number;
+  /** Lighting.GeographicLatitude: with the hour, decides which side of the map the sun lights. */
+  latitude?: number;
   brightness: number;
   ambient: string;
   outdoorAmbient: string;
