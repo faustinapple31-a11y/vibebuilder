@@ -124,7 +124,11 @@ describe("prompt enhancer", () => {
     expect(shouldEnhance("make me a village")).toBe(true);
     expect(shouldEnhance("plus médiéval")).toBe(false);
     expect(shouldEnhance("ajoute une rivière derrière le village")).toBe(false);
-    expect(shouldEnhance("x".repeat(1201))).toBe(false);
+    expect(shouldEnhance("x".repeat(1201))).toBe(true); // every idea is rewritten, long ones too
+    expect(shouldEnhance("x".repeat(8001))).toBe(false);
+    const long = "Un village médiéval au bord d'une rivière avec exactement douze maisons. ".repeat(12);
+    expect(buildEnhancerPrompt(long)).toContain("sentence by sentence");
+    expect(buildEnhancerPrompt("fait moi un village")).not.toContain("sentence by sentence");
     const { provider, calls } = replying("");
     expect((await enhancePrompt("moins d'arbres", { provider, cwd: tmpdir() })).source).toBe("skipped");
     expect(calls).toHaveLength(0);

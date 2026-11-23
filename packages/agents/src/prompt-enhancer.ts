@@ -12,8 +12,10 @@ import type { AgentDetection, AgentProviderId, IAgentProvider, SessionOptions } 
  */
 
 const TIMEOUT_MS = 45_000;
-/** A request this long already is a brief. */
-const MAX_REQUEST_LENGTH = 1200;
+/** Past this the request is a document: it goes to the agents as it is. */
+const MAX_REQUEST_LENGTH = 8000;
+/** From here the player has said most of it: the brief sorts and completes, it draws nothing at random. */
+const LONG_REQUEST = 600;
 const MIN_BRIEF_LENGTH = 200;
 const MAX_BRIEF_LENGTH = 8000;
 
@@ -52,7 +54,7 @@ export interface EnhanceOptions {
   variation?: string;
 }
 
-/** Modifications ("plus médiéval") act on an existing world, and a long request needs no rewriting. */
+/** Every idea is rewritten, long ones included; only modifications ("plus médiéval") act on an existing world as they are. */
 export function shouldEnhance(request: string): boolean {
   const text = request.trim();
   return text.length >= 3 && text.length <= MAX_REQUEST_LENGTH && !isModification(text);
@@ -168,8 +170,12 @@ Keep the player's intent exactly: everything they named appears in the brief, an
 FIRST GOAL says what the player does first and where: it sits close to the spawn, in view, so the fun starts within a minute.
 Pick the genre and style ids closest to the player's own words: a farm is the farming genre, not simulator.
 FOCAL and SECONDARY name landmark ids from the catalog, SETTLEMENTS a settlement id, and MOOD is exactly one id from the moods list. Name no object the catalog cannot build. When the player asks for something it cannot build (animals, asteroids…), keep it in INTENT so the agents know, and express it elsewhere through the closest catalog choices.
-Write in English, keeping any names the player gave in their own language. Use the same fields, in the same order, as the examples, and answer with the <brief> block only.`;
+Write in English, keeping any names the player gave in their own language. Use the same fields, in the same order, as the examples, and answer with the <brief> block only.
+SETTLEMENTS gives building counts in proportion with the map: about 10 on a small one, 15 to 20 on a normal one, 30 to 40 for a large town, 50 and more for a city district. Say what surrounds the place (fields, woods, a river, a range on one side) and how one comes in.${request.length > LONG_REQUEST ? LONG_RULES : ""}`;
 }
+
+const LONG_RULES = `
+This request is long and detailed. Go through it sentence by sentence: every place, object, number, colour, rule and constraint it states must be found in the brief, in the player's own terms, under the field it belongs to. Do not summarise away a requirement, do not soften it, do not add a theme. Where two sentences conflict, keep the more specific one. Only fill in what is still missing.`;
 
 /** The brief inside the model's answer, or null when the answer is not a complete brief. */
 export function parseBrief(answer: string): string | null {
@@ -208,7 +214,7 @@ export function buildLocalBrief(request: string): string {
   const settlements = spec.settlements.map((s) => `${s.type}, ${s.buildings} buildings`);
   const water = [spec.rivers.length ? `${spec.rivers.length} river(s)` : "", spec.lakes.length ? `${spec.lakes.length} lake(s)` : ""].filter(Boolean);
   return [
-    `INTENT: ${request}`,
+    `INTENT: ${request.length > LONG_REQUEST ? `${request.slice(0, LONG_REQUEST).replace(/\s+\S*$/, "")} (the request says more: it is the source of truth)` : request}`,
     `GENRE: ${game.genre} | STYLE: ${spec.stylePreset} | LAYOUT: ${spec.layout.archetype}`,
     `FIRST VIEW: The spawn faces the focal landmark, framed by two large objects, with a road leading the eye to it.`,
     `FIRST GOAL: The first thing to do sits near the spawn and can be seen from it.`,
@@ -264,13 +270,13 @@ export async function enhancePrompt(input: string, options: EnhanceOptions): Pro
 
   const controller = new AbortController();
   const abort = () => controller.abort();
-  const timer = setTimeout(abort, options.timeoutMs ?? TIMEOUT_MS);
+  const timer = setTimeout(abort, options.timeoutMs ?? (request.length > LONG_REQUEST ? TIMEOUT_MS * 2 : TIMEOUT_MS));
   signal?.addEventListener("abort", abort);
   const stopped = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(new Error("timed out"))));
   let reason: string;
   try {
     const answer = await Promise.race([
-      provider.startSession({ cwd: options.cwd, ...defaults }).then((session) => askModel(provider, session, buildEnhancerPrompt(request, options.variation ?? describeVariation(drawVariation(request))), controller.signal)),
+      provider.startSession({ cwd: options.cwd, ...defaults }).then((session) => askModel(provider, session, buildEnhancerPrompt(request, options.variation ?? (request.length > LONG_REQUEST ? undefined : describeVariation(drawVariation(request)))), controller.signal)),
       stopped,
     ]);
     const brief = parseBrief(answer);

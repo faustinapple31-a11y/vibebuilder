@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { generateWorld, type GenerateOptions } from "@worldforge/world-gen";
-import { critiqueBake, renderThumbnail } from "@worldforge/quality";
+import { critiqueBake, improveWorld, renderThumbnail } from "@worldforge/quality";
 import type { StyleBible, WorldBake, WorldSpec } from "@worldforge/core";
 
 export interface WorkerRequest {
@@ -14,7 +14,12 @@ export type WorkerResponse = { id: string; type: "progress"; stage: string; p: n
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const { id, spec, style, options } = e.data;
   try {
-    const bake = generateWorld(spec, style, { ...options, onProgress: (stage, p) => self.postMessage({ id, type: "progress", stage, p } satisfies WorkerResponse) });
+    let bake = generateWorld(spec, style, { ...options, onProgress: (stage, p) => self.postMessage({ id, type: "progress", stage, p } satisfies WorkerResponse) });
+    // a new map goes through the correction loop; a partial regeneration keeps exactly what the user asked for
+    if (!options.previous) {
+      self.postMessage({ id, type: "progress", stage: "review", p: 1 } satisfies WorkerResponse);
+      bake = improveWorld(spec, style, bake, { generate: options }).bake;
+    }
     const report = critiqueBake(bake, spec, style);
     self.postMessage({ id, type: "progress", stage: "thumbnail", p: 1 } satisfies WorkerResponse);
     // a missing store image must never cost the client their world
