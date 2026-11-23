@@ -80,7 +80,7 @@ function levelDisc(ctx: GenContext, c: Vec2, radius: number, target: number, str
       const d = Math.hypot(wx - c[0], wz - c[1]);
       if (d > radius) continue;
       const i = z * ctx.width + x;
-      if (!Number.isNaN(ctx.water.data[i]!)) continue;
+      if (!Number.isNaN(ctx.water.data[i]!) || ctx.padMask?.[i]) continue; // the ground of a house stays its own
       const w = (1 - smootherstep(radius * 0.45, radius, d)) * strength;
       h.data[i] = lerp(h.data[i]!, target, w);
     }
@@ -195,13 +195,20 @@ function placeFields(ctx: GenContext, rng: Rng, add: Add): void {
   const fieldR = 13;
   let placed = 0;
   for (const site of ctx.sites) {
+    // a field belongs to someone: around the farms of the plan, else around the outermost houses
+    const plan = ctx.plan.settlements.find((s) => s.settlement === site.id);
+    const farms = (plan?.parcels ?? []).filter((p) => p.function === "farm").map((p) => p.center);
+    const houses = ctx.placements.filter((p) => p.zone === site.id && p.category === "building" && p.prefab !== "well").map((p) => [p.position[0], p.position[2]] as Vec2);
+    const outer = [...houses].sort((p, q) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) - Math.hypot(p[0] - site.center[0], p[1] - site.center[1])).slice(0, 4);
+    const owners = farms.length > 0 ? farms : outer;
     const want = site.spec.type === "farmstead" ? 4 : 2;
     let got = 0;
-    for (let attempt = 0; attempt < 40 && got < want; attempt++) {
+    for (let attempt = 0; attempt < 70 && got < want; attempt++) {
+      const owner = owners.length > 0 ? owners[attempt % owners.length]! : site.center;
       const a = rng.float(0, Math.PI * 2);
-      const r = site.radius * rng.float(1.25, 1.75) + fieldR;
-      const x = site.center[0] + Math.cos(a) * r;
-      const z = site.center[1] + Math.sin(a) * r;
+      const r = owners.length > 0 ? fieldR + rng.float(10, 34) : site.radius * rng.float(1.05, 1.4) + fieldR;
+      const x = owner[0] + Math.cos(a) * r;
+      const z = owner[1] + Math.sin(a) * r;
       if (!inBounds(ctx, x, z, fieldR + 8)) continue;
       if (isWaterAt(ctx, x, z) || ctx.waterDistance.sample(x, z) < fieldR + 2) continue;
       if (ctx.roadDistance.sample(x, z) < fieldR + 2) continue;

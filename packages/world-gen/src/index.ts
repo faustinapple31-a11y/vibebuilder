@@ -8,3 +8,4 @@ export { LANDMARK_PREFAB } from "./pipeline/landmarks";
 export { SPECIES_PREFAB } from "./pipeline/vegetation";
 export { computeLighting } from "./pipeline/lighting";
 export { getBiomePrefs } from "./pipeline/biomes";
+export * from "./terrain-analysis";

@@ -102,6 +102,49 @@ export interface Zone {
   meta?: Record<string, string | number>;
 }
 
+/** What a quarter of a settlement is for: decided from the terrain before a single building stands. */
+export type DistrictFunction = "civic" | "commerce" | "craft" | "residential" | "farm" | "military";
+
+export interface District {
+  id: string;
+  function: DistrictFunction;
+  center: Vec2;
+  radius: number;
+  /** 1 = placed first. */
+  priority: number;
+  /** Buildings it is meant to hold. */
+  capacity: number;
+}
+
+/** A plot of land: limits, the street it opens on, what it may hold. */
+export interface Parcel {
+  id: string;
+  district: string;
+  function: DistrictFunction;
+  center: Vec2;
+  /** Rotation of the plot: its front (-Z) looks at the street. */
+  rotationY: number;
+  frontage: number;
+  depth: number;
+  street: string;
+  building?: string;
+}
+
+export interface SettlementPlan {
+  settlement: string;
+  plaza: { center: Vec2; radius: number };
+  districts: District[];
+  parcels: Parcel[];
+  /** Why sites were turned down while looking for room, by reason. */
+  refused: Record<string, number>;
+}
+
+export interface WorldPlan {
+  /** Share of the map per terrain class (flat, gentle, steep, summit, valley, shore...). */
+  terrain: Record<string, number>;
+  settlements: SettlementPlan[];
+}
+
 export interface PathPolyline {
   id: string;
   kind: "road" | "river";
@@ -239,6 +282,8 @@ export interface WorldBake {
   lighting: RobloxLightingSettings;
   spawn: { position: Vec3; lookAt: Vec3 };
   stats: BakeStats;
+  /** How the settlements were planned (terrain classes, districts, plots). Absent on older bakes. */
+  plan?: WorldPlan;
 }
 
 /** Sample terrain height with bilinear interpolation at world coordinates. */
@@ -366,6 +411,7 @@ export interface WorldBakeJSON {
   lighting: RobloxLightingSettings;
   spawn: WorldBake["spawn"];
   stats: BakeStats;
+  plan?: WorldPlan;
 }
 
 /** Floats per placement in the serialized buffer (see WorldBakeJSON.placementsB64). */
@@ -431,6 +477,7 @@ export function serializeBake(bake: WorldBake): WorldBakeJSON {
     lighting: bake.lighting,
     spawn: bake.spawn,
     stats: bake.stats,
+    ...(bake.plan ? { plan: bake.plan } : {}),
   };
 }
 
@@ -485,5 +532,6 @@ export function deserializeBake(json: WorldBakeJSON): WorldBake {
     lighting: json.lighting,
     spawn: json.spawn,
     stats: json.stats,
+    ...(json.plan ? { plan: json.plan } : {}),
   };
 }

@@ -13,16 +13,18 @@ import { buildPrefabLibrary, PREFAB_INDEX, PROP_KIT_PREFABS, VEGETATION_KIT_SPEC
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
 import { GEN_LAYERS, baseGround, baseRelief, type GenContext, type GenLayer, type GenerateOptions } from "./context";
+import { analyzeTerrain } from "./terrain-analysis";
 import { computeMoisture, generateTerrain } from "./pipeline/terrain";
 import { generateWater } from "./pipeline/water";
 import { generateBiomes } from "./pipeline/biomes";
 import { selectSettlementSites, flattenArea } from "./pipeline/sites";
 import { placeLandmarks, LANDMARK_PREFAB } from "./pipeline/landmarks";
 import { chooseSpawn, clearViewAxis } from "./pipeline/spawn";
-import { generateRoads } from "./pipeline/roads";
+import { carveRoad, generateRoads, placeStairs, refreshRoadDistance } from "./pipeline/roads";
 import { placeBuildings } from "./pipeline/buildings";
 import { placeLayout } from "./pipeline/layout";
 import { placeDressing } from "./pipeline/dressing";
+import { placeDiscoveries } from "./pipeline/discovery";
 import { placeRelief } from "./pipeline/relief";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
@@ -96,6 +98,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     terrainOps: [],
     spawn: { position: [0, 0, 0], lookAt: [0, 0, -1] },
     lighting: null,
+    plan: { terrain: {}, settlements: [] },
     regenerate,
     previous: compatiblePrevious,
     onProgress: options.onProgress ?? (() => {}),
@@ -138,6 +141,10 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     ctx.materials.set(compatiblePrevious.terrain.materials);
   }
 
+  // ---- what the ground is, before anything is flattened for a building
+  ctx.analysis = analyzeTerrain(ctx);
+  ctx.plan.terrain = ctx.analysis.shares;
+
   // ---- settlement sites
   if (regenerate.has("buildings") || !compatiblePrevious) {
     selectSettlementSites(ctx);
@@ -179,6 +186,16 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     placeBuildings(ctx);
     placeDressing(ctx);
   } else {
+    // the streets a settlement opened for itself belong to the buildings layer too
+    const known = new Set(ctx.paths.map((p) => p.id));
+    for (const p of compatiblePrevious.paths) {
+      if (p.kind !== "road" || known.has(p.id) || !(p.id === "trail_viewpoint" || ctx.sites.some((s) => p.id.startsWith(`${s.id}_`)))) continue;
+      ctx.paths.push({ ...p, points: p.points.map((q) => [q[0], q[1]] as Vec2) });
+      carveRoad(ctx, p.points, p.width, p.type);
+      placeStairs(ctx, p.id, p.points);
+    }
+    refreshRoadDistance(ctx);
+    ctx.plan.settlements = compatiblePrevious.plan?.settlements ?? [];
     for (const p of compatiblePrevious.placements) {
       if (p.id.startsWith("dress_")) {
         // settlement dressing (walls, fields, piers, markings) belongs to the buildings layer
@@ -206,6 +223,9 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     for (const z of compatiblePrevious.zones) if (z.kind === "gameplay") ctx.zones.push({ ...z });
     for (const [id, variants] of Object.entries(compatiblePrevious.prefabs)) if (!ctx.prefabs[id] && variants[0]?.tags.includes("layout")) ctx.prefabs[id] = variants;
   }
+
+  // ---- what is found by leaving the road: a viewpoint with its trail, a hidden spot
+  if (regenerate.has("buildings") || !compatiblePrevious) placeDiscoveries(ctx);
 
   // ---- 3D relief: caves behind cave landmarks, overhangs, arches, lava (voxel ops + fixed interior props)
   if (regenerate.has("landmarks") || regenerate.has("terrain") || !compatiblePrevious) {
@@ -351,6 +371,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     lighting: ctx.lighting!,
     spawn: ctx.spawn,
     stats,
+    plan: ctx.plan,
   };
   ctx.onProgress("done", 1);
   return bake;
@@ -527,6 +548,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   if (style && style.environment.walls !== "none") for (const id of ["town_wall", "gate_tower"]) ids.add(id);
   for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post", "spawn_plaza"]) ids.add(id);
   if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
+  for (const id of ["treasure_chest", "torch_post"]) ids.add(id); // the hidden spot
   ids.add("plank_bridge");
   ids.add("stairs");
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);

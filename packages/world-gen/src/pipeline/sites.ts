@@ -145,7 +145,7 @@ export function flattenArea(ctx: GenContext, center: Vec2, radius: number, stren
       const d = Math.hypot(wx - center[0], wz - center[1]);
       if (d > radius) continue;
       const i = z * ctx.width + x;
-      if (!Number.isNaN(ctx.water.data[i]!)) continue;
+      if (!Number.isNaN(ctx.water.data[i]!) || ctx.padMask?.[i]) continue;
       const w = (1 - smootherstep(radius * plateau, radius, d)) * strength;
       h.data[i] = lerp(h.data[i]!, base, w);
       if (w > 0.5 && ctx.materials[i] !== TERRAIN_MATERIAL_INDEX.Water) {

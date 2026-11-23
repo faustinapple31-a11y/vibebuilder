@@ -148,7 +148,8 @@ export function placeRocksAndProps(ctx: GenContext): void {
           const z = hse.position[2] + Math.sin(a) * r;
           add(rng.chance(0.5) ? "crate" : "barrel", x, z, { importance: 2, zone: site.id, margin: 0.2 });
         }
-        if (rng.chance(0.7 * density)) {
+        // planned plots get their own fences (see yards); a loose line would cut across the neighbours
+        if (!ctx.plan.settlements.some((q) => q.settlement === site.id && q.parcels.length > 0) && rng.chance(0.7 * density)) {
           // fence line tangent to the house
           const a = rng.float(0, Math.PI * 2);
           const r = foot + 8 + rng.float(0, 5);

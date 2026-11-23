@@ -1,8 +1,9 @@
-import { TERRAIN_MATERIAL_INDEX, deriveSeed, type Placement, type PrefabVariant, type Vec2, type Vec3 } from "@worldforge/core";
+import { TERRAIN_MATERIAL_INDEX, deriveSeed, type DistrictFunction, type Placement, type PrefabVariant, type SettlementPlan, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
 import { flattenArea } from "./sites";
-import { carveRoad, refreshRoadDistance } from "./roads";
+import { carveRoad, placeStairs, refreshRoadDistance, routeRoad } from "./roads";
+import { nearestRoadPoint, planSettlement } from "./urban-plan";
 
 /** Building prefab mix per settlement type (weights); every prefab is generated with the style's architecture kit. */
 function prefabMix(ctx: GenContext, s: SettlementSite["spec"]): { item: string; weight: number }[] {
@@ -144,8 +145,35 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     return true;
   };
 
+  // zones, streets, plots: the settlement is planned; the rings below only place what found no plot
+  const has = (id: string) => (ctx.prefabs[id]?.length ?? 0) > 0;
+  const inMix = (id: string) => mix.some((m) => m.item === id);
+  const choose = (fn: DistrictFunction) => {
+    let id = pick()[0];
+    if (rng.chance(ruinRatio) && ruinWalls.length > 0) id = "ruin_wall";
+    else if (fn === "civic" && has("house_large")) id = "house_large";
+    else if (fn === "commerce" && inMix("shop_building")) id = "shop_building";
+    else if (fn === "farm" && has("house_large") && rng.chance(0.5)) id = "house_large";
+    else if (fn === "residential" && id === "shop_building" && has("house")) id = "house";
+    const n = ctx.prefabs[id]?.length ?? 0;
+    return n > 0 ? { prefab: id, variant: rng.int(0, n - 1) } : null;
+  };
+  let planned = 0;
+  if (!ctx.islands) {
+    planned = planSettlement(ctx, site, rng, count, choose, (b, position, rotationY, scale) => {
+      const foot = ctx.prefabs[b.prefab]![b.variant]!.footprintRadius;
+      const p: Placement = { id: `${site.id}_${b.prefab}_${placed.length}`, prefab: b.prefab, variant: b.variant, category: "building", position, rotationY, scale, layer: layerFor(ctx, position[0], position[2], true), zone: site.id, importance: 9 };
+      placed.push(p);
+      ctx.placements.push(p);
+      ctx.occupants.push({ position, radius: foot * scale, kind: "building" });
+      markGround(ctx, [position[0], position[2]], foot * 0.9);
+      return p.id;
+    });
+  }
+
   // ring 1
-  const n1 = Math.min(count, 8);
+  const left = count - planned;
+  const n1 = Math.min(left, 8);
   const baseAngle = rng.float(0, Math.PI * 2);
   let placedCount = 0;
   for (let i = 0; i < n1; i++) {
@@ -160,7 +188,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     if (ok) placedCount++;
   }
   // ring 2
-  const n2 = count - n1;
+  const n2 = left - n1;
   for (let i = 0; i < n2; i++) {
     const a = baseAngle + (i / Math.max(1, n2)) * Math.PI * 2 + Math.PI / Math.max(1, n2) + (rng.next() - 0.5) * 0.4;
     let ok = false;
@@ -173,13 +201,32 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     if (ok) placedCount++;
   }
   // fallback: fill missing houses anywhere around the site
-  for (let extra = 0; placedCount < count && extra < 40; extra++) {
+  for (let extra = 0; placedCount < left && extra < 40; extra++) {
     const a = rng.float(0, Math.PI * 2);
     const r = plazaR + 10 + rng.float(0, site.radius * 0.8);
     const [pid, pv] = pick();
     if (tryPlace(pid, pv, a, r, rng.chance(0.5))) placedCount++;
   }
   void cottages;
+  // what stands off the streets gets a footpath to the nearest one
+  if (!ctx.islands) {
+    const blocked = (q: Vec2) => !Number.isNaN(ctx.water.sample(q[0], q[1])) || placed.some((o) => Math.hypot(o.position[0] - q[0], o.position[2] - q[1]) < (ctx.prefabs[o.prefab]?.[o.variant]?.footprintRadius ?? 10) * 0.9);
+    for (const p of placed.slice(planned)) {
+      const foot = ctx.prefabs[p.prefab]?.[p.variant]?.footprintRadius ?? 10;
+      if (ctx.roadDistance.sample(p.position[0], p.position[2]) < foot + 14) continue;
+      const door: Vec2 = [p.position[0] - Math.sin(p.rotationY) * (foot + 4), p.position[2] - Math.cos(p.rotationY) * (foot + 4)];
+      const to = nearestRoadPoint(ctx, door);
+      if (!to || Math.hypot(to[0] - door[0], to[1] - door[1]) > 120) continue;
+      const pts = routeRoad(ctx, rng, [door, to], { waterCost: 60 });
+      if (!pts || pts.length < 3 || pts.some(blocked)) continue;
+      const type = ["snow_path", "sand_path"].includes(ctx.style.kits.road) ? ctx.style.kits.road : "dirt_path";
+      const id = `${site.id}_path_${p.id}`;
+      ctx.paths.push({ id, kind: "road", type, points: pts, width: 4 });
+      carveRoad(ctx, pts, 4, type);
+      placeStairs(ctx, id, pts);
+      refreshRoadDistance(ctx);
+    }
+  }
   // paved plaza (cobblestone core, packed earth ring) — reads as a real village square
   const plazaMat = ctx.style.kits.road === "asphalt_road" || ctx.style.kits.road === "concrete_road" || ctx.style.kits.road === "neon_road" ? TERRAIN_MATERIAL_INDEX.Pavement : ctx.style.kits.road === "sand_path" ? TERRAIN_MATERIAL_INDEX.Sandstone : ctx.style.kits.road === "metal_walkway" ? TERRAIN_MATERIAL_INDEX.Slate : TERRAIN_MATERIAL_INDEX.Cobblestone;
   if (s.type !== "camp") paveDisc(ctx, site.center, plazaR * 0.75, plazaMat);
@@ -263,12 +310,43 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
       [[a2, b2], `${site.id}_street_z${i}`],
     ] as [Vec2[], string][]) {
       const points = resample(pts[0]!, pts[1]!, ctx.cellSize * 2);
-      ctx.paths.push({ id, kind: "road", type, points, width: streetW });
-      carveRoad(ctx, points, streetW, type);
+      // the streets either side of the central block are the avenues, the outer ones are narrower
+      const w = i === 0 || i === 1 ? streetW : Math.round(streetW * 0.75);
+      ctx.paths.push({ id, kind: "road", type, points, width: w });
+      carveRoad(ctx, points, w, type);
     }
   }
   refreshRoadDistance(ctx);
   // blocks → buildings
+  const base = s.type === "base" || s.type === "outpost";
+  const quarters: { id: string; function: DistrictFunction; r0: number; r1: number }[] = base
+    ? [
+        { id: "command", function: "civic", r0: 0, r1: 1.2 },
+        { id: "quarters", function: "military", r0: 1.2, r1: 1.9 },
+        { id: "stores", function: "craft", r0: 1.9, r1: 9 },
+      ]
+    : [
+        { id: "centre", function: "civic", r0: 0, r1: 0.8 },
+        { id: "downtown", function: "commerce", r0: 0.8, r1: 1.6 },
+        { id: "homes", function: "residential", r0: 1.6, r1: 9 },
+      ];
+  const plan: SettlementPlan = {
+    settlement: site.id,
+    plaza: { center: site.center, radius: cell * 0.45 },
+    districts: quarters.map((q, i) => ({ id: `${site.id}_${q.id}`, function: q.function, center: site.center, radius: Math.min(R, q.r1 * cell), priority: i + 1, capacity: 0 })),
+    parcels: [],
+    refused: {},
+  };
+  ctx.plan.settlements.push(plan);
+  /** Tall buildings gather in the middle of a city, homes and shops go outward. */
+  const pickFor = (r: number): [string, PrefabVariant[]] => {
+    const has = (id: string) => (ctx.prefabs[id]?.length ?? 0) > 0;
+    let id = pick()[0];
+    if (city && r < 1.2 && has("skyscraper") && rng.chance(0.7)) id = "skyscraper";
+    else if (city && r >= 1.9 && id === "skyscraper" && has("apartment_block")) id = rng.chance(0.7) ? "apartment_block" : "shop_building";
+    else if (base && r < 1.2 && has("house_large")) id = "house_large";
+    return [id, ctx.prefabs[id] ?? []];
+  };
   let placed = 0;
   const target = s.buildings;
   const cells: [number, number][] = [];
@@ -277,7 +355,8 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
   for (const [gx, gz] of cells) {
     if (placed >= target) break;
     if (gx === 0 && gz === 0 && !city) continue; // plaza
-    const [pid, pv] = pick();
+    const ringOf = Math.hypot(gx, gz);
+    const [pid, pv] = pickFor(ringOf);
     if (pv.length === 0) continue;
     const vi = rng.int(0, pv.length - 1);
     const v = pv[vi]!;
@@ -296,15 +375,19 @@ function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () =>
     let blockedByLandmark = false;
     for (const o of ctx.occupants) if (o.kind === "landmark" && Math.hypot(x - o.position[0], z - o.position[2]) < o.radius + v.footprintRadius * 0.6) blockedByLandmark = true;
     if (blockedByLandmark) continue;
-    const base = flattenArea(ctx, [x, z], v.footprintRadius * 1.5, 1.0, undefined, 0.78);
+    const padY = flattenArea(ctx, [x, z], v.footprintRadius * 1.5, 1.0, undefined, 0.78);
     if (slopeAtWorld(ctx, x, z) > MAX_BUILDING_SLOPE) continue;
     const scale = 1 + (rng.next() * 2 - 1) * ctx.style.architecture.scaleVariance * 0.3;
-    const position: Vec3 = [x, base, z];
+    const position: Vec3 = [x, padY, z];
     const p: Placement = { id: `${site.id}_${pid}_${placed}`, prefab: pid, variant: vi, category: "building", position, rotationY: rotY, scale, layer: layerFor(ctx, position[0], position[2], true), zone: site.id, importance: 9 };
     ctx.placements.push(p);
     ctx.occupants.push({ position, radius: v.footprintRadius * scale, kind: "building" });
+    const quarter = quarters.findIndex((q) => ringOf >= q.r0 && ringOf < q.r1);
+    plan.districts[quarter]!.capacity++;
+    plan.parcels.push({ id: `${site.id}_block_${placed}`, district: plan.districts[quarter]!.id, function: plan.districts[quarter]!.function, center: [x, z], rotationY: rotY, frontage: cell - streetW, depth: cell - streetW, street: `${site.id}_street_${faceX ? "x" : "z"}${faceX ? gx : gz}`, building: p.id });
     placed++;
   }
+  plan.districts = plan.districts.filter((d) => d.capacity > 0);
   // paved core (plaza) for towns
   const plazaMat = type === "asphalt_road" || type === "concrete_road" || type === "neon_road" ? TERRAIN_MATERIAL_INDEX.Pavement : type === "metal_walkway" ? TERRAIN_MATERIAL_INDEX.Slate : type === "sand_path" ? TERRAIN_MATERIAL_INDEX.Sandstone : TERRAIN_MATERIAL_INDEX.Cobblestone;
   if (!city) paveDisc(ctx, site.center, cell * 0.45, plazaMat);

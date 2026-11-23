@@ -36,10 +36,45 @@ export function generateRoads(ctx: GenContext): void {
     placeBridges(ctx, road.id, smooth, road.width);
     placeStairs(ctx, road.id, smooth);
   }
+  if (!ctx.islands) connectLandmarks(ctx, rng);
   if (ctx.islands) connectIslands(ctx, rng);
   const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
   ctx.roadDistance = distanceToPolylinesGrid(ctx.heights, roads, 300);
   progress(ctx, "roads:done", 1);
+}
+
+/** A place worth seeing is a place one can walk to: landmarks the spec forgot to connect get a path. */
+function connectLandmarks(ctx: GenContext, rng: Rng): void {
+  const roads = () => ctx.paths.filter((p) => p.kind === "road");
+  if (roads().length === 0) return;
+  for (const l of ctx.landmarks) {
+    if (l.role === "hidden" || l.type === "mountain_peak" || l.type === "volcano") continue;
+    const [lx, , lz] = l.position;
+    let from: Vec2 | null = null;
+    let d = Infinity;
+    for (const r of roads()) {
+      for (const q of r.points) {
+        const dd = Math.hypot(q[0] - lx, q[1] - lz);
+        if (dd < d) {
+          d = dd;
+          from = [q[0], q[1]];
+        }
+      }
+    }
+    const foot = ctx.occupants.find((o) => o.kind === "landmark" && Math.hypot(o.position[0] - lx, o.position[2] - lz) < 1)?.radius ?? 20;
+    if (!from || d < foot + 22) continue;
+    // arrive at the door: castles and manors look at the spawn
+    const k = Math.hypot(ctx.spawn.position[0] - lx, ctx.spawn.position[2] - lz) || 1;
+    const door: Vec2 = [lx + ((ctx.spawn.position[0] - lx) / k) * (foot + 6), lz + ((ctx.spawn.position[2] - lz) / k) * (foot + 6)];
+    const pts = routeRoad(ctx, rng, [from, door], { waterCost: 12 });
+    if (!pts || pts.length < 4 || pts.some((q) => Math.hypot(q[0] - ctx.spawn.position[0], q[1] - ctx.spawn.position[2]) < 12)) continue;
+    const id = `path_${l.id}`;
+    const width = Math.max(5, Math.round((roads()[0]!.width ?? 8) * 0.7));
+    ctx.paths.push({ id, kind: "road", type: roads()[0]!.type, points: pts, width });
+    carveRoad(ctx, pts, width, roads()[0]!.type);
+    placeBridges(ctx, id, pts, width);
+    placeStairs(ctx, id, pts);
+  }
 }
 
 /**
@@ -210,6 +245,7 @@ export function carveRoad(ctx: GenContext, pts: Vec2[], width: number, type: str
     const d = dist[k]!;
     if (d > reach) continue;
     if (!Number.isNaN(ctx.water.data[k]!)) continue; // bridges handle water
+    if (ctx.padMask?.[k] && d > half) continue; // never cut into the ground of a house
     const cur = h.data[k]!;
     if (d <= half) {
       if (!parts) h.data[k] = lerp(cur, target[k]!, 0.92);

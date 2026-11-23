@@ -13,11 +13,13 @@ import type {
   Vec2,
   Vec3,
   WorldBake,
+  WorldPlan,
   WorldSpec,
   Zone,
 } from "@worldforge/core";
 import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
+import type { TerrainAnalysis } from "./terrain-analysis";
 import type { Island } from "./pipeline/archipelago";
 
 export type GenLayer = "terrain" | "water" | "roads" | "landmarks" | "buildings" | "vegetation" | "props" | "lighting";
@@ -104,6 +106,12 @@ export interface GenContext {
   occupants: Occupant[];
   spawn: { position: Vec3; lookAt: Vec3 };
   lighting: RobloxLightingSettings | null;
+
+  /** Natural ground, read once before anything is flattened for a building. */
+  analysis?: TerrainAnalysis;
+  plan: WorldPlan;
+  /** Cells already levelled for a building: a later pad never cuts into them. */
+  padMask?: Uint8Array;
 
   // bookkeeping
   regenerate: Set<GenLayer>;

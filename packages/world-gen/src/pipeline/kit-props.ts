@@ -47,6 +47,8 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     if (!variants || variants.length === 0) return false;
     if (distanceToEdge(ctx, x, z) < 6 || isWaterAt(ctx, x, z)) return false;
     if (slopeAtWorld(ctx, x, z) > 0.55) return false;
+    // anchors and mooring posts belong to a shore
+    if ((PREFAB_INDEX[prefab]?.tags ?? []).includes("docks") && prefab !== "barrel" && prefab !== "crate" && ctx.waterDistance.sample(x, z) > 20) return false;
     const vi = rng.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
