@@ -631,3 +631,6 @@ ARCH = {
     "house": house, "house_large": house, "cottage": house, "shop_building": lambda r, p, s, v: house(r, p, s, v, shop=True), "castle": castle,
     "town_wall": town_wall, "gate_tower": gate_tower, "stone_wall": stone_wall, "well": well, "windmill": windmill,
 }
+
+from wf_build import BUILDINGS, ramparts  # noqa: E402,F401
+ARCH.update(BUILDINGS)

@@ -14,3 +14,5 @@ apps/desktop/src-tauri/target/
 .env.*
 !.env.example
 *.tsbuildinfo
+__pycache__/
+*.pyc

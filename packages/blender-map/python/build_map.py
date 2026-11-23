@@ -14,7 +14,8 @@ import time
 from mathutils import Vector, Matrix, Quaternion, noise
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from wf_mesh import M, lin, mix, mul, vary, material  # noqa: E402
+import wf_textures  # noqa: E402
+from wf_mesh import M, lin, mix, mul, vary, material, use_textures  # noqa: E402
 from wf_flora import FLORA, outcrop  # noqa: E402
 from wf_arch import ARCH, ramparts  # noqa: E402
 from wf_props import PROPS, from_parts  # noqa: E402
@@ -39,6 +40,10 @@ W, D, CS = T["width"], T["depth"], T["cellSize"]
 OX, OZ = T["origin"]
 H, MAT, WATER = T["heights"], T["materials"], T["water"]
 NAMES = scene["materialNames"]
+
+
+use_textures(wf_textures.build(opt("--textures", os.path.join(os.path.dirname(OUT.rstrip("/\\")), "textures"))))
+log("textures")
 
 
 def height(x, z):

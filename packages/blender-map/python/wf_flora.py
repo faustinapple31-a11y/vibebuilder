@@ -269,43 +269,77 @@ def log(rng, pal, size, variant):
     return m
 
 
-def rock(rng, pal, size, variant, moss=True, cuts=11):
-    """An icosphere chiselled by planes: flat broken faces, moss on what looks up."""
+def rock(rng, pal, size, variant, moss=True, cuts=None, kind=None):
+    """Geology, not a ball: rounded boulder, angular block, bedded slab, cracked stone or upright spire."""
+    kind = kind or ("boulder", "angular", "slab", "cracked", "boulder", "spire")[variant % 6]
     m = M()
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1)
-    planes = [(Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0.1, 0.8))).normalized(), rng.uniform(0.6, 0.86)) for _ in range(cuts)]
+    off = Vector((rng.uniform(-50, 50), rng.uniform(-50, 50), rng.uniform(-50, 50)))
+    cuts = cuts or {"boulder": 7, "angular": 15, "slab": 9, "cracked": 11, "spire": 12}[kind]
+    deep = {"boulder": (0.78, 0.95), "angular": (0.55, 0.8), "slab": (0.66, 0.9), "cracked": (0.62, 0.86), "spire": (0.5, 0.78)}[kind]
+    planes = []
+    for _ in range(cuts):
+        n = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0.1, 0.7 if kind != "spire" else 0.25))).normalized()
+        planes.append((n, rng.uniform(*deep)))
+    if kind == "slab":
+        planes += [(Vector((rng.gauss(0, 0.1), rng.gauss(0, 0.1), 1)).normalized(), rng.uniform(0.3, 0.45))]
+    sq = {"boulder": (1, 1, 1), "angular": (1, 1, 1), "slab": (1.15, 1.1, 0.95), "cracked": (1, 1, 1), "spire": (0.72, 0.72, 1.5)}[kind]
+    crack = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 0.2))).normalized()
+    beds = rng.uniform(5, 8)
     vs = []
     for v in bm.verts:
         p = v.co.copy()
+        p *= 1 + noise.noise(p * 1.3 + off) * 0.16
         for n, d in planes:
             k = p.dot(n) - d
             if k > 0:
-                p -= n * k
-        p *= 1 + noise.noise(p * 3.1 + Vector((variant, 0, 0))) * 0.05
-        vs.append(Vector((p.x * size[0] * 0.6, p.y * size[1] * 0.6, p.z * size[2] * 0.62 + size[2] * 0.42)))
+                p -= n * k * 0.94
+        # bedding: hard layers stand out, soft ones are worn back
+        bed = math.sin(p.z * beds * (1.6 if kind == "slab" else 1) + noise.noise(p * 1.1 + off) * 2.5)
+        p += Vector((p.x, p.y, 0)) * bed * (0.06 if kind == "slab" else 0.022)
+        if kind == "cracked":
+            s = p.dot(crack) + noise.noise(p * 2.2 + off) * 0.12 - 0.08
+            p -= p.normalized() * 0.16 * math.exp(-(s / 0.07) ** 2)
+        p *= 1 + noise.noise(p * 3.4 + off) * 0.045 + noise.noise(p * 7 + off) * 0.015
+        vs.append(Vector((p.x * size[0] * 0.58 * sq[0], p.y * size[1] * 0.58 * sq[1], p.z * size[2] * 0.6 * sq[2] + size[2] * 0.4 * sq[2])))
     fs = [[v.index for v in f.verts] for f in bm.faces]
     bm.free()
-    base = vary(rng, pal["stone"], 0.12)
-    cols = []
+    base = mix(vary(rng, pal["stone"], 0.12), pal["ground"], rng.uniform(0, 0.18))
+    green = mul(mix(pal["foliage"], pal["foliageAlt"], 0.4), 0.9)
+    nrm = [Vector() for _ in vs]
     for f in fs:
-        n = (vs[f[1]] - vs[f[0]]).cross(vs[f[2]] - vs[f[0]]).normalized()
-        mid = (vs[f[0]] + vs[f[1]] + vs[f[2]]) / 3
-        c = mul(base, 0.72 + 0.3 * max(0, n.z) + noise.noise(mid * 0.8) * 0.16)
-        if moss and n.z > 0.45 and noise.noise(mid * 0.5 + Vector((variant * 3, 0, 0))) > -0.05:
-            c = mix(c, mul(pal["foliage"], 0.85), min(0.8, (n.z - 0.4) * 1.5))
-        cols.append(mul(c, 0.7 + 0.3 * min(1, max(0, mid.z / (size[2] * 0.3)))))
-    m.add(vs, fs, "Rock", cols)
+        n = (vs[f[1]] - vs[f[0]]).cross(vs[f[2]] - vs[f[0]])
+        for i in f:
+            nrm[i] += n
+    nrm = [n.normalized() if n.length > 1e-9 else Vector((0, 0, 1)) for n in nrm]
+    cover = rng.uniform(-0.1, 0.35) if moss else 9
+
+    def col_at(i):
+        p, n = vs[i], nrm[i]
+        c = mul(base, 0.8 + 0.28 * max(0, n.z) + noise.noise(p * 0.5 + off) * 0.2)
+        c = mix(c, mul(base, 0.55), max(0, noise.noise(p * 1.3 + off)) * 0.5)
+        k = n.z - 0.3 + noise.noise(p * 0.45 + off) * 0.8 - cover
+        if k > 0:
+            c = mix(c, mul(green, 0.8 + 0.4 * noise.noise(p * 1.1 + off)), min(0.85, k * 1.6))
+        return mul(c, 0.62 + 0.38 * min(1, max(0, p.z / (size[2] * 0.25))))
+    cols = [col_at(i) for i in range(len(vs))]
+    k0 = len(m.f)
+    m.add(vs, fs, "Rock", base, smooth=True)
+    for q, f in enumerate(fs):
+        m.fc[k0 + q] = [cols[i] for i in m.f[k0 + q]]
     return m
 
 
 def rock_cluster(rng, pal, size, variant):
+    """One master stone and its broken children, leaning on it."""
     m = M()
-    for k in range(5):
-        a = k * 1.3 + rng.uniform(-0.4, 0.4)
-        s = rng.uniform(0.35, 0.62) if k else 0.75
-        r = 0.36 if k else 0
-        m.merge(rock(rng, pal, (size[0] * s, size[1] * s, size[2] * s), variant + k), Matrix.Translation((math.cos(a) * size[0] * r, math.sin(a) * size[1] * r, 0)) @ Matrix.Rotation(rng.uniform(0, 6), 4, "Z"))
+    for k in range(6):
+        a = k * 1.2 + rng.uniform(-0.4, 0.4)
+        s = rng.uniform(0.22, 0.5) if k else 0.78
+        r = rng.uniform(0.34, 0.5) if k else 0
+        xf = Matrix.Translation((math.cos(a) * size[0] * r, math.sin(a) * size[1] * r, -0.1 * size[2] * s)) @ Matrix.Rotation(rng.uniform(0, 6), 4, "Z") @ Matrix.Rotation(rng.uniform(-0.25, 0.25), 4, "X")
+        m.merge(rock(rng, pal, (size[0] * s, size[1] * s, size[2] * s), variant * 5 + k, kind=("angular", "boulder", "cracked", "slab")[(variant + k) % 4]), xf)
     return m
 
 
@@ -337,7 +371,7 @@ def outcrop(rng, pal, size, variant):
         a = k * 1.05 + rng.uniform(-0.3, 0.3)
         s = (size[0] * rng.uniform(0.4, 0.62), size[1] * rng.uniform(0.3, 0.5), size[2] * rng.uniform(0.45, 0.95))
         xf = Matrix.Translation((math.cos(a) * size[0] * 0.3, math.sin(a) * size[1] * 0.28, -size[2] * 0.25)) @ Matrix.Rotation(rng.uniform(-0.25, 0.25), 4, "X") @ Matrix.Rotation(rng.uniform(0, 3.1), 4, "Z")
-        m.merge(rock(rng, pal, s, variant * 7 + k, cuts=13), xf)
+        m.merge(rock(rng, pal, s, variant * 7 + k, kind=("slab", "angular")[k % 2]), xf)
     return m
 
 
@@ -359,5 +393,8 @@ FLORA = {
     "fern": fern,
     "round_tree": round_tree, "birch": birch, "pine_tree": pine_tree, "snow_pine": pine_tree, "dead_tree": dead_tree, "burnt_tree": dead_tree,
     "bush": bush, "grass": grass, "flower": flower, "flower_patch": flower_patch, "log": log, "boulder": rock, "rock_cluster": rock_cluster,
-    "stone": lambda r, p, s, v: rock(r, p, s, v, cuts=8), "cliff_block": lambda r, p, s, v: rock(r, p, s, v, cuts=16), "crystal_cluster": crystals,
+    "stone": lambda r, p, s, v: rock(r, p, s, v, kind=("boulder", "slab", "angular")[v % 3]), "cliff_block": lambda r, p, s, v: rock(r, p, s, v, kind=("angular", "spire", "cracked")[v % 3]), "crystal_cluster": crystals,
 }
+
+from wf_trees import TREES  # noqa: E402
+FLORA.update(TREES)

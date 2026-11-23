@@ -1,4 +1,4 @@
-"""Mesh builder of the Blender map: faces carry a Roblox material name and vertex colours, no textures.
+"""Mesh builder of the Blender map: faces carry a material name, vertex colours (hue) and UVs (detail textures).
 
 A kit piece is one object; its materials are Roblox material names (Grass, WoodPlanks, Slate...), so the import can
 split it into one MeshPart per material and let Roblox's own material tile over the vertex colours.
@@ -8,6 +8,27 @@ import bmesh
 import bpy
 import math
 from mathutils import Vector, Matrix, noise, Euler
+import wf_textures as tex
+
+# a filled spot of the atlas (inside a clover leaf): leaf-coloured solids such as ivy stems and crown cores
+SOLID_LEAF = (0.0, 0.0)
+TEXTURES = {}
+
+
+def use_textures(files):
+    """Paths written by wf_textures.build: the materials use them from now on."""
+    TEXTURES.update(files)
+    import numpy as np
+    global SOLID_LEAF
+    if "Leaf" in files:
+        img = bpy.data.images.load(files["Leaf"]["color"], check_existing=True)
+        w, h = img.size
+        px = np.empty(w * h * 4, np.float32)
+        img.pixels.foreach_get(px)
+        a = px.reshape(h, w, 4)
+        score = tex.blur(a[..., 3], 6) - np.abs(tex.blur(a[..., 1], 6) - 0.75)
+        j, i = np.unravel_index(int(score.argmax()), score.shape)
+        SOLID_LEAF = ((i + 0.5) / w, (j + 0.5) / h)
 
 
 def lin(hexa):
@@ -32,11 +53,26 @@ def vary(rng, c, amount=0.12):
     return (max(0, c[0] * k * (1 + w)), max(0, c[1] * k), max(0, c[2] * k * (1 - w)))
 
 
+class DETAIL:
+    """Level of the pieces being built: 0 close up, 1 medium (no chamfer, no thin parts), 2 far (silhouette and colour)."""
+    level = 0
+    drop = 0.0
+
+    @classmethod
+    def set(cls, level):
+        cls.level, cls.drop = level, (0.0, 0.34, 0.8)[level]
+
+
+GAIN = 1.0 / (tex.NEUTRAL ** 2.2)  # what the neutral map takes away, the vertex colour gives back
+
+
 class M:
     def __init__(self):
         self.v, self.f, self.fm, self.fc, self.fs, self.vn = [], [], [], [], [], {}
+        self.fuv = []  # per face: list of (u, v) in tiles, or None for a box projection at the end
 
-    def add(self, verts, faces, mat, col, smooth=False, normals=None, xf=None):
+    def add(self, verts, faces, mat, col, smooth=False, normals=None, xf=None, uv=None):
+        """`uv`: one (u, v) per vertex, in studs (tiled materials) or in the atlas (Leaf)."""
         base = len(self.v)
         for i, p in enumerate(verts):
             p = Vector(p)
@@ -58,6 +94,7 @@ class M:
             self.f.append([base + i for i in fc])
             self.fm.append(mat)
             self.fs.append(smooth)
+            self.fuv.append([uv[i] for i in fc] if uv is not None else None)
             if callable(col):
                 self.fc.append([col(self.v[base + i]) for i in fc])
             elif isinstance(col, list):
@@ -72,7 +109,10 @@ class M:
             if i in other.vn:
                 n = other.vn[i]
                 self.vn[base + i] = (xf.to_3x3() @ n).normalized() if xf is not None else n
-        for f, m, c, s in zip(other.f, other.fm, other.fc, other.fs):
+        self.fuv += [None] * (len(self.f) - len(self.fuv))
+        ouv = other.fuv + [None] * (len(other.f) - len(other.fuv))
+        for f, m, c, s, t in zip(other.f, other.fm, other.fc, other.fs, ouv):
+            self.fuv.append(list(t) if t else None)
             self.f.append([base + i for i in f])
             self.fm.append(m)
             self.fc.append(list(c))
@@ -81,6 +121,10 @@ class M:
     # ---- solids
     def box(self, c, s, mat, col, rot=None, bevel=0.0, jitter=0.0, rng=None, taper=1.0):
         """Chamfered box; `jitter` moves the corners so a row of stones or planks is never a copy of itself."""
+        if DETAIL.level and sorted(s)[1] < DETAIL.drop:
+            return  # too thin to be seen at this distance
+        if DETAIL.level:
+            bevel = 0.0
         hx, hy, hz = s[0] / 2, s[1] / 2, s[2] / 2
         b = min(bevel, hx * 0.45, hy * 0.45, hz * 0.45)
         xf = Matrix.Translation(Vector(c))
@@ -125,11 +169,28 @@ class M:
             n = (vs[f[1]] - vs[f[0]]).cross(vs[f[2]] - vs[f[0]])
             mid = sum((vs[i] for i in f), Vector()) / len(f)
             out.append(list(f) if n.dot(mid) >= 0 else list(f)[::-1])
+        k0 = len(self.f)
         self.add(vs, out, mat, col, xf=xf)
+        if mat not in ("Leaf", "Glow", "Glass", "Water"):
+            # projected in the frame of the box, the grain along its longest side, every piece at its own place in the tile
+            dims = (s[0], s[1], s[2])
+            seed = math.sin(c[0] * 12.9898 + c[1] * 78.233 + c[2] * 37.719) * 43758.5453
+            ou, ov = (seed % 1) * 7, (seed * 1.7 % 1) * 7
+            for i, f in enumerate(out):
+                n = (vs[f[1]] - vs[f[0]]).cross(vs[f[2]] - vs[f[0]])
+                ax = max(range(3), key=lambda a: abs(n[a]))
+                a, b = [q for q in range(3) if q != ax]
+                if dims[a] > dims[b] * 1.2 and mat in ("Wood", "WoodPlanks", "Bark"):
+                    a, b = b, a
+                self.fuv[k0 + i] = [(vs[q][a] + ou, vs[q][b] + ov) for q in f]
 
     def tube(self, pts, radii, mat, col, n=8, cap=True, smooth=True, wobble=0.0, rng=None):
         """A swept tube through points: trunks, branches, posts, ropes."""
         pts = [Vector(p) for p in pts]
+        if DETAIL.level:
+            if max(radii) * 2 < DETAIL.drop:
+                return
+            n = max(4, n // 2) if max(radii) < 2 else max(8, n * 2 // 3)
         rings, prev = [], None
         for i, p in enumerate(pts):
             d = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
@@ -144,12 +205,22 @@ class M:
                 ring.append(p + (u * math.cos(a) + w * math.sin(a)) * r)
             rings.append(ring)
         vs = [v for r in rings for v in r]
-        fs = []
+        fs, uvs = [], []
+        along = [0.0]
+        for i in range(1, len(pts)):
+            along.append(along[-1] + (pts[i] - pts[i - 1]).length)
+        turn = max(1, round(max(radii) * math.tau / 5.0)) * 5.0  # whole tiles round the trunk: no seam
+        ou = (abs(pts[0].x * 3.7 + pts[0].y * 1.9) % 5)
         for i in range(len(rings) - 1):
             for k in range(n):
                 a, b = i * n + k, i * n + (k + 1) % n
                 fs.append((a, b, b + n, a + n))
+                u0, u1 = k / n * turn + ou, (k + 1) / n * turn + ou
+                uvs.append([(u0, along[i]), (u1, along[i]), (u1, along[i + 1]), (u0, along[i + 1])])
+        k0 = len(self.f)
         self.add(vs, fs, mat, col, smooth=smooth)
+        if mat not in ("Leaf", "Glow", "Glass", "Water"):
+            self.fuv[k0:] = uvs
         if cap:
             self.add(rings[0], [tuple(range(n))[::-1]], mat, col)
             self.add(rings[-1], [tuple(range(n))], mat, col)
@@ -159,6 +230,10 @@ class M:
         self.tube([(c[0], c[1], c[2] - h / 2), (c[0], c[1], c[2] + h / 2)], [r, r2], mat, col, n=n, smooth=smooth)
 
     def ball(self, c, r, mat, col, sub=2, squash=(1, 1, 1), disp=0.0, seed=0.0, smooth=True, normals_from=None):
+        if DETAIL.level:
+            if r * 2 < DETAIL.drop:
+                return
+            sub = max(1, sub - 1)
         bm = bmesh.new()
         bmesh.ops.create_icosphere(bm, subdivisions=sub, radius=1)
         vs = []
@@ -171,6 +246,30 @@ class M:
         bm.free()
         nrm = [(p - Vector(normals_from)).normalized() for p in vs] if normals_from is not None else None
         self.add(vs, fs, mat, col, smooth=smooth, normals=nrm)
+
+    def _uvs(self, me):
+        """Box projection in studs where no UV was given, divided by what one tile covers; Leaf keeps its atlas UVs."""
+        self.fuv += [None] * (len(self.f) - len(self.fuv))
+        out = []
+        for f, m, uv in zip(self.f, self.fm, self.fuv):
+            if m == "Leaf":
+                if uv is None:
+                    uv = [SOLID_LEAF] * len(f)
+                for q in uv:
+                    out.extend(q)
+                continue
+            t = tex.TILE.get(tex.ALIAS.get(m, m), 10)
+            if uv is None:
+                ps = [self.v[i] for i in f]
+                n = Vector()
+                for i in range(len(ps)):
+                    n += ps[i].cross(ps[(i + 1) % len(ps)])
+                ax = max(range(3), key=lambda a: abs(n[a]))
+                uv = [(p.y, p.z) if ax == 0 else (p.x, p.z) if ax == 1 else (p.x, p.y) for p in ps]
+            for q in uv:
+                out.extend((q[0] / t, q[1] / t))
+        layer = me.uv_layers.new(name="UVMap")
+        layer.data.foreach_set("uv", out)
 
     # ---- to Blender
     def obj(self, name, collection=None):
@@ -186,10 +285,13 @@ class M:
         flat = []
         for cs in self.fc:
             for c in cs:
-                flat.extend((c[0], c[1], c[2], 1.0))
+                flat.extend((min(1.0, c[0] * GAIN), min(1.0, c[1] * GAIN), min(1.0, c[2] * GAIN), 1.0))
         attr.data.foreach_set("color", flat)
         me.color_attributes.active_color = attr
+        self._uvs(me)
         me.update()
+        if not self.vn:
+            me.set_sharp_from_angle(angle=math.radians(44))  # broken edges stay crisp, worn faces roll
         if self.vn:
             out = []
             for poly in me.polygons:
@@ -213,6 +315,49 @@ SURFACES = {
     "Metal": (0.45, 6.0, 0.1, 0.1), "Fabric": (0.95, 14.0, 0.15, 0.1), "SmoothPlastic": (0.6, 1.0, 0.0, 0.0), "Snow": (0.8, 6.0, 0.2, 0.06),
     "Basalt": (0.9, 1.6, 0.6, 0.2), "Limestone": (0.9, 3.0, 0.3, 0.14), "Sandstone": (0.9, 3.0, 0.3, 0.16), "Leaf": (0.8, 3.0, 0.0, 0.12),
 }
+
+
+def textured(nt, bsdf, col, name, files):
+    """Exactly what a Roblox SurfaceAppearance can show: ColorMap x vertex colour, NormalMap, RoughnessMap, alpha."""
+    def image(kind):
+        n = nt.nodes.new("ShaderNodeTexImage")
+        n.image = bpy.data.images.load(files[kind], check_existing=True)
+        n.image.colorspace_settings.name = "sRGB" if kind == "color" else "Non-Color"
+        return n
+    c = image("color")
+    mx = nt.nodes.new("ShaderNodeVectorMath")
+    mx.operation = "MULTIPLY"
+    nt.links.new(c.outputs[0], mx.inputs[0])
+    nt.links.new(col.outputs[0], mx.inputs[1])
+    nt.links.new(mx.outputs[0], bsdf.inputs["Base Color"])
+    r = image("rough")
+    nt.links.new(r.outputs[0], bsdf.inputs["Roughness"])
+    nm = image("normal")
+    nn = nt.nodes.new("ShaderNodeNormalMap")
+    nn.inputs["Strength"].default_value = 0.35 if name == "Leaf" else 0.9
+    nt.links.new(nm.outputs[0], nn.inputs["Color"])
+    nt.links.new(nn.outputs[0], bsdf.inputs["Normal"])
+    if name == "Metal":
+        bsdf.inputs["Metallic"].default_value = 0.75
+    if name == "Leaf":
+        bsdf.inputs["Specular IOR Level"].default_value = 0.06
+        tr = nt.nodes.new("ShaderNodeBsdfTranslucent")
+        ms = nt.nodes.new("ShaderNodeMixShader")
+        ms.inputs[0].default_value = 0.28
+        clear = nt.nodes.new("ShaderNodeBsdfTransparent")
+        cut = nt.nodes.new("ShaderNodeMixShader")
+        gt = nt.nodes.new("ShaderNodeMath")
+        gt.operation = "GREATER_THAN"
+        gt.inputs[1].default_value = 0.42
+        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        nt.links.new(mx.outputs[0], tr.inputs["Color"])
+        nt.links.new(bsdf.outputs[0], ms.inputs[1])
+        nt.links.new(tr.outputs[0], ms.inputs[2])
+        nt.links.new(c.outputs["Alpha"], gt.inputs[0])
+        nt.links.new(gt.outputs[0], cut.inputs[0])
+        nt.links.new(clear.outputs[0], cut.inputs[1])
+        nt.links.new(ms.outputs[0], cut.inputs[2])
+        nt.links.new(cut.outputs[0], out.inputs[0])
 
 
 def material(name):
@@ -244,6 +389,10 @@ def material(name):
         bsdf.inputs["Roughness"].default_value = 0.08
         bsdf.inputs["Alpha"].default_value = 0.8
         nt.links.new(col.outputs[0], bsdf.inputs["Base Color"])
+        return m
+    files = TEXTURES.get(tex.ALIAS.get(name, name))
+    if files:
+        textured(nt, bsdf, col, name, files)
         return m
     geo = nt.nodes.new("ShaderNodeNewGeometry")
     nz = nt.nodes.new("ShaderNodeTexNoise")
