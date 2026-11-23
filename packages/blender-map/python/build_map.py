@@ -15,10 +15,14 @@ from mathutils import Vector, Matrix, Quaternion, noise
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wf_textures  # noqa: E402
-from wf_mesh import M, lin, mix, mul, vary, material, use_textures  # noqa: E402
+from wf_mesh import M, DETAIL, lin, mix, mul, vary, material, use_textures  # noqa: E402
+
 from wf_flora import FLORA, outcrop  # noqa: E402
 from wf_arch import ARCH, ramparts  # noqa: E402
 from wf_props import PROPS, from_parts  # noqa: E402
+import wf_build  # noqa: E402
+import wf_export  # noqa: E402
+from wf_modern import FAMILIES  # noqa: E402
 
 T0 = time.time()
 
@@ -42,7 +46,8 @@ H, MAT, WATER = T["heights"], T["materials"], T["water"]
 NAMES = scene["materialNames"]
 
 
-use_textures(wf_textures.build(opt("--textures", os.path.join(os.path.dirname(OUT.rstrip("/\\")), "textures"))))
+FILES = wf_textures.build(opt("--textures", os.path.join(os.path.dirname(OUT.rstrip("/\\")), "textures")))
+use_textures(FILES)
 log("textures")
 
 
@@ -242,7 +247,16 @@ if any(w is not None for w in WATER):
 # ---------------------------------------------------------------- kit
 kit_col = bpy.data.collections.new("kit")
 sc.collection.children.link(kit_col)
+ARCHI = scene.get("architecture", "timber_frame")
 BUILD = {**FLORA, **ARCH, **PROPS}
+HOUSES = ("house", "house_large", "shop_building", "cottage", "chalet", "manor")
+if ARCHI in FAMILIES:
+    BUILD.update(FAMILIES[ARCHI])
+elif ARCHI in wf_build.LOOKS:
+    wf_build.LOOK["now"] = wf_build.LOOKS[ARCHI]
+else:  # a style with its own architecture keeps its own PartList, textured and chamfered
+    for k in HOUSES:
+        BUILD.pop(k, None)
 kit, fallback = {}, set()
 MAXV = {"grass": 4, "flower": 6, "bush": 5, "boulder": 6, "stone": 4, "birch": 5, "round_tree": 6, "pine_tree": 5}
 
@@ -268,6 +282,26 @@ def piece(prefab, variant):
     ob = m.obj(key, kit_col)
     kit[key] = ob
     return ob
+
+
+def levels(key):
+    """The same piece, same seed, at the three distances: [close, medium, far]."""
+    prefab, _, variant = key.rpartition("_")
+    out = [kit[key]]
+    if prefab not in scene["prefabs"] or key == "ramparts":
+        return out + [None, None]
+    info = scene["prefabs"][prefab]
+    info = info[min(int(variant), len(info) - 1)]
+    lo, hi = info["min"], info["max"]
+    for lv in (1, 2):
+        DETAIL.set(lv)
+        rng = random.Random("%s/%s/%d" % (prefab, variant, scene["seed"]))
+        m = BUILD[prefab](rng, PAL, (hi[0] - lo[0], hi[2] - lo[2], max(0.5, hi[1])), int(variant)) if prefab in BUILD else from_parts(rng, info["parts"])
+        # close up, occlusion is baked: the far versions take its mean darkening
+        m.fc = [[mul(c, 0.86) for c in f] for f in m.fc]
+        out.append(m.obj("%s_l%d" % (key, lv), kit_col) if m.f else None)
+    DETAIL.set(0)
+    return out
 
 
 def contact_shade(ob):
@@ -384,12 +418,12 @@ extra = 0
 sx, sz = scene["spawn"]["position"][0], scene["spawn"]["position"][2]
 if tufts:
     for _ in range(140000):
-        if extra >= 9000:
+        if extra >= 15000:
             break
         x, z = OX + rng.random() * (W - 1) * CS, OZ + rng.random() * (D - 1) * CS
         d = path_dist(x, z)
         near = min(max(d, 0), math.hypot(x - sx, z - sz) * 0.5, *[max(0, math.hypot(x - a, z - b) - c) for a, b, c in kept], 999)
-        if d < 1.2 or rng.random() > math.exp(-near / 45) + 0.06:
+        if d < 1.2 or rng.random() > math.exp(-near / 60) + 0.05:
             continue
         y, m, _c = gp(round(x / 2) * 2, round(z / 2) * 2)
         if m != "Grass" or noise.noise(Vector((x * 0.05, z * 0.05, 9))) < -0.12:
@@ -397,7 +431,7 @@ if tufts:
         if any(math.hypot(x - a, z - b) < c for a, b, c in bg.get((int(x // 64), int(z // 64)), ())):
             continue
         t = rng.choice(tufts)
-        s = rng.uniform(0.7, 1.35)
+        s = rng.uniform(0.55, 1.2)
         r = rng.uniform(0, 6.28)
         inst = bpy.data.objects.new("meadow_%d" % extra, t.data)
         inst.matrix_world = Matrix.Translation((x, -z, height(x, z) - 0.05)) @ Matrix.Rotation(r, 4, "Z") @ Matrix.Scale(s, 4)
@@ -549,6 +583,7 @@ cam.data.clip_end = 6000
 sc.render.resolution_x, sc.render.resolution_y = 1600, 900
 sc.cycles.samples = int(opt("--samples", "48"))
 sc.cycles.use_denoising = True
+sc.cycles.transparent_max_bounces = 24
 sc.render.image_settings.file_format = "PNG"
 V = lambda p: Vector((p[0], -p[2], p[1]))
 
@@ -695,6 +730,18 @@ if "--sheet" in args:
     log("sheet: " + " ".join(names))
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "map.blend"), compress=True)
 json.dump({"pieces": sorted(k for k, o in kit.items() if o), "layout": layout, "fallback": sorted(fallback)}, open(os.path.join(OUT, "layout.json"), "w"))
+if "--export" in args:
+    lods = {k: levels(k) for k, o in sorted(kit.items()) if o}
+    size_of = {}
+    for k in lods:
+        prefab, _, v = k.rpartition("_")
+        if prefab in scene["prefabs"]:
+            b = scene["prefabs"][prefab]
+            b = b[min(int(v), len(b) - 1)]
+            size_of[k] = (b["max"][0] - b["min"][0], b["max"][2] - b["min"][2], b["max"][1])
+    man = wf_export.export(OUT, lods, [o for o in terrain_col.objects if o.name.startswith(("terrain_", "water"))], layout, FILES, size_of, log)
+    for p in man["problems"][:30]:
+        log("check: %s %s" % (p["id"], p["message"]))
 tri = lambda o: sum(len(p.vertices) - 2 for p in o.data.polygons)
 report = {"terrainTris": tris, "kit": {k: tri(o) for k, o in kit.items() if o}, "instances": len(layout)}
 report["floating"], report["inverted"] = floating, inverted

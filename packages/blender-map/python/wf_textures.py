@@ -8,7 +8,7 @@ import math
 import os
 import numpy as np
 
-VERSION = 9
+VERSION = 10
 LEAF_VERSION = 12
 SIZE = 1024
 
@@ -147,7 +147,7 @@ def masonry(rng):
     grain = fbm(rng, 1.1, 4, 300)
     chips = smooth(0.62, 0.9, fbm(rng, 1.5, 6, 90)) * (1 - smooth(0.02, 0.05, e))
     lift = pick(rng, ident, 0.75, 1.0)
-    h = stone * lift * 0.5 + grain * 0.07 * stone - chips * 0.12 + (fbm(rng, 2, 1, 14) - 0.5) * 0.06
+    h = stone * lift * 0.34 + grain * 0.03 * stone - chips * 0.07 + (fbm(rng, 2, 1, 14) - 0.5) * 0.06
     shade = pick(rng, ident, 0.8, 1.08)
     stain = fbm(rng, 1.9, 1, 30, aniso=(1, 0.35))
     val = (0.6 + 0.36 * stone) * shade * (0.88 + grain * 0.18) * (0.9 + stain * 0.16) - chips * 0.08
@@ -159,7 +159,7 @@ def rubble(rng):
     e = e + (fbm(rng, 1.6, 3, 120) - 0.5) * 0.14
     stone = smooth(0.05, 0.22, e)
     grain = fbm(rng, 1.1, 5, 300)
-    h = stone * 0.5 * pick(rng, ident, 0.75, 1) + grain * 0.07 - 0.10 * d1 * stone
+    h = stone * 0.4 * pick(rng, ident, 0.75, 1) + grain * 0.03 - 0.10 * d1 * stone
     val = (0.56 + 0.38 * stone) * pick(rng, ident, 0.78, 1.1) * (0.88 + 0.2 * grain)
     return pack(val, h, 0.85 + grain * 0.1, 1.0, warm(pick(rng, ident, 0, 1), 0.06))
 
@@ -271,7 +271,7 @@ def rock(rng):
     grain = fbm(rng, 1.1, 6, 380)
     pits = smooth(0.72, 0.95, fbm(rng, 1.0, 20, 160))
     val = 0.82 + (strata - 0.5) * 0.26 + (facet - 0.5) * 0.1 + (grain - 0.5) * 0.22 - crack * 0.3 - pits * 0.14
-    h = strata * 0.3 + grain * 0.16 - crack * 0.3 - pits * 0.1 + facet * 0.05
+    h = strata * 0.3 + grain * 0.08 - crack * 0.26 - pits * 0.06 + facet * 0.05
     return pack(val, h, 0.82 + grain * 0.14, 1.1, warm(strata, 0.05))
 
 

@@ -62,6 +62,7 @@ if (village && road) {
 const scene = {
   prompt,
   style: spec.stylePreset,
+  architecture: style.architecture.style,
   seed: bake.meta.seed,
   palette: style.palette,
   materialNames: TERRAIN_MATERIALS,
@@ -84,7 +85,7 @@ console.log(`layout ${report.score}/100, ${placements.length} placements, style 
 
 const blender = ["5.3", "5.2", "5.1", "5.0", "4.5"].map((v) => `C:/Program Files/Blender Foundation/Blender ${v}/blender.exe`).find(existsSync);
 if (!blender) throw new Error("Blender not found");
-const r = spawnSync(blender, ["-b", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", resolve("packages/blender-map/python/build_map.py"), "--", sceneFile, out, "--views", flag("--views", "spawn,landmark,village,wide"), "--samples", flag("--samples", "48"), ...(args.includes("--sheet") ? ["--sheet", flag("--sheet", "plain")] : [])], { encoding: "utf8", maxBuffer: 1 << 28 });
+const r = spawnSync(blender, ["-b", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", resolve("packages/blender-map/python/build_map.py"), "--", sceneFile, out, "--views", flag("--views", "spawn,landmark,village,wide"), "--samples", flag("--samples", "48"), ...(args.includes("--export") ? ["--export"] : []), ...(args.includes("--sheet") ? ["--sheet", flag("--sheet", "plain")] : [])], { encoding: "utf8", maxBuffer: 1 << 28 });
 const lines = `${r.stdout}\n${r.stderr}`.split("\n");
 console.log(lines.filter((l) => /^WF |Error|Traceback|File ".*wf_|File ".*build_map/.test(l)).slice(-40).join("\n"));
 process.exit(r.status ?? 1);

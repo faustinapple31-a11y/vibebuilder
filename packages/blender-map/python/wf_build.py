@@ -243,6 +243,19 @@ def lantern(m, p, s=1.0):
 
 
 # ------------------------------------------------------------------ houses
+# an architecture style of the Style Bible, said in the vocabulary of the house builder
+LOOKS = {
+    "timber_frame": {}, "medieval_cottage": {"lower": ["rubble", "plaster"], "roof": ["thatch", "tile", "thatch"]},
+    "gothic": {"lower": ["masonry"], "upper": "masonry", "roof": ["slate"], "pitch": 1.45, "shutter": (0.05, 0.05, 0.06), "dull": 0.6},
+    "nordic": {"lower": ["rubble", "plank"], "upper": "plank", "roof": ["plank", "thatch"], "pitch": 1.25, "shutter": (0.12, 0.2, 0.24)},
+    "stone_hut": {"lower": ["rubble"], "upper": "rubble", "roof": ["thatch"], "pitch": 1.1, "single": True},
+    "victorian": {"lower": ["brick"], "upper": "brick", "roof": ["slate"], "pitch": 1.25, "shutter": (0.1, 0.12, 0.14)},
+    "shack": {"lower": ["plank"], "upper": "plank", "roof": ["plank", "metal"], "pitch": 0.7, "single": True, "dull": 0.8},
+    "western_facade": {"lower": ["plank"], "upper": "plank", "roof": ["plank"], "pitch": 0.6, "false_front": True},
+}
+LOOK = {"now": {}}
+
+
 TINTS = [(1, 1, 1), (1.02, 0.9, 0.7), (1.0, 0.82, 0.72), (0.84, 0.9, 0.78), (1.08, 1.06, 1.0), (0.82, 0.86, 0.92)]
 SHUTTERS = [None, (0.1, 0.2, 0.13), (0.1, 0.17, 0.28), (0.3, 0.19, 0.1), (0.34, 0.28, 0.14)]
 
@@ -262,13 +275,28 @@ def house(rng, pal, size, variant, fn="home"):
     local["accent"] = sh or pal["accent"]
     pal = local
     stone = vary(rng, pal["stone"], 0.06)
+    look = LOOK["now"]
+    if look.get("shutter"):
+        pal["accent"] = look["shutter"]
+    if look.get("single"):
+        two = False
     lower = ("plaster", "rubble", "masonry", "plaster", "rubble")[variant % 5] if fn != "smith" else "masonry"
     kind = "thatch" if (fn in ("home", "farm") and variant % 5 == 3) or (fn == "farm" and variant % 2) else ("slate" if variant % 4 == 2 else "tile")
     rcol = {"thatch": (0.5, 0.37, 0.18), "slate": mix(mul(pal["stone"], 0.62), pal["roof"], 0.25), "tile": vary(rng, pal["roof"], 0.14)}[kind]
     wing = two and (fn in ("inn", "hall") or variant % 3 == 1)
     y0 = -1.0 if wing else 0.0
     base, f1 = 1.5, 9.6
-    g_mat, g_col = {"plaster": ("Concrete", plaster), "rubble": ("Rubble", stone), "masonry": ("Slate", mul(stone, 1.05))}[lower]
+    if look.get("lower"):
+        lower = look["lower"][variant % len(look["lower"])]
+    if look.get("roof"):
+        kind = look["roof"][variant % len(look["roof"])]
+        rcol = {"thatch": (0.46, 0.35, 0.18), "slate": mix(mul(pal["stone"], 0.5), pal["roof"], 0.2), "plank": mul(wood, 1.05), "metal": (0.34, 0.3, 0.28)}.get(kind, rcol)
+    brick = vary(rng, (0.4, 0.18, 0.12), 0.14)
+    boards = vary(rng, mul(mix(wood, (0.4, 0.38, 0.35), look.get("dull", 0.0) * 0.6), 1.25), 0.1)
+    skins = {"plaster": ("Concrete", plaster), "rubble": ("Rubble", stone), "masonry": ("Slate", mul(stone, 1.05)), "brick": ("Brick", brick), "plank": ("WoodPlanks", boards)}
+    g_mat, g_col = skins[lower]
+    u_kind = look.get("upper")
+    u_mat, u_col = skins[u_kind or "plaster"]
     B = M()
 
     # plinth: battered courses, then the floor
@@ -335,11 +363,14 @@ def house(rng, pal, size, variant, fn="home"):
                     if k % 2 == 0:
                         beam(B, rng, (x, sy * (D / 2 + 0.1), f1 - 2.2), (x, sy * (d / 2 + 0.1), f1 - 0.4), 0.4, 0.4, wood)
         for sy in (-1, 1):
-            wall(B, (-w / 2, sy * d / 2), (w / 2, sy * d / 2), f1 + 0.3, f2, 0.5, "Concrete", plaster)
+            wall(B, (-w / 2, sy * d / 2), (w / 2, sy * d / 2), f1 + 0.3, f2, 0.5, u_mat, u_col)
         for sx in (-1, 1):
-            wall(B, (sx * w / 2, -d / 2), (sx * w / 2, d / 2), f1 + 0.3, f2, 0.5, "Concrete", plaster)
+            wall(B, (sx * w / 2, -d / 2), (sx * w / 2, d / 2), f1 + 0.3, f2, 0.5, u_mat, u_col)
+            if u_kind in ("masonry", "rubble", "brick"):
+                for sy in (-1, 1):
+                    quoins(B, rng, pal, sx * (w / 2 - 0.1), sy * (d / 2 - 0.1), f1 + 0.4, f2, stone)
         n = max(3, int(w / 4.4))
-        pats = [["x", "chevron", "brace"], ["k", "post", "x"], ["brace", "brick", "brace2"], ["chevron", "chevron", "post"]][variant % 4]
+        pats = [["x", "chevron", "brace"], ["k", "post", "x"], ["brace", "brick", "brace2"], ["chevron", "chevron", "post"]][variant % 4] if not u_kind else []
         balcony = fn in ("inn", "hall") or (fn == "shop" and variant % 2 == 0)
         wins = tuple(k for k in range(n) if (k + variant) % 2 == 0)
         frame(B, rng, pal, (w / 2, d / 2), (-w / 2, d / 2), f1 + 0.35, f2, wood, n, pats, (0, 1, 0), windows=wins, box=not balcony)
@@ -360,22 +391,27 @@ def house(rng, pal, size, variant, fn="home"):
             for k in range(int(bl / 0.8)):
                 B.box((-bl / 2 + 0.4 + k * 0.8, d / 2 + 3.1, f1 + 2.2), (0.3, 0.12, 2.0), "WoodPlanks", vary(rng, mul(pal["accent"], 1.0), 0.1), bevel=0.04)
         top = f2
-    pitch = rng.uniform(1.0, 1.2) if kind == "thatch" else rng.uniform(0.92, 1.1)
-    ridge = roof(B, rng, pal, w, d, top, pitch, kind, rcol, over=1.7 if kind != "thatch" else 2.0, sag=rng.uniform(0.25, 0.6), wall_col=plaster, hip=0.0)
+    pitch = look.get("pitch", 0) * rng.uniform(0.95, 1.05) or (rng.uniform(1.0, 1.2) if kind == "thatch" else rng.uniform(0.92, 1.1))
+    ridge = roof(B, rng, pal, w, d, top, pitch, kind, rcol, over=1.7 if kind != "thatch" else 2.0, sag=rng.uniform(0.25, 0.6), wall_mat=u_mat, wall_col=u_col, timber=not u_kind or u_kind == "plank", hip=0.0)
+    if look.get("false_front"):
+        fh = ridge - top + 2.2
+        B.box((0, d / 2 + 0.5, top + fh / 2 - 1.2), (w + 1.2, 0.5, fh), "WoodPlanks", boards)
+        B.box((0, d / 2 + 0.6, top + fh - 1.1), (w + 2.0, 0.9, 0.6), "Wood", wood, bevel=0.08)
+        B.box((0, d / 2 + 0.85, top + fh * 0.5 - 0.8), (w * 0.66, 0.2, 1.8), "WoodPlanks", pal["accent"], bevel=0.06)
     if wing:
         side = 1 if variant % 2 else -1
         ww, wd = w * 0.42, 3.4
         cx = side * (w / 2 - ww / 2)
         wz0 = f1 if fn != "hall" else base
-        wall(B, (cx - ww / 2, d / 2 + wd), (cx + ww / 2, d / 2 + wd), f1 + 0.3, top, 0.5, "Concrete", plaster)
+        wall(B, (cx - ww / 2, d / 2 + wd), (cx + ww / 2, d / 2 + wd), f1 + 0.3, top, 0.5, u_mat, u_col)
         for s in (-1, 1):
-            wall(B, (cx + s * ww / 2, d / 2 - 0.2), (cx + s * ww / 2, d / 2 + wd), f1 + 0.3, top, 0.5, "Concrete", plaster)
+            wall(B, (cx + s * ww / 2, d / 2 - 0.2), (cx + s * ww / 2, d / 2 + wd), f1 + 0.3, top, 0.5, u_mat, u_col)
             beam(B, rng, (cx + s * (ww / 2 - 0.4), d / 2 + wd - 0.4, -0.4), (cx + s * (ww / 2 - 0.4), d / 2 + wd - 0.4, f1), 0.8, 0.8, wood)
             B.box((cx + s * (ww / 2 - 0.4), d / 2 + wd - 0.4, 0.2), (1.4, 1.4, 1.2), "Rock", stone, bevel=0.15)
             beam(B, rng, (cx + s * (ww / 2 - 0.4), d / 2 + wd - 0.4, f1 - 2.4), (cx + s * (ww / 2 - 2.2), d / 2 + wd - 0.4, f1 - 0.2), 0.4, 0.4, wood)
         B.box((cx, d / 2 + wd / 2, f1 + 0.1), (ww, wd + 0.4, 0.5), "WoodPlanks", mul(wood, 0.8))
-        frame(B, rng, pal, (cx + ww / 2, d / 2 + wd), (cx - ww / 2, d / 2 + wd), f1 + 0.35, top, wood, 3 if ww > 8 else 2, ["x", "brace"], (0, 1, 0), windows=(1,) if ww > 8 else (0,), shutters=False)
-        roof(B, rng, pal, wd + d * 0.5, ww, top, pitch, kind, rcol, over=1.0, sag=0.1, axis="y", x=cx, y=d / 2 + wd / 2 - d * 0.25, wall_col=plaster)
+        frame(B, rng, pal, (cx + ww / 2, d / 2 + wd), (cx - ww / 2, d / 2 + wd), f1 + 0.35, top, wood, 3 if ww > 8 else 2, ["x", "brace"] if not u_kind else [], (0, 1, 0), windows=(1,) if ww > 8 else (0,), shutters=False)
+        roof(B, rng, pal, wd + d * 0.5, ww, top, pitch, kind, rcol, over=1.0, sag=0.1, axis="y", x=cx, y=d / 2 + wd / 2 - d * 0.25, wall_mat=u_mat, wall_col=u_col)
     elif kind != "thatch" and (two or variant % 2 == 0):
         k = 2 if w > 17 else 1
         for i in range(k):
@@ -677,9 +713,7 @@ def castle(rng, pal, size, variant):
         m.box((0, H + 6.2 + k * 1.28, 0.2), (8.6, 1.22, 0.5), "WoodPlanks", vary(rng, pal["wood"], 0.14), bevel=0.06)
     for s in (-1, 1):
         beam(m, rng, (s * 4.0, H + 5.6, -0.15), (s * 4.0, H + 18.6, -0.15), 0.6, 0.7, pal["wood"])
-        for k in range(16):
-            q = Vector((s * 4.0, H + 5.2, 11.4)).lerp(Vector((s * 4.0, H + 17.8, 0.6)), (k + 0.5) / 16)
-            m.box(q, (0.16, 0.8, 0.3) if k % 2 else (0.3, 0.8, 0.16), "Metal", IRON, rot=(40, 0, 0))
+        m.tube([(s * 4.0, H + 5.2, 11.4), (s * 4.0, H + 11.5, 5.6), (s * 4.0, H + 17.8, 0.5)], [0.16, 0.16, 0.16], "Metal", IRON, n=6)
     # keep: square, corner turrets, tall windows, steep roof
     kw, ky = 19.0, -9.5
     shade = lambda q: mul(col, 0.8 + 0.26 * min(1, max(0, q.z / kh)) + noise.noise(q * 0.15) * 0.1)
@@ -746,7 +780,6 @@ def castle(rng, pal, size, variant):
     roof(m, rng, pal, 4.6, 3.4, 6.6, 0.9, "tile", pal["roof"], over=0.6, sag=0.05, flare=0.1, x=8, y=10, timber=False, gables=False)
     woodpile(m, rng, pal, -10, 12, 0.4, 5, 4, 20)
     for k in range(7):
-        m.tube([(-7 + rng.uniform(-3, 3), 17 + rng.uniform(-2, 2), 0.4), (-7 + rng.uniform(-3, 3), 17 + rng.uniform(-2, 2), 0.5)], [0.1, 0.1], "Wood", pal["wood"]) if False else None
         bx, by = rng.uniform(-13, -6), rng.uniform(6, 21)
         if k % 2:
             m.tube([(bx, by, 0.3), (bx, by, 1.6), (bx, by, 2.9)], [0.95, 1.15, 0.95], "WoodPlanks", vary(rng, pal["wood"], 0.15), n=12)

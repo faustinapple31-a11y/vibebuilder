@@ -26,10 +26,11 @@ if "--palette" in args:
 PAL = {k: lin(v) for k, v in PALETTE.items()}
 SIZES = {"round_tree": (18, 18, 26), "birch": (12, 12, 28), "pine_tree": (14, 14, 34), "snow_pine": (14, 14, 32), "willow": (20, 20, 24), "dead_tree": (14, 14, 22), "cherry_tree": (16, 16, 20), "palm": (16, 16, 24), "bush": (5, 5, 3.6), "fern": (3, 3, 1.6),
          "grass": (2.4, 2.4, 1.2), "flower": (2, 2, 1.4), "flower_patch": (6, 6, 1.6), "boulder": (7, 6, 5), "stone": (2, 1.8, 1.2), "rock_cluster": (10, 9, 6), "cliff_block": (14, 11, 16), "house": (19, 18, 20), "house_large": (20, 16, 20), "shop_building": (15, 15, 20),
-         "castle": (60, 60, 50), "well": (8, 6, 10), "windmill": (20, 20, 40), "acacia": (20, 20, 18), "baobab": (20, 20, 24), "jungle_tree": (18, 18, 36)}
+         "castle": (60, 60, 50), "well": (8, 6, 10), "windmill": (20, 20, 40), "acacia": (20, 20, 18), "baobab": (20, 20, 24), "jungle_tree": (18, 18, 36), "apartment_block": (25, 23, 28), "skyscraper": (37, 29, 86)}
 bpy.ops.wm.read_factory_settings(use_empty=True)
 use_textures(wf_textures.build(opt("--textures", os.path.join(os.path.dirname(out), "textures"))))
-BUILD = {**FLORA, **ARCH, **PROPS}
+from wf_modern import FAMILIES  # noqa: E402
+BUILD = {**FLORA, **ARCH, **PROPS, **FAMILIES.get(opt("--arch", ""), {})}
 objs = []
 for spec in opt("--pieces", "round_tree:0-5").split(","):
     name, _, rg = spec.partition(":")

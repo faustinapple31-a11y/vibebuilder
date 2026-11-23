@@ -2,7 +2,7 @@
 import bmesh
 import math
 from mathutils import Vector, Matrix, noise
-from wf_mesh import M, mix, mul, vary
+from wf_mesh import M, DETAIL, mix, mul, vary
 
 
 def fib(n):
@@ -274,7 +274,7 @@ def rock(rng, pal, size, variant, moss=True, cuts=None, kind=None):
     kind = kind or ("boulder", "angular", "slab", "cracked", "boulder", "spire")[variant % 6]
     m = M()
     bm = bmesh.new()
-    bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1)
+    bmesh.ops.create_icosphere(bm, subdivisions=max(1, (4 if max(size) > 6 else 3) - DETAIL.level), radius=1)
     off = Vector((rng.uniform(-50, 50), rng.uniform(-50, 50), rng.uniform(-50, 50)))
     cuts = cuts or {"boulder": 7, "angular": 15, "slab": 9, "cracked": 11, "spire": 12}[kind]
     deep = {"boulder": (0.78, 0.95), "angular": (0.55, 0.8), "slab": (0.66, 0.9), "cracked": (0.62, 0.86), "spire": (0.5, 0.78)}[kind]

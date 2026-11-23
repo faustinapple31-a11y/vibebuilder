@@ -229,6 +229,10 @@ class M:
         r2 = r if r2 is None else r2
         self.tube([(c[0], c[1], c[2] - h / 2), (c[0], c[1], c[2] + h / 2)], [r, r2], mat, col, n=n, smooth=smooth)
 
+    def facet(self, *a, **k):
+        """Kept for callers that want an unsmoothed ball."""
+        return self.ball(*a, **{**k, "smooth": False})
+
     def ball(self, c, r, mat, col, sub=2, squash=(1, 1, 1), disp=0.0, seed=0.0, smooth=True, normals_from=None):
         if DETAIL.level:
             if r * 2 < DETAIL.drop:
@@ -380,9 +384,7 @@ def material(name):
     if name == "Metal":
         bsdf.inputs["Metallic"].default_value = 0.75
     if name == "Glass":
-        bsdf.inputs["Roughness"].default_value = 0.12
-        bsdf.inputs["Emission Strength"].default_value = 0.5
-        nt.links.new(col.outputs[0], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Roughness"].default_value = 0.1
         nt.links.new(col.outputs[0], bsdf.inputs["Base Color"])
         return m
     if name == "Water":

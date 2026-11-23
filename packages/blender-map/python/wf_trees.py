@@ -7,7 +7,7 @@ away from the crown, so a thousand leaves shade as one soft volume in Cycles and
 import math
 from mathutils import Vector, Matrix, noise
 import wf_textures as tex
-from wf_mesh import M, mix, mul, vary
+from wf_mesh import M, DETAIL, mix, mul, vary
 
 UP = Vector((0, 0, 1))
 GOLDEN = 2.39996
@@ -19,6 +19,17 @@ def card(m, cell, c, axis, side, w, h, col, centre, bend=0.12, soft=0.8, rows=1,
     `col` is called with (point, t along the card). `rows` > 1 lets the card curve downward by `droop`.
     """
     axis, side = axis.normalized(), side.normalized()
+    if DETAIL.level:  # fewer, larger cards: the crown keeps its outline and its density
+        keep, grow = ((2, 1.36), (5, 2.05))[DETAIL.level - 1]
+        m.cards = getattr(m, "cards", -1) + 1
+        if cell not in ("palm", "fern") and m.cards % keep:
+            return
+        if cell not in ("palm", "fern", "spruce", "willow"):
+            c = c - axis * h * (grow - 1) / 2
+            w, h = w * grow, h * grow
+        elif cell != "palm":
+            w *= 1.25 if DETAIL.level == 1 else 1.8
+        rows = 1 if DETAIL.level == 2 else min(rows, 2)
     n = side.cross(axis).normalized()
     u0, v0, s = tex.cell_uv(cell)
     pad = s * 0.012
@@ -460,8 +471,8 @@ def fern(rng, pal, size, variant):
 def grass(rng, pal, size, variant):
     m = M()
     R = max(0.9, max(size[0], size[1]) * 0.5)
-    g = mix(mix(pal["foliage"], pal["foliageAlt"], rng.random()), (0.22, 0.28, 0.05), 0.25)
-    H = max(0.9, min(1.5, size[2]))
+    g = mix(mix(pal["foliage"], pal["foliageAlt"], rng.random()), (0.22, 0.28, 0.05), 0.12)
+    H = max(0.75, min(1.25, size[2]))
     cell = "tallgrass" if variant % 4 == 3 else "grass"
     n = 7
     for k in range(n):
@@ -471,7 +482,7 @@ def grass(rng, pal, size, variant):
         ax = (UP + side.cross(UP) * rng.uniform(-0.3, 0.3)).normalized()
         c = vary(rng, g, 0.16)
         s = rng.uniform(0.85, 1.2) * (1.35 if cell == "tallgrass" else 1.0)
-        card(m, cell, o, ax, side, R * 1.5, H * s, lambda p, t, c=c: mul(c, 0.5 + 0.85 * t), o - UP * 40, bend=0.1, soft=1.0)
+        card(m, cell, o, ax, side, R * 1.7, H * s, lambda p, t, c=c: mul(c, 0.78 + 0.55 * t), o - UP * 40, bend=0.1, soft=1.0)
     return m
 
 
