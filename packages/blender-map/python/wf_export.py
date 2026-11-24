@@ -112,6 +112,45 @@ def validate(name, ob, expected=None, landscape=False):
     return out
 
 
+def inverted_share(ob):
+    """Share of the faces that belong to a closed solid turned inside out (its signed volume is negative). Open sheets and
+    the two-sided materials are not concerned."""
+    import bmesh
+    me = ob.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.faces.ensure_lookup_table()
+    seen, bad = set(), 0
+    for f0 in bm.faces:
+        if f0.index in seen:
+            continue
+        stack, isle, closed = [f0], [], True
+        seen.add(f0.index)
+        while stack:
+            f = stack.pop()
+            isle.append(f)
+            for e in f.edges:
+                if len(e.link_faces) != 2:
+                    closed = False
+                for g in e.link_faces:
+                    if g.index not in seen:
+                        seen.add(g.index)
+                        stack.append(g)
+        if not closed or me.materials[isle[0].material_index].name in DOUBLE:
+            continue
+        vol = 0.0
+        for f in isle:
+            vs = [v.co for v in f.verts]
+            for k in range(1, len(vs) - 1):
+                vol += vs[0].dot(vs[k].cross(vs[k + 1]))
+        if vol < -1e-4:
+            bad += len(isle)
+    n = len(bm.faces)
+    bm.free()
+    return bad / n if n else 0.0
+
+
 # ------------------------------------------------------------------ one mesh per material
 def split(ob, collection, name):
     """Copies of `ob` with one material each, cut again where a part passes the triangle limit."""
