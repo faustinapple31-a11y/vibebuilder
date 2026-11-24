@@ -159,12 +159,43 @@ export class Grid {
 }
 
 /** Signed distance (approx) to a set of polylines, rasterized on a grid (world units). */
-export function distanceToPolylinesGrid(grid: Grid, polylines: { points: Vec2[]; width: number }[], maxDist: number): Grid {
-  const out = new Grid(grid.width, grid.depth, grid.cellSize, grid.origin);
-  out.data.fill(maxDist);
+/** The same line with fewer points, never more than `tolerance` away from it (Douglas-Peucker). */
+export function simplifyLine(points: Vec2[], tolerance: number): Vec2[] {
+  if (points.length < 3) return points;
+  const keep = new Uint8Array(points.length);
+  keep[0] = keep[points.length - 1] = 1;
+  const stack: [number, number][] = [[0, points.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    const p = points[a]!;
+    const q = points[b]!;
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    let worst = 0;
+    let at = -1;
+    for (let i = a + 1; i < b; i++) {
+      const r = points[i]!;
+      const d = l < 1e-6 ? Math.hypot(r[0] - p[0], r[1] - p[1]) : Math.abs((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])) / l;
+      if (d > worst) {
+        worst = d;
+        at = i;
+      }
+    }
+    if (worst > tolerance) {
+      keep[at] = 1;
+      stack.push([a, at], [at, b]);
+    }
+  }
+  return points.filter((_, i) => keep[i]);
+}
+
+/** `into`: a grid that already holds the distance to other lines; these are added to it. `box`: the cells (x0, z0, x1, z1) to touch. */
+export function distanceToPolylinesGrid(grid: Grid, polylines: { points: Vec2[]; width: number }[], maxDist: number, into?: Grid, box?: [number, number, number, number]): Grid {
+  const out = into ?? new Grid(grid.width, grid.depth, grid.cellSize, grid.origin);
+  if (!into) out.data.fill(maxDist);
   const cs = grid.cellSize;
+  const [bx0, bz0, bx1, bz1] = box ?? [0, 0, grid.width - 1, grid.depth - 1];
   for (const pl of polylines) {
-    const pts = pl.points;
+    const pts = simplifyLine(pl.points, 0.4);
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1]!;
       const b = pts[i]!;
@@ -177,14 +208,14 @@ export function distanceToPolylinesGrid(grid: Grid, polylines: { points: Vec2[];
       const abx = b[0] - a[0];
       const abz = b[1] - a[1];
       const ab2 = abx * abx + abz * abz || 1e-9;
-      for (let z = Math.max(0, Math.floor(cz0)); z <= Math.min(grid.depth - 1, Math.ceil(cz1)); z++) {
-        for (let x = Math.max(0, Math.floor(cx0)); x <= Math.min(grid.width - 1, Math.ceil(cx1)); x++) {
+      for (let z = Math.max(bz0, Math.floor(cz0)); z <= Math.min(bz1, Math.ceil(cz1)); z++) {
+        for (let x = Math.max(bx0, Math.floor(cx0)); x <= Math.min(bx1, Math.ceil(cx1)); x++) {
           const wx = grid.origin[0] + x * cs;
           const wz = grid.origin[1] + z * cs;
           const t = clamp(((wx - a[0]) * abx + (wz - a[1]) * abz) / ab2, 0, 1);
           const dx = wx - (a[0] + abx * t);
           const dz = wz - (a[1] + abz * t);
-          const dist = Math.hypot(dx, dz) - pl.width / 2;
+          const dist = Math.sqrt(dx * dx + dz * dz) - pl.width / 2;
           const i = z * grid.width + x;
           if (dist < out.data[i]!) out.data[i] = dist;
         }

@@ -59,7 +59,7 @@ export const TerrainFeatureSchema = z.discriminatedUnion("type", [
    */
   z.object({
     type: z.literal("archipelago"),
-    islands: z.number().int().min(1).max(9).default(5),
+    islands: z.number().int().min(1).max(60).default(5),
     /** Stacked plateaus on the main island (satellites get fewer). */
     terraces: z.number().int().min(1).max(4).default(3),
     /** Height of one terrace step, 0..1 → 14..32 studs. */
@@ -120,7 +120,7 @@ export const RiverSchema = z.object({
   id: z.string().min(1),
   from: EdgeSchema.default("north"),
   to: EdgeSchema.default("south"),
-  width: z.number().min(4).max(80).default(14),
+  width: z.number().min(4).max(240).default(14),
   depth: z.number().min(1).max(30).default(6),
   meander: z.number().min(0).max(1).default(0.5),
 });
@@ -129,7 +129,7 @@ export type RiverSpec = z.infer<typeof RiverSchema>;
 export const LakeSchema = z.object({
   id: z.string().min(1),
   center: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]).default([0.5, 0.5]),
-  radius: z.number().min(10).max(400).default(60),
+  radius: z.number().min(10).max(3000).default(60),
 });
 export type LakeSpec = z.infer<typeof LakeSchema>;
 
@@ -198,7 +198,7 @@ export type SettlementType = z.infer<typeof SettlementTypeSchema>;
 export const SettlementSchema = z.object({
   id: z.string().min(1),
   type: SettlementTypeSchema.default("village"),
-  buildings: z.number().int().min(1).max(80).default(6),
+  buildings: z.number().int().min(1).max(4000).default(6),
   layout: z.enum(["organic", "grid", "ring", "linear"]).default("organic"),
   /** Building kit override (defaults to the style's architecture kit). */
   kit: z.string().optional(),
@@ -300,7 +300,7 @@ export type LayoutArchetypeId = z.infer<typeof LayoutArchetypeSchema>;
 export const LayoutSchema = z.object({
   archetype: LayoutArchetypeSchema.default("settlement"),
   /** Obby stages / tycoon plots / arena cover count / race checkpoints / TD path waypoints — meaning depends on the archetype. */
-  count: z.number().int().min(1).max(200).default(12),
+  count: z.number().int().min(1).max(2000).default(12),
   /** Footprint in normalized world units (0.2 = 20% of the map). */
   extent: z.number().min(0.1).max(1).default(0.45),
   /** Difficulty / density 0..1 (gap sizes, cover density, wave path length). */
@@ -377,8 +377,8 @@ export const WorldSpecSchema = z.object({
   stylePreset: StylePresetIdSchema.default("stylized_mystical"),
   size: z
     .object({
-      width: z.number().int().min(256).max(4096).default(1024),
-      depth: z.number().int().min(256).max(4096).default(1024),
+      width: z.number().int().min(256).max(16384).default(1024),
+      depth: z.number().int().min(256).max(16384).default(1024),
     })
     .default({ width: 1024, depth: 1024 }),
   terrain: z
@@ -410,6 +410,8 @@ export const WorldSpecSchema = z.object({
   layout: LayoutSchema.prefault({}),
   /** What kind of place this is and what it must contain; absent on older specs. */
   design: DesignSchema.optional(),
+  /** How the world is represented on a device (never how much of it exists). */
+  detail: z.enum(["performance", "balanced", "high", "maximum"]).default("balanced"),
   locks: LocksSchema.prefault({}),
   gameplayHints: z.array(z.string()).default([]),
   /** Free-form notes from the designer/agent (not used by the generator). */

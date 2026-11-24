@@ -157,6 +157,41 @@ export interface WorldBakeData {
 	landmarks: { id: string; type: string; role: string; position: [number, number, number]; scale: number }[];
 }
 
+/** A world delivered in chunks (packages/core/src/chunks.ts): this index, one file per prefab, one per chunk. */
+export interface WorldIndexData {
+	format: "chunks";
+	meta: WorldBakeData["meta"];
+	terrain: { cellSize: number; width: number; depth: number; origin: [number, number]; biomeIds: string[]; minHeight: number; maxHeight: number; ops?: TerrainOpData[]; mode?: "voxels" | "parts" };
+	/** A coarse copy of the ground, for the minimap. */
+	overview: WorldBakeData["terrain"];
+	placementCount: number;
+	prefabIndex: string[];
+	zoneNames: string[];
+	chunks: { size: number; width: number; depth: number; list: { id: string; cx: number; cz: number; rect: [number, number, number, number]; region: string; district?: string; kind: string; placements: number; parts: number; depends: string[]; hash: string }[] };
+	lighting: LightingData;
+	spawn: WorldBakeData["spawn"];
+	zones: WorldBakeData["zones"];
+	landmarks: WorldBakeData["landmarks"];
+}
+
+export interface ChunkData {
+	id: string;
+	x0: number;
+	z0: number;
+	w: number;
+	d: number;
+	base: number;
+	/** 16-bit heights, a thirty-second of a stud apart, around `base`. */
+	heightsB64: string;
+	waterB64: string;
+	materialsB64: string;
+	biomesB64: string;
+	placementsB64: string;
+	ids: string[];
+	/** Category, layer, flags, importance, biome + 1, zone + 1 per placement. */
+	meta: number[];
+}
+
 export const TERRAIN_MATERIALS: Enum.Material[] = [
 	Enum.Material.Air,
 	Enum.Material.Grass,

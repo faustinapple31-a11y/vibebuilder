@@ -1,6 +1,7 @@
 import {
   clamp,
   colorDistance,
+  measureCapacity,
   sampleHeight,
   sampleSlope,
   type QAFix,
@@ -332,12 +333,12 @@ export function critiqueBake(bake: WorldBake, spec: WorldSpec, style: StyleBible
   // ---------------- performance
   let performance = 10;
   // full-detail estimate; background placements are instantiated at LOD 1 in Roblox (~10 % fewer parts)
-  if (s.partsEstimate > 48000) {
-    performance -= 3;
-    problems.push({ id: "too_many_parts", severity: "high", message: `≈${s.partsEstimate} parts exceeds the 48k budget`, layer: "performance" });
-  } else if (s.partsEstimate > 42000) performance -= 1;
-  const overBudget = Object.entries(s.budgets).filter(([, b]) => b.trimmed > b.max * 0.5);
-  if (overBudget.length > 0) performance -= 0.5;
+  const capacity = measureCapacity(bake);
+  for (const a of capacity.advice) {
+    if (a.level === "info") continue;
+    performance -= a.level === "limit" ? 2 : 0.5;
+    problems.push({ id: a.id, severity: a.level === "limit" ? "high" : "low", message: `${a.message}: ${a.action}`, layer: "performance" });
+  }
 
   const scores: QAScores = {
     composition: r10(composition),

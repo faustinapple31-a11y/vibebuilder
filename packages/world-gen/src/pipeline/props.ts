@@ -1,6 +1,7 @@
 import { clamp, deriveSeed, smoothstep, type Placement, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { SpatialHash } from "../grid";
+import { cellHash, scatter } from "../sampling";
 import { baseRelief, biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 import { poissonDisk } from "./vegetation";
 import { placeKitProps } from "./kit-props";
@@ -31,7 +32,9 @@ export function placeRocksAndProps(ctx: GenContext): void {
     if (!variants || variants.length === 0) return false;
     if (!inside(ctx, x, z) || (!opts.onWater && isWaterAt(ctx, x, z))) return false;
     if (opts.onWater && !isWaterAt(ctx, x, z)) return false;
-    const vi = rng.int(0, variants.length - 1);
+    // decided by the place itself, so what one spot refuses changes nothing at the next
+    const own = new Rng(cellHash(ctx.seed, Math.round(x * 8), Math.round(z * 8)));
+    const vi = own.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
     // a solid prop never stands in the carriageway (`roadDistance` is already measured from the road
@@ -60,7 +63,7 @@ export function placeRocksAndProps(ctx: GenContext): void {
       variant: vi,
       category: opts.category ?? v.category,
       position: pos,
-      rotationY: opts.rotationY ?? rng.float(0, Math.PI * 2),
+      rotationY: opts.rotationY ?? own.float(0, Math.PI * 2),
       scale,
       layer: layerFor(ctx, x, z, false),
       biome: biomeAt(ctx, x, z),
@@ -72,8 +75,8 @@ export function placeRocksAndProps(ctx: GenContext): void {
 
   // ---- rocks
   progress(ctx, "props:rocks", 0);
-  const rockCandidates = poissonDisk(ctx, rng, 16);
-  for (const [x, z] of rockCandidates) {
+  const rocks = scatter(deriveSeed(ctx.seed, "rocks"), 16, { x0: ctx.origin[0], z0: ctx.origin[1], x1: ctx.origin[0] + ctx.worldW, z1: ctx.origin[1] + ctx.worldD });
+  for (const { x, z } of rocks) {
     if (distanceToEdge(ctx, x, z) < 8) continue;
     const biome = biomeAt(ctx, x, z);
     const s = slopeAtWorld(ctx, x, z);

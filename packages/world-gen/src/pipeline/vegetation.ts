@@ -2,6 +2,7 @@ import { clamp, deriveSeed, smoothstep, type BiomeId, type Placement, type Veget
 import { Rng } from "@worldforge/core";
 import { Simplex2D, Worley2D } from "../noise";
 import { SpatialHash } from "../grid";
+import { scatter, type Rect } from "../sampling";
 import { VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { composeRegions } from "./regions";
 import { biomeAt, distanceToEdge, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
@@ -59,6 +60,12 @@ const BIOME_UNDERGROWTH: Record<BiomeId, [VegetationSpecies, number][]> = {
 
 const VEG_LEVEL: Record<string, number> = { none: 0, sparse: 0.28, medium: 0.6, dense: 1.0 };
 
+/** The trees and plants of every biome of a world of several climates; a world of one or two keeps its style's. */
+export function biomeSpecies(biomes: BiomeId[]): VegetationSpecies[] {
+  if (biomes.length < 4) return [];
+  return [...new Set(biomes.flatMap((b) => [...BIOME_TREES[b], ...BIOME_UNDERGROWTH[b]].map(([sp]) => sp)))];
+}
+
 /** Canopy species for a biome, blended with the style's vegetation kit (kit species win 65/35 when both exist). */
 function treeMix(ctx: GenContext, biome: BiomeId, allowed: Set<VegetationSpecies>): [VegetationSpecies, number][] {
   const kit = VEGETATION_KIT_SPECIES[ctx.style.kits.vegetation] ?? [];
@@ -69,7 +76,8 @@ function treeMix(ctx: GenContext, biome: BiomeId, allowed: Set<VegetationSpecies
   if (biomeTrees.length === 0) return kitTrees;
   // On harsh ground the biome decides, not the style kit: a medieval world with a volcano was growing
   // green conifers on black basalt, because the kit's species outweighed the biome's dead and burnt trees.
-  const [kitWeight, biomeWeight] = HARSH_BIOMES.has(biome) ? [0.2, 0.8] : [0.65, 0.35];
+  // and a world of several climates is told apart by its trees, whatever its style
+  const [kitWeight, biomeWeight] = HARSH_BIOMES.has(biome) || ctx.spec.biomes.length >= 4 ? [0.12, 0.88] : [0.65, 0.35];
   const out = new Map<VegetationSpecies, number>();
   for (const [sp, w] of kitTrees) out.set(sp, (out.get(sp) ?? 0) + w * kitWeight);
   for (const [sp, w] of biomeTrees) out.set(sp, (out.get(sp) ?? 0) + w * biomeWeight);
@@ -124,6 +132,7 @@ export function placeVegetation(ctx: GenContext): void {
   const clearings = new Worley2D(deriveSeed(ctx.seed, "veg-clearings"));
   // the spec's species plus the style kit's species (a "candy" or "alien" style always gets its flora)
   const allowed = new Set<VegetationSpecies>([...spec.vegetation.species, ...(VEGETATION_KIT_SPECIES[style.kits.vegetation] ?? []).map(([sp]) => sp)]);
+  for (const sp of biomeSpecies(spec.biomes.map((b) => b.id))) allowed.add(sp);
   const globalDensity = spec.vegetation.density * (0.5 + style.vegetationDensity * 0.9) * (ctx.islands ? 0.45 : 1);
   const hash = new SpatialHash<{ position: [number, number, number]; radius: number }>(32);
   // what undergrowth must avoid: trunks, not canopies. A jungle of wide crowns once kept 14 plants on its floor
@@ -155,7 +164,7 @@ export function placeVegetation(ctx: GenContext): void {
     let d: number;
     if (regions) {
       // inside a wood the trees stand close whatever the average of the map: the average is the composition's job
-      d = big ? regions.trees(x, z) * clamp(0.45 + globalDensity * 0.6, 0.35, 1) : regions.ground(x, z) * level * globalDensity;
+      d = big ? regions.trees(x, z) * clamp(0.45 + globalDensity * 0.6, 0.35, 1) * (spec.biomes.length >= 4 ? 0.25 + level * 0.75 : 1) : regions.ground(x, z) * level * globalDensity;
     } else {
       const cl = (cluster.fbm(x / 95, z / 95, 3) + 1) * 0.5;
       const clearing = clearings.f1(x / 140, z / 140);
@@ -192,9 +201,12 @@ export function placeVegetation(ctx: GenContext): void {
   // ---- pass 1: trees & giant mushrooms (big)
   progress(ctx, "vegetation:trees", 0);
   const bigR = 9 - style.vegetationDensity * 2.5;
-  const treeCandidates = poissonDisk(ctx, rng, bigR);
+  const all: Rect = { x0: ctx.origin[0], z0: ctx.origin[1], x1: ctx.origin[0] + ctx.worldW, z1: ctx.origin[1] + ctx.worldD };
+  const reach = 72;
+  const win: Rect = ctx.window ? { x0: Math.max(all.x0, ctx.window.x0 - reach), z0: Math.max(all.z0, ctx.window.z0 - reach), x1: Math.min(all.x1, ctx.window.x1 + reach), z1: Math.min(all.z1, ctx.window.z1 + reach) } : all;
   let treeCount = 0;
-  for (const [x, z] of treeCandidates) {
+  for (const { x, z, seed, key } of scatter(deriveSeed(ctx.seed, "trees"), bigR * 0.9, win)) {
+    const rng = new Rng(seed);
     if (distanceToEdge(ctx, x, z) < edgeMargin) continue;
     if (isWaterAt(ctx, x, z)) continue;
     const biome = biomeAt(ctx, x, z);
@@ -236,7 +248,7 @@ export function placeVegetation(ctx: GenContext): void {
     hash.insert({ position: pos, radius });
     floor.insert({ position: pos, radius: trunk });
     ctx.placements.push({
-      id: `veg_${treeCount++}`,
+      id: `veg_${key}`,
       prefab,
       variant: vi,
       category: "vegetation",
@@ -262,15 +274,14 @@ export function placeVegetation(ctx: GenContext): void {
     const pos: [number, number, number] = [x, ctx.heights.sample(x, z) - v.sinkDepth * scale, z];
     hash.insert({ position: pos, radius: 4 });
     floor.insert({ position: pos, radius: 2 });
-    ctx.placements.push({ id: `veg_${treeCount++}`, prefab: avenuePrefab!, variant: vi, category: "vegetation", position: pos, rotationY: rng.float(0, Math.PI * 2), scale, layer: layerFor(ctx, x, z, true), biome: biomeAt(ctx, x, z), importance: 7 });
+    ctx.placements.push({ id: `veg_avenue_${treeCount++}`, prefab: avenuePrefab!, variant: vi, category: "vegetation", position: pos, rotationY: rng.float(0, Math.PI * 2), scale, layer: layerFor(ctx, x, z, true), biome: biomeAt(ctx, x, z), importance: 7 });
   }
 
   // ---- pass 2: undergrowth (small) — denser near roads/spawn (foreground detail)
   progress(ctx, "vegetation:undergrowth", 0.6);
   const smallR = 4.2 - style.scaleRules.foregroundDetail * 0.8;
-  const smallCandidates = poissonDisk(ctx, rng, smallR);
-  let smallCount = 0;
-  for (const [x, z] of smallCandidates) {
+  for (const { x, z, seed, key } of scatter(deriveSeed(ctx.seed, "undergrowth"), smallR * 0.9, win)) {
+    const rng = new Rng(seed);
     if (distanceToEdge(ctx, x, z) < edgeMargin) continue;
     if (isWaterAt(ctx, x, z)) continue;
     const biome = biomeAt(ctx, x, z);
@@ -304,7 +315,7 @@ export function placeVegetation(ctx: GenContext): void {
     const pos: [number, number, number] = [ux, y, uz];
     if (species === "log" || species === "bush") floor.insert({ position: pos, radius });
     ctx.placements.push({
-      id: `ug_${smallCount++}`,
+      id: `ug_${key}`,
       prefab,
       variant: vi,
       category: "vegetation",

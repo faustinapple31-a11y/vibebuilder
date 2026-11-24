@@ -1,6 +1,7 @@
 import { TERRAIN_MATERIAL_INDEX, deriveSeed, lerp, smootherstep, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { normToWorld, progress, seaLevelOf, type GenContext, type SettlementSite } from "../context";
+import { impliedSettlements } from "./populate";
 import { flattenToLevel } from "./ground";
 
 /**
@@ -14,15 +15,17 @@ export function selectSettlementSites(ctx: GenContext): void {
   const slope = ctx.heights.slopeGrid();
   ctx.sites = [];
   let idx = 0;
-  for (const s of spec.settlements) {
-    progress(ctx, `sites:${s.id}`, idx++ / Math.max(1, spec.settlements.length));
+  const all = [...spec.settlements, ...impliedSettlements(ctx)];
+  const flat = new FlatMap(ctx, slope);
+  for (const s of all) {
+    progress(ctx, `sites:${s.id}`, idx++ / Math.max(1, all.length));
     // a place grows by its area: four times the houses, twice the radius
     const radius = 42 + 25 * Math.sqrt(s.buildings);
     let center: Vec2;
     if (s.position) {
       center = normToWorld(ctx, s.position);
     } else {
-      center = findFlatSite(ctx, slope, radius, s.near, rng, s.type === "harbor" || (idx === 1 && spec.design?.environment === "coastal"), idx > 1 && spec.design !== undefined);
+      center = findFlatSite(ctx, flat, radius, s.near, rng, s.type === "harbor" || (idx === 1 && spec.design?.environment === "coastal"), idx > 1 && spec.design !== undefined);
     }
     const baseHeight = flattenArea(ctx, center, radius, 0.55);
     const site: SettlementSite = { id: s.id, center, radius, baseHeight, spec: s };
@@ -47,9 +50,53 @@ export function circlePoly(c: Vec2, r: number, n: number): Vec2[] {
   return out;
 }
 
-function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["slopeGrid"]>, radius: number, near: string | undefined, rng: Rng, shore = false, spread = false): Vec2 {
+/** Sums over any square of the map in constant time: what is asked of every candidate site of a large world. */
+class FlatMap {
+  private w: number;
+  private slopes: Float64Array;
+  private wet: Float64Array;
+  constructor(private ctx: GenContext, slope: ReturnType<GenContext["heights"]["slopeGrid"]>) {
+    const w = (this.w = ctx.width + 1);
+    this.slopes = new Float64Array(w * (ctx.depth + 1));
+    this.wet = new Float64Array(w * (ctx.depth + 1));
+    for (let z = 0; z < ctx.depth; z++) {
+      let a = 0;
+      let b = 0;
+      for (let x = 0; x < ctx.width; x++) {
+        const i = z * ctx.width + x;
+        a += slope.data[i]!;
+        b += Number.isNaN(ctx.water.data[i]!) ? 0 : 1;
+        this.slopes[(z + 1) * w + x + 1] = this.slopes[z * w + x + 1]! + a;
+        this.wet[(z + 1) * w + x + 1] = this.wet[z * w + x + 1]! + b;
+      }
+    }
+  }
+  /** Mean slope, share of water, lowest and highest ground within `r` cells. */
+  around(x: number, z: number, r: number): { slope: number; water: number; lo: number; hi: number } {
+    // the square that has the area of the disc
+    const k = Math.max(1, Math.round(r * 0.886));
+    const x0 = Math.max(0, x - k);
+    const z0 = Math.max(0, z - k);
+    const x1 = Math.min(this.ctx.width, x + k + 1);
+    const z1 = Math.min(this.ctx.depth, z + k + 1);
+    const n = (x1 - x0) * (z1 - z0);
+    const sum = (a: Float64Array) => a[z1 * this.w + x1]! - a[z0 * this.w + x1]! - a[z1 * this.w + x0]! + a[z0 * this.w + x0]!;
+    let lo = Infinity;
+    let hi = -Infinity;
+    const step = Math.max(2, Math.round(r / 5));
+    for (let dz = -r; dz <= r; dz += step) for (let dx = -r; dx <= r; dx += step) {
+      if (dx * dx + dz * dz > r * r) continue;
+      const v = this.ctx.heights.get(x + dx, z + dz);
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    return { slope: sum(this.slopes) / n, water: sum(this.wet) / n, lo, hi };
+  }
+}
+
+function findFlatSite(ctx: GenContext, flat: FlatMap, radius: number, near: string | undefined, rng: Rng, shore = false, spread = false): Vec2 {
   const h = ctx.heights;
-  const step = 3; // cells
+  const step = Math.max(3, Math.round(Math.min(ctx.width, ctx.depth) / 110)); // cells
   const rc = Math.ceil(radius / ctx.cellSize);
   const margin = Math.ceil((Math.min(ctx.worldW, ctx.worldD) * 0.14) / ctx.cellSize) + rc;
   let best: Vec2 = [ctx.origin[0] + ctx.worldW / 2, ctx.origin[1] + ctx.worldD / 2];
@@ -59,27 +106,9 @@ function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["
   const nearSite = near ? ctx.sites.find((s) => s.id === near) : undefined;
   for (let z = margin; z < ctx.depth - margin; z += step) {
     for (let x = margin; x < ctx.width - margin; x += step) {
-      // window stats
-      let sSum = 0;
-      let count = 0;
-      let water = 0;
-      let hMin = Infinity;
-      let hMax = -Infinity;
-      for (let dz = -rc; dz <= rc; dz += 2) {
-        for (let dx = -rc; dx <= rc; dx += 2) {
-          if (dx * dx + dz * dz > rc * rc) continue;
-          const i = (z + dz) * ctx.width + (x + dx);
-          sSum += slope.data[i]!;
-          if (!Number.isNaN(ctx.water.data[i]!)) water++;
-          const hv = h.data[i]!;
-          if (hv < hMin) hMin = hv;
-          if (hv > hMax) hMax = hv;
-          count++;
-        }
-      }
-      if (count === 0) continue;
+      const { slope: mean, water, lo: hMin, hi: hMax } = flat.around(x, z, rc);
       const [wx, wz] = h.toWorld(x, z);
-      let score = (sSum / count) * 3 + (hMax - hMin) / 40 + (water / count) * 12;
+      let score = mean * 3 + (hMax - hMin) / 40 + water * 12;
       if (shore) {
         // harbor: the edge of the settlement touches the water (river, lake or sea), on low ground
         const d = ctx.waterDistance.get(x, z);

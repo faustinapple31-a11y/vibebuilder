@@ -34,14 +34,16 @@ export function composeRegions(ctx: GenContext): Regions {
   const size = Math.min(ctx.worldW, ctx.worldD);
   const at = (i: number, j: number): Vec2 => [ctx.origin[0] + (i + 0.5) * cell, ctx.origin[1] + (j + 0.5) * cell];
   const level = spec.biomes.reduce((s, b) => s + (COVERAGE[b.vegetation ?? "medium"] ?? 0.36) * b.weight, 0) / Math.max(0.01, spec.biomes.reduce((s, b) => s + b.weight, 0));
+  const biomeLevel = ctx.biomeIds.map((id) => (COVERAGE[spec.biomes.find((b) => b.id === id)?.vegetation ?? "medium"] ?? 0.36) - level);
   const target = clamp(level * (0.62 + spec.vegetation.density * 0.65), 0.03, 0.7);
 
-  // scale of the masses: two or three forests across the map, whatever its size
-  const L = size * 0.27;
+  // scale of the masses: two or three forests across a map, more of them on a larger one
+  const L = Math.min(size * 0.27, 460 + Math.max(0, size - 1700) * 0.14);
   const field = new Float32Array(w * d).fill(-9);
   const [sx, sy, sz] = ctx.spawn.position;
   const look = Math.atan2(ctx.spawn.lookAt[2] - sz, ctx.spawn.lookAt[0] - sx);
   const reach = Math.hypot(ctx.spawn.lookAt[0] - sx, ctx.spawn.lookAt[2] - sz);
+  const zoneRadius = new Map(ctx.zones.map((q) => [q.id, q.radius]));
   // rhythm: the roads go through a stretch of wood between two openings, they never run in the open all the way
   const passages: Vec2[] = [];
   for (const road of ctx.paths) {
@@ -60,6 +62,14 @@ export function composeRegions(ctx: GenContext): Regions {
       if (k % 4 === 0) passages.push(p as Vec2);
     }
   }
+  // the passages each square of ground can feel
+  const near = new Map<number, Vec2[]>();
+  for (const p of passages) for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+    const k = (Math.floor(p[0] / 64) + a) * 4096 + Math.floor(p[1] / 64) + b;
+    const list = near.get(k);
+    if (list) list.push(p);
+    else near.set(k, [p]);
+  }
   for (let j = 0; j < d; j++) {
     for (let i = 0; i < w; i++) {
       const [x, z] = at(i, j);
@@ -68,21 +78,26 @@ export function composeRegions(ctx: GenContext): Regions {
       let f = mass.warped(x / L, z / L, 0.9, 3) + rag.fbm(x / 70, z / 70, 3) * 0.26 + rag.noise2(x / 24, z / 24) * 0.07;
       // the border is wooded where it is not already a range, so the world closes on something
       const edge = distanceToEdge(ctx, x, z) + rag.fbm(x / 120 + 9, z / 120, 2) * 40;
-      f += (1 - smoothstep(size * 0.04, size * 0.14, edge)) * 0.75;
+      f += (1 - smoothstep(Math.min(size, 1600) * 0.04, Math.min(size, 1600) * 0.14, edge)) * 0.75;
       // slopes keep their woods, valleys and flats were cleared long ago
       f += smoothstep(0.1, 0.35, g.slope) * 0.28 + clamp(g.tpi / 30, -0.2, 0.2);
       f += (ctx.moisture.sample(x, z) - 0.5) * 0.35;
+      // the woods stand in the wooded countries
+      f += (biomeLevel[ctx.biomes[Math.round((z - ctx.origin[1]) / ctx.cellSize) * ctx.width + Math.round((x - ctx.origin[0]) / ctx.cellSize)] ?? 0] ?? 0) * 1.3;
       // countryside round a settlement: fields and pastures, with a ragged outline
       for (const s of ctx.sites) {
-        const dist = Math.hypot(x - s.center[0], z - s.center[1]) + rag.fbm(x / 90 - 4, z / 90, 2) * s.radius * 0.5;
+        const flat = Math.hypot(x - s.center[0], z - s.center[1]);
+        if (flat > s.radius * 2.6) continue;
+        const dist = flat + rag.fbm(x / 90 - 4, z / 90, 2) * s.radius * 0.5;
         f -= 1.5 * (1 - smoothstep(s.radius * 1.05, s.radius * 1.75, dist));
       }
       for (const l of ctx.landmarks) {
-        const r = ctx.zones.find((q) => q.id === l.id)?.radius ?? 30;
+        const r = zoneRadius.get(l.id) ?? 30;
+        if (Math.abs(x - l.position[0]) > r * 2 || Math.abs(z - l.position[2]) > r * 2) continue;
         f -= 1.1 * (1 - smoothstep(r * 1.15, r * 1.9, Math.hypot(x - l.position[0], z - l.position[2])));
       }
       let pass = 0;
-      for (const p of passages) {
+      for (const p of near.get(Math.floor(x / 64) * 4096 + Math.floor(z / 64)) ?? []) {
         const dd = Math.hypot(x - p[0], z - p[1]);
         if (dd < 62) pass = Math.max(pass, 1 - smoothstep(26, 62, dd + rag.noise2(x / 30, z / 30) * 12));
       }
@@ -104,8 +119,8 @@ export function composeRegions(ctx: GenContext): Regions {
 
   // clearings: a few, inside the masses, irregular, at least one the size of a village square
   const clearings: { c: Vec2; r: number }[] = [];
-  const wanted = Math.round(clamp((ctx.worldW * ctx.worldD) / 130_000, 2, 12) * Math.min(1, target * 2));
-  for (let tries = 0; tries < 400 && clearings.length < wanted; tries++) {
+  const wanted = Math.round(Math.max(2, (ctx.worldW * ctx.worldD) / 130_000) * Math.min(1, target * 2));
+  for (let tries = 0; tries < 200 + wanted * 40 && clearings.length < wanted; tries++) {
     const i = rng.int(4, w - 5);
     const j = rng.int(4, d - 5);
     if (field[j * w + i]! < cut + 0.22) continue;
@@ -115,8 +130,8 @@ export function composeRegions(ctx: GenContext): Regions {
   }
   // groves: islands of trees in the open
   const groves: { c: Vec2; r: number }[] = [];
-  const grovesWanted = Math.round(clamp((ctx.worldW * ctx.worldD) / 70_000, 4, 26));
-  for (let tries = 0; tries < 600 && groves.length < grovesWanted && target > 0.04; tries++) {
+  const grovesWanted = Math.round(Math.max(4, (ctx.worldW * ctx.worldD) / 70_000));
+  for (let tries = 0; tries < 300 + grovesWanted * 30 && groves.length < grovesWanted && target > 0.04; tries++) {
     const i = rng.int(3, w - 4);
     const j = rng.int(3, d - 4);
     const f = field[j * w + i]!;

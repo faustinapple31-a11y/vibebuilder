@@ -4,6 +4,7 @@ import { astar } from "../pathfinding";
 import { distanceToPolylinesGrid } from "../grid";
 import { edgeToWorld, progress, type GenContext } from "../context";
 import { connectIslands } from "./islands";
+import { connectCountry } from "./populate";
 import { GROUND_STEP } from "./ground";
 import { PLANK_BRIDGE_LENGTHS, STAIRS_RISES } from "@worldforge/prefabs";
 
@@ -36,11 +37,35 @@ export function generateRoads(ctx: GenContext): void {
     placeBridges(ctx, road.id, smooth, road.width);
     placeStairs(ctx, road.id, smooth);
   }
+  if (!reuse) connectCountry(ctx);
   if (!ctx.islands) connectLandmarks(ctx, rng);
   if (!ctx.islands) openToTheWorld(ctx, rng);
   if (ctx.islands) connectIslands(ctx, rng);
-  const roads = ctx.paths.filter((p) => p.kind === "road").map((p) => ({ points: p.points, width: p.width }));
-  ctx.roadDistance = distanceToPolylinesGrid(ctx.heights, roads, 300);
+  const roads = ctx.paths.filter((p) => p.kind === "road");
+  const known = ctx.roadsMeasured;
+  // a town opens its streets one by one: what was already measured stays, only new roads are added
+  if (known && known.grid === ctx.roadDistance) {
+    const was = new Set(known.roads);
+    const now = new Set(roads);
+    const fresh = roads.filter((r) => !was.has(r));
+    const gone = known.roads.filter((r) => !now.has(r));
+    if (gone.length > 0) {
+      // only the ground a removed road could reach is measured again, against every road
+      const box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const r of gone) for (const q of r.points) {
+        const [x, z] = ctx.heights.toCell(q[0], q[1]);
+        const k = (302 + r.width) / ctx.cellSize;
+        box[0] = Math.max(0, Math.min(box[0], Math.floor(x - k)));
+        box[1] = Math.max(0, Math.min(box[1], Math.floor(z - k)));
+        box[2] = Math.min(ctx.width - 1, Math.max(box[2], Math.ceil(x + k)));
+        box[3] = Math.min(ctx.depth - 1, Math.max(box[3], Math.ceil(z + k)));
+      }
+      for (let z = box[1]; z <= box[3]; z++) ctx.roadDistance.data.fill(300, z * ctx.width + box[0], z * ctx.width + box[2] + 1);
+      distanceToPolylinesGrid(ctx.heights, roads.filter((r) => was.has(r)), 300, ctx.roadDistance, box);
+    }
+    if (fresh.length > 0) distanceToPolylinesGrid(ctx.heights, fresh, 300, ctx.roadDistance);
+  } else ctx.roadDistance = distanceToPolylinesGrid(ctx.heights, roads, 300);
+  ctx.roadsMeasured = { grid: ctx.roadDistance, roads };
   progress(ctx, "roads:done", 1);
 }
 
@@ -372,7 +397,7 @@ export function placeStairs(ctx: GenContext, roadId: string, pts: Vec2[]): void 
 }
 
 /** Detect water crossings along the road and place scaled bridge prefabs. */
-function placeBridges(ctx: GenContext, roadId: string, pts: Vec2[], width: number): void {
+export function placeBridges(ctx: GenContext, roadId: string, pts: Vec2[], width: number): void {
   let inWater = false;
   let start = 0;
   const crossings: [number, number][] = [];

@@ -18,6 +18,7 @@ import { Menu } from "ui/Menu";
 import { L } from "ui/strings.generated";
 import { startWeather } from "client/Weather";
 import { startMeshRender } from "client/MeshRender";
+import { startWorldView } from "client/WorldView";
 
 /**
  * Client bootstrap: HUD, the screens GameConfig.ui.screens enables (shop, inventory, quests, crafting,
@@ -92,6 +93,7 @@ roundStatus?.setEnabled(true);
 
 startWeather();
 startMeshRender();
+startWorldView();
 UserInputService.InputBegan.Connect((input, processed) => {
 	if (processed) return;
 	if (input.KeyCode === Enum.KeyCode.B) shop.toggle();

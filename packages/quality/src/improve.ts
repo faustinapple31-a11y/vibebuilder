@@ -100,7 +100,9 @@ export function improveWorld(spec: WorldSpec, style: StyleBible, first: WorldBak
   };
   ({ bake: best, score } = correct(best, score));
   const asked = layersToRedraw(reviewWhole(best, spec));
-  for (let k = 0; k < (options.redraws ?? 2) && score < target; k++) {
+  // on a large world a redraw is minutes of work: one at most, and only where something is wrong
+  const heavy = first.stats.generationMs > 15_000;
+  for (let k = 0; k < (heavy ? 0 : (options.redraws ?? 2)) && score < target; k++) {
     const layers = (asked[k % Math.max(1, asked.length)] ?? REDRAWN).filter((l) => !spec.locks[l as keyof WorldSpec["locks"]]);
     if (layers.length === 0) continue;
     // drawn from the first bake every time: redrawing a redraw would pile up its levelled ground

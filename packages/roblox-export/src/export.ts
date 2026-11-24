@@ -1,5 +1,6 @@
-import { base64ToF32, type MeshData,
-  serializeBake,
+import { base64ToF32, type DetailProfile, type MeshData,
+  PROFILES,
+  serializeChunks,
   slugify,
   type ProjectMeta,
   type StyleBible,
@@ -49,8 +50,10 @@ export const RUNTIME_TEMPLATE_PREFIXES = ["src/shared/world/", "src/world/"];
  *       remote that feeds them and persisted client settings (`setting_*`); the UI kit libraries
  *       (`src/ui/kits.generated.ts` — every design system of the taxonomy, selected by
  *       `GameConfig.ui.kit`).
+ *   16 — worlds in chunks (WorldBake = index, prefabs/, ServerStorage.WorldChunks), client WorldView (levels of detail
+ *       built around the camera), detail profiles.
  */
-export const TEMPLATE_VERSION = 15;
+export const TEMPLATE_VERSION = 16;
 
 /** Framework files re-applied on a template upgrade (agents may edit them afterwards). */
 export const FRAMEWORK_TEMPLATE_FILES = [
@@ -73,6 +76,7 @@ export const FRAMEWORK_TEMPLATE_FILES = [
   "src/systems/Doors.ts",
   "src/client/Weather.ts",
   "src/client/MeshRender.ts",
+  "src/client/WorldView.ts",
   "src/systems/PlayerData.ts",
   "src/systems/Survival.ts",
   "src/systems/Collectibles.ts",
@@ -141,6 +145,7 @@ export function scaffoldProjectFiles(opts: ScaffoldOptions): ProjectFile[] {
   };
   files.push({ path: "worldforge.json", content: JSON.stringify(meta, null, 2) + "\n" });
   files.push({ path: "assets/world/.gitkeep", content: "" });
+  files.push({ path: "assets/world-chunks/.gitkeep", content: "" });
   files.push({ path: "assets/materials/.gitkeep", content: "" });
   files.push({ path: "assets/models/.gitkeep", content: "" });
   files.push({ path: "design/.gitkeep", content: "" });
@@ -160,19 +165,24 @@ export interface ExportWorldOptions {
 
 /**
  * Files that change whenever the world is (re)generated:
- * - assets/world/WorldBake.json (→ ModuleScript via Rojo)
+ * - assets/world/WorldBake.json: the index of the world (→ ModuleScript via Rojo)
+ * - assets/world/prefabs/<id>.json: its models
+ * - assets/world-chunks/<chunk>.json: ground and placements of each chunk (ServerStorage, never sent to clients)
  * - worlds/<id>/world.spec.json, style.bible.json
  * - default.project.json with Lighting/Workspace properties matching the bake
  */
 export function exportWorldFiles(opts: ExportWorldOptions): ProjectFile[] {
   const { spec, style } = opts;
   const bake = applyMeshAssetIds(opts.bake, opts.meshAssets ?? null);
-  const json = serializeBake(bake);
+  const world = serializeChunks(bake);
   const files: ProjectFile[] = [];
-  files.push({ path: "assets/world/WorldBake.json", content: JSON.stringify(json) });
+  files.push({ path: "assets/world/WorldBake.json", content: JSON.stringify(world.index) });
+  const used = new Set(bake.placements.map((p) => p.prefab));
+  for (const [id, variants] of Object.entries(world.prefabs)) if (used.has(id)) files.push({ path: `assets/world/prefabs/${id}.json`, content: JSON.stringify(variants) });
+  for (const c of world.chunks) files.push({ path: `assets/world-chunks/${c.id}.json`, content: JSON.stringify(c) });
   files.push({ path: `worlds/${spec.id}/world.spec.json`, content: JSON.stringify(spec, null, 2) + "\n" });
   files.push({ path: `worlds/${spec.id}/style.bible.json`, content: JSON.stringify(style, null, 2) + "\n" });
-  files.push({ path: "default.project.json", content: JSON.stringify(buildRojoProject(opts.projectSlug, bake, opts.materialOverrides), null, 2) + "\n" });
+  files.push({ path: "default.project.json", content: JSON.stringify(buildRojoProject(opts.projectSlug, bake, opts.materialOverrides, spec.detail), null, 2) + "\n" });
   // distinct procedural meshes as .obj (Studio import) and .fbx (Open Cloud "Model" upload → MeshId, see mesh-assets.ts)
   for (const m of uniqueMeshes(bake)) {
     files.push({ path: `assets/meshes/${m.key}_${m.hash}.obj`, content: meshToObj(m.data, `${m.key}_${m.hash}`) });
@@ -191,7 +201,7 @@ export function meshToObj(data: MeshData, name: string): string {
   return lines.join("\n") + "\n";
 }
 
-export function buildRojoProject(slug: string, bake: WorldBake, materialOverrides: Record<string, string> = {}): Record<string, unknown> {
+export function buildRojoProject(slug: string, bake: WorldBake, materialOverrides: Record<string, string> = {}, detail: DetailProfile = "balanced"): Record<string, unknown> {
   const base = JSON.parse(TEMPLATE_FILES["default.project.json"]!.replaceAll("__PROJECT_SLUG__", slug)) as { name: string; tree: Record<string, unknown> };
   // custom textures: MaterialVariants live in assets/materials (Rojo model files), overrides are service properties
   base.tree["MaterialService"] = { $className: "MaterialService", $path: "assets/materials", $properties: materialOverrides };
@@ -201,6 +211,9 @@ export function buildRojoProject(slug: string, bake: WorldBake, materialOverride
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   };
   const worldSize = Math.max(bake.terrain.width, bake.terrain.depth) * bake.terrain.cellSize;
+  const profile = PROFILES[detail];
+  // ground and placements stay on the server: clients are handed what they draw, chunk by chunk
+  base.tree["ServerStorage"] = { $className: "ServerStorage", WorldChunks: { $path: "assets/world-chunks" } };
   base.tree["Lighting"] = {
     $className: "Lighting",
     $properties: {
@@ -239,8 +252,13 @@ export function buildRojoProject(slug: string, bake: WorldBake, materialOverride
       FilteringEnabled: true,
       StreamingEnabled: true,
       Terrain: undefined,
-      StreamingMinRadius: 128,
-      StreamingTargetRadius: Math.round(Math.min(2048, Math.max(512, worldSize * 0.9))),
+      StreamingMinRadius: profile.streamingMin,
+      StreamingTargetRadius: Math.round(Math.min(profile.streamingTarget, Math.max(512, worldSize * 0.9))),
+      ModelStreamingBehavior: "Improved",
+      StreamOutBehavior: "Opportunistic",
+    },
+    $attributes: {
+      WorldDetail: detail,
     },
   };
   return base;

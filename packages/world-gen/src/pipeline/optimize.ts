@@ -1,77 +1,13 @@
-import type { BakeStats, Placement, PrefabCategory } from "@worldforge/core";
+import type { BakeStats, PrefabCategory } from "@worldforge/core";
 import { progress, type GenContext } from "../context";
 
-export interface PerformanceBudget {
-  maxInstances: Record<PrefabCategory, number>;
-  maxParts: number;
-}
-
-/** Default budget for a 1024×1024 world; scaled by area. */
-export function defaultBudget(worldW: number, worldD: number): PerformanceBudget {
-  const areaK = (worldW * worldD) / (1024 * 1024);
-  const s = (n: number) => Math.round(n * Math.max(0.35, Math.min(2.5, areaK)));
-  return {
-    maxInstances: {
-      vegetation: s(3200),
-      rock: s(450),
-      building: s(110), // a city's scenery towers count here too; the parts cap still guards the total
-      prop: s(500),
-      landmark: 8,
-      path: s(220),
-      water: 0,
-      npc: s(30),
-    },
-    // streaming hides what is far, memory does not: the density of a large map is capped before its area is
-    maxParts: Math.round(48000 * Math.max(0.35, Math.min(1.6, areaK))),
-  };
-}
-
 /**
- * Stage 14: enforce budgets (drop the least important placements per category first),
- * then compute statistics for the critic and the UI.
+ * Stage 14: measure. Nothing is dropped to fit a number: what a world costs is reported (`measureCapacity`), and how it is
+ * represented on a device is the business of the export profile.
  */
-export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): BakeStats {
-  progress(ctx, "optimize", 0);
-  const byCat = new Map<PrefabCategory, Placement[]>();
-  // gameplay layout structures (obby stages, plots, gates…) and settlement dressing (walls, piers, fields) are never trimmed
-  const essential = (p: Placement) => p.id.startsWith("layout_") || p.id.startsWith("dress_") || p.fixed === true;
-  for (const p of ctx.placements) {
-    if (essential(p)) continue;
-    let arr = byCat.get(p.category);
-    if (!arr) byCat.set(p.category, (arr = []));
-    arr.push(p);
-  }
-  const partsOf = (p: Placement) => ctx.prefabs[p.prefab]?.[p.variant]?.parts.length ?? 0;
-  const trimmed: Record<string, number> = {};
-  const kept: Placement[] = ctx.placements.filter(essential);
-  for (const [cat, arr] of byCat) {
-    const max = budget.maxInstances[cat] ?? Infinity;
-    if (arr.length <= max) {
-      kept.push(...arr);
-      trimmed[cat] = 0;
-      continue;
-    }
-    arr.sort((a, b) => (b.locked ? 1 : 0) - (a.locked ? 1 : 0) || b.importance - a.importance);
-    kept.push(...arr.slice(0, max));
-    trimmed[cat] = arr.length - max;
-  }
-  // parts cap (the parts-built ground is structural: it never counts against the budget of the rest)
-  const isGround = (p: Placement) => p.prefab === "ground_block" || p.prefab === "road_strip";
-  let parts = kept.reduce((s, p) => s + (isGround(p) ? 0 : partsOf(p)), 0);
-  if (parts > budget.maxParts) {
-    // worth per part, not importance alone: a jungle over budget once lost its whole floor (14 plants, 9 rocks)
-    // to keep bamboo clumps of 68 parts. Cheap dressing and anything near the player go last.
-    const worth = (p: Placement) => (p.importance * (p.layer === "foreground" ? 2 : 1)) / Math.sqrt(Math.max(1, partsOf(p)));
-    kept.sort((a, b) => (b.locked || essential(b) ? 1 : 0) - (a.locked || essential(a) ? 1 : 0) || worth(b) - worth(a));
-    while (parts > budget.maxParts && kept.length > 0 && !essential(kept[kept.length - 1]!)) {
-      const p = kept.pop()!;
-      parts -= partsOf(p);
-      trimmed[p.category] = (trimmed[p.category] ?? 0) + 1;
-    }
-  }
-  ctx.placements = kept;
-  ctx.trimmed = trimmed;
-
+export function measureStats(ctx: GenContext): BakeStats {
+  progress(ctx, "measure", 0);
+  const parts = ctx.placements.reduce((n, p) => n + (ctx.prefabs[p.prefab]?.[p.variant]?.parts.length ?? 0), 0);
   // stats
   const counts = emptyCat();
   const layerCounts = { foreground: 0, midground: 0, background: 0 };
@@ -100,10 +36,6 @@ export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): Ba
   }
   let water = 0;
   for (let i = 0; i < ctx.water.data.length; i++) if (!Number.isNaN(ctx.water.data[i]!)) water++;
-  const budgets = {} as BakeStats["budgets"];
-  for (const cat of Object.keys(budget.maxInstances) as PrefabCategory[]) {
-    budgets[cat] = { max: budget.maxInstances[cat], used: counts[cat], trimmed: trimmed[cat] ?? 0 };
-  }
   const stats: BakeStats = {
     counts,
     partsEstimate: parts,
@@ -117,10 +49,9 @@ export function optimizeAndStats(ctx: GenContext, budget: PerformanceBudget): Ba
     waterCoverage: water / ctx.water.data.length,
     vegetationCoverage: counts.vegetation / ((ctx.worldW * ctx.worldD) / 10000),
     buildingCount: counts.building,
-    budgets,
     generationMs: 0,
   };
-  progress(ctx, "optimize", 1);
+  progress(ctx, "measure", 1);
   return stats;
 }
 

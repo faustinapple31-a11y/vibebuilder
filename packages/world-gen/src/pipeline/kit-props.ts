@@ -1,3 +1,4 @@
+import { cellHash } from "../sampling";
 import { deriveSeed, type BiomeId, type Placement, type PropKit, type Vec2 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { PREFAB_INDEX, PROP_KIT_PREFABS } from "@worldforge/prefabs";
@@ -49,7 +50,9 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
     if (slopeAtWorld(ctx, x, z) > 0.55) return false;
     // anchors and mooring posts belong to a shore
     if ((PREFAB_INDEX[prefab]?.tags ?? []).includes("docks") && prefab !== "barrel" && prefab !== "crate" && ctx.waterDistance.sample(x, z) > 20) return false;
-    const vi = rng.int(0, variants.length - 1);
+    // decided by the place itself, so what one spot refuses changes nothing at the next
+    const own = new Rng(cellHash(ctx.seed, Math.round(x * 8), Math.round(z * 8)));
+    const vi = own.int(0, variants.length - 1);
     const v = variants[vi]!;
     const scale = opts.scale ?? 1;
     // never in the carriageway — except what belongs on it: a parked car on the verge is not a car
@@ -74,7 +77,7 @@ export function placeKitProps(ctx: GenContext, hash: SpatialHash<{ position: [nu
       variant: vi,
       category: v.category,
       position: pos,
-      rotationY: opts.rotationY ?? rng.float(0, Math.PI * 2),
+      rotationY: opts.rotationY ?? own.float(0, Math.PI * 2),
       scale,
       layer: layerFor(ctx, x, z, false),
       biome: biomeAt(ctx, x, z),

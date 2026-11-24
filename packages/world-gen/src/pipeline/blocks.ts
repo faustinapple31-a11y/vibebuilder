@@ -36,7 +36,7 @@ export function blockShape(ctx: GenContext, site: SettlementSite): BlockShape | 
   const planned = s.layout === "grid" || (s.layout === "organic" && (s.type === "city_district" || s.type === "base" || (s.type === "town" && paved)));
   const ruined = s.type === "abandoned_village" || s.type === "ruined_town";
   if (s.layout === "ring" && !ruined) return "radial";
-  if (planned || (s.type === "city_district" && !ruined)) return m === "radial" ? "radial" : m === "linear" ? "linear" : m === "organic" ? "curved" : "grid";
+  if (planned || (s.type === "city_district" && !ruined)) return m === "radial" ? "radial" : m === "linear" ? "linear" : m === "organic" || (!main && s.type === "town" && s.layout === "organic") ? "curved" : "grid";
   if (ruined || !m) return null;
   if (m === "radial" && s.type === "town" && s.buildings >= 24) return "radial";
   if ((m === "linear" || s.layout === "linear") && s.type === "town" && s.buildings >= 14) return "linear";
@@ -121,7 +121,7 @@ export function layoutBlocks(ctx: GenContext, site: SettlementSite, rng: Rng, sh
   const r0 = Math.max(plazaRadius(site.radius) * 1.25, city ? 34 : 24);
   if (shape === "radial") {
     const spokes = rng.int(5, 7);
-    for (let j = 0; j < 5; j++) {
+    for (let j = 0; ; j++) {
       const v0 = r0 + j * pitchV;
       const v1 = v0 + pitchV;
       if (v0 > reach) break;
@@ -130,7 +130,7 @@ export function layoutBlocks(ctx: GenContext, site: SettlementSite, rng: Rng, sh
       for (let i = 0; i < n; i++) blocks.push({ row: j, u0: (i * 2 * Math.PI) / n, u1: ((i + 1) * 2 * Math.PI) / n, v0, v1, r: 0, kept: false, use: "homes", poly: [] });
     }
   } else {
-    const rows = shape === "linear" ? (single ? 1 : 2) : 4;
+    const rows = shape === "linear" ? (single ? 1 : Math.max(2, Math.ceil(s.buildings / 40))) : Math.max(3, Math.ceil(reach / pitchV));
     const cols: number[] = [0];
     for (let side = 0; side < 2; side++) {
       let u = 0;
@@ -205,7 +205,7 @@ export function layoutBlocks(ctx: GenContext, site: SettlementSite, rng: Rng, sh
   const centralCount = wanted.filter((id) => facilityLot(id).central).length;
   const lots = () => kept.reduce((n, b) => n + (b.use === "homes" ? capacity(b) : 0), 0);
   const grow = (enough: () => boolean): void => {
-    while (kept.length < 70 && !(kept.length > 2 && enough())) {
+    while (!(kept.length > 2 && enough())) {
     let next: Block | null = null;
     for (const b of free) {
       if (b.kept) continue;
@@ -355,7 +355,8 @@ export function layoutBlocks(ctx: GenContext, site: SettlementSite, rng: Rng, sh
         for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) erased.add((Math.round(cz) + dz) * ctx.width + Math.round(cx) + dx);
       } else runs[runs.length - 1]!.push(q);
     }
-    const keptRuns = runs.filter((r) => r.length > 2);
+    // a scrap of the old road left in a hole of the town is no road
+    const keptRuns = runs.filter((r) => r.length > 2 && (r.length > 24 || r.some((q) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) > far + pitchV)));
     ctx.paths.splice(ctx.paths.indexOf(road), 1);
     const close = far + Math.max(len, pitchV);
     const near = (q: Vec2) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) < close;

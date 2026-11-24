@@ -19,7 +19,12 @@ export function generateTerrain(ctx: GenContext): void {
   const ridge = new Simplex2D(deriveSeed(seed, "ridge"));
 
   const amplitude = 24 + t.relief * 120; // studs
-  const macroScale = Math.max(worldW, worldD) / 2.2;
+  const size0 = Math.max(worldW, worldD);
+  // valleys and hills keep the size a walker knows; what grows with the world is the range behind them
+  const macroScale = Math.min(size0 / 2.2, 760);
+  const ranges = size0 > 1400 ? Math.min(1, (size0 - 1400) / 1600) : 0;
+  const rangeScale = size0 / 2.4;
+  const grow = 1 + ranges * Math.min(1.1, Math.sqrt(size0 / 1400) - 0.6);
   const h = ctx.heights;
 
   progress(ctx, "terrain:base", 0);
@@ -33,6 +38,13 @@ export function generateTerrain(ctx: GenContext): void {
     // gentle hills mid frequency
     const hills = macro.fbm(wx / (macroScale * 0.42) + 11.7, wz / (macroScale * 0.42) - 3.1, 2) * 0.5 + 0.5;
     v = v * 0.78 + hills * 0.22;
+    if (ranges > 0) {
+      // the great forms: where the high country is, where the plains are; foothills between them
+      const far = clamp((macro.warped(wx / rangeScale + 31, wz / rangeScale - 17, 0.6, 2) + 1) / 2, 0, 1);
+      const high = smoothstep(0.42, 0.8, far);
+      const crests = ridge.ridged(wx / 520 + 7, wz / 520 - 3, 4, 2.1, 0.5);
+      v = lerp(v, v * (0.28 + far * 1.05) + high * (0.2 + crests * 0.6) * t.relief * t.relief * 1.6 * grow, ranges);
+    }
     return t.baseHeight + v * amplitude;
   });
 

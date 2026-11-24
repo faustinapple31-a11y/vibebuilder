@@ -3,7 +3,7 @@ export * from "./grid";
 export * from "./pathfinding";
 export * from "./context";
 export * from "./generator";
-export { defaultBudget, type PerformanceBudget } from "./pipeline/optimize";
+export { scatter, type Rect, type ScatterPoint } from "./sampling";
 export { LANDMARK_PREFAB } from "./pipeline/landmarks";
 export { SPECIES_PREFAB } from "./pipeline/vegetation";
 export { computeLighting } from "./pipeline/lighting";

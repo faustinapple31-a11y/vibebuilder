@@ -53,7 +53,7 @@ function footprints(bake: WorldBake): Footprint[] {
   for (const p of bake.placements) {
     if (p.category !== "building" || p.id.startsWith("layout_") || p.id.startsWith("detail_") || p.prefab === "well" || p.prefab === "bridge" || p.prefab === "plank_bridge") continue;
     const v = bake.prefabs[p.prefab]?.[p.variant];
-    if (!v) continue;
+    if (!v || v.tags.includes("water")) continue;
     const hx = ((v.bounds.max[0] - v.bounds.min[0]) / 2) * p.scale * 0.82; // eaves overhang the walls
     const hz = ((v.bounds.max[2] - v.bounds.min[2]) / 2) * p.scale * 0.82;
     out.push({ p, x: p.position[0], z: p.position[2], hx, hz, cos: Math.cos(p.rotationY), sin: Math.sin(p.rotationY) });
@@ -116,6 +116,9 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
     return { d, point };
   };
   const all = footprints(bake);
+  /** One fault among thirty counts less than one among three. */
+  const among = (n: number, usual: number) => Math.min(1, usual / Math.max(1, n));
+  const perHouse = among(all.length, 24);
   const settlements = bake.zones.filter((z) => z.kind === "settlement");
   const districts = (bake.plan?.settlements ?? []).flatMap((s) => s.districts);
   const parcels = (bake.plan?.settlements ?? []).flatMap((s) => s.parcels);
@@ -153,10 +156,10 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
     }
     const steep = rough.filter((v) => v > 0.55).length / rough.length;
     metrics[`steep_${s.id}`] = steep;
-    if (steep > 0.3) flag("geography", "settlement_on_steep_ground", "medium", (steep - 0.3) * 90, `${Math.round(steep * 100)}% of the ground of "${s.id}" and its edge is too steep to build on`, { position: s.center as Vec2 });
+    if (steep > 0.3) flag("geography", "settlement_on_steep_ground", "medium", (steep - 0.3) * 90 * among(settlements.length, 2), `${Math.round(steep * 100)}% of the ground of "${s.id}" and its edge is too steep to build on`, { position: s.center as Vec2 });
   }
   const drowned = all.filter((f) => waterAt(f.x, f.z));
-  for (const f of drowned) flag("geography", "building_in_water", "high", 12, `${f.p.prefab} stands in water`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "move_building", id: f.p.id, reason: "water" } });
+  for (const f of drowned) flag("geography", "building_in_water", "high", 12 * perHouse, `${f.p.prefab} stands in water`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "move_building", id: f.p.id, reason: "water" } });
 
   // ---------------------------------------------------------------- urban
   const village = settlements.length > 0 && all.length >= 4;
@@ -178,7 +181,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
       const core = density(0, far * 0.6);
       const edge = density(far * 0.6, far);
       metrics[`gradient_${s.id}`] = edge > 0 ? core / edge : 9;
-      if (edge > 0 && core / edge < 1.15) flag("urban", "flat_density", "medium", 14, `"${s.id}" is as dense at its edge as at its centre (ratio ${(core / edge).toFixed(2)})`, { position: s.center as Vec2 });
+      if (edge > 0 && core / edge < 1.15) flag("urban", "flat_density", "medium", 14 * among(settlements.length, 2), `"${s.id}" is as dense at its edge as at its centre (ratio ${(core / edge).toFixed(2)})`, { position: s.center as Vec2 });
       const gaps = own.map((f) => Math.min(...own.filter((g) => g !== f).map((g) => Math.hypot(f.x - g.x, f.z - g.z))));
       const m = mean(gaps);
       const dev = Math.sqrt(mean(gaps.map((g) => (g - m) ** 2)));
@@ -195,7 +198,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
       const d = overlap(all[i]!, all[k]!);
       if (d > 0.8) {
         collisions++;
-        flag("architecture", "buildings_overlap", d > 3 ? "high" : "medium", d > 3 ? 14 : 8, `${all[i]!.p.id} and ${all[k]!.p.id} overlap by ${d.toFixed(1)} studs`, { position: [all[k]!.x, all[k]!.z], placement: all[k]!.p.id, fix: { type: "move_building", id: all[k]!.p.id, reason: "overlap" } });
+        flag("architecture", "buildings_overlap", d > 3 ? "high" : "medium", (d > 3 ? 14 : 8) * perHouse, `${all[i]!.p.id} and ${all[k]!.p.id} overlap by ${d.toFixed(1)} studs`, { position: [all[k]!.x, all[k]!.z], placement: all[k]!.p.id, fix: { type: "move_building", id: all[k]!.p.id, reason: "overlap" } });
       }
     }
   }
@@ -219,7 +222,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
       }
     }
     for (const r of roads) if (r.points.some((q) => Math.abs((q[0] - f.x) * f.cos - (q[1] - f.z) * f.sin) < f.hx * 0.9 && Math.abs((q[0] - f.x) * f.sin + (q[1] - f.z) * f.cos) < f.hz * 0.9)) {
-      flag("architecture", "building_on_road", "high", 12, `${f.p.id} stands on the road "${r.id}"`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "move_building", id: f.p.id, reason: "on road" } });
+      flag("architecture", "building_on_road", "high", 12 * perHouse, `${f.p.id} stands on the road "${r.id}"`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "move_building", id: f.p.id, reason: "on road" } });
       break;
     }
   }
@@ -242,11 +245,11 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
     const buried = Math.max(...ys) - base;
     if (air > 2.5) {
       hanging++;
-      flag("relief", "building_hangs", air > 6 ? "high" : "medium", air > 6 ? 14 : 7, `${f.p.id} hangs ${air.toFixed(1)} studs over the ground at one corner`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "flatten", center: [f.x, f.z], radius: Math.hypot(f.hx, f.hz) } });
-    } else if (buried > 4) flag("relief", "building_buried", "medium", 7, `${f.p.id} is buried ${buried.toFixed(1)} studs on one side`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "flatten", center: [f.x, f.z], radius: Math.hypot(f.hx, f.hz) } });
+      flag("relief", "building_hangs", air > 6 ? "high" : "medium", (air > 6 ? 14 : 7) * perHouse, `${f.p.id} hangs ${air.toFixed(1)} studs over the ground at one corner`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "flatten", center: [f.x, f.z], radius: Math.hypot(f.hx, f.hz) } });
+    } else if (buried > 4) flag("relief", "building_buried", "medium", 7 * perHouse, `${f.p.id} is buried ${buried.toFixed(1)} studs on one side`, { position: [f.x, f.z], placement: f.p.id, fix: { type: "flatten", center: [f.x, f.z], radius: Math.hypot(f.hx, f.hz) } });
     // a wall of earth right against a facade
     const wall = Math.max(...Array.from({ length: 12 }, (_, k) => h(f.x + Math.cos((k / 12) * 6.283) * (Math.max(f.hx, f.hz) + 6), f.z + Math.sin((k / 12) * 6.283) * (Math.max(f.hx, f.hz) + 6)))) - base;
-    if (wall > 14) flag("relief", "building_against_cliff", "low", 4, `${f.p.id} has a ${Math.round(wall)}-stud wall of earth against it`, { position: [f.x, f.z], placement: f.p.id });
+    if (wall > 14) flag("relief", "building_against_cliff", "low", 4 * perHouse, `${f.p.id} has a ${Math.round(wall)}-stud wall of earth against it`, { position: [f.x, f.z], placement: f.p.id });
   }
   metrics.hanging = hanging;
 
@@ -278,7 +281,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
       e.p[0] < t.origin[0] + 60 || e.p[1] < t.origin[1] + 60 || e.p[0] > t.origin[0] + t.width * t.cellSize - 60 || e.p[1] > t.origin[1] + t.depth * t.cellSize - 60;
     if (!meets) {
       dead++;
-      flag("roads", "dead_end", "low", 7, `the road "${e.road}" ends nowhere`, { position: e.p });
+      flag("roads", "dead_end", "low", 7 * among(roads.length, 14), `the road "${e.road}" ends nowhere`, { position: e.p });
     }
   }
   metrics.deadEnds = dead;
@@ -296,7 +299,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
   const pois = [...bake.landmarks.map((l) => ({ id: l.id, x: l.position[0], z: l.position[2], r: 34 })), ...settlements.map((s) => ({ id: s.id, x: s.center[0], z: s.center[1], r: s.radius }))];
   for (const p of pois) {
     const d = roadDistance(p.x, p.z).d;
-    if (d > p.r + 25) flag("player", "poi_unreached", "medium", 12, `no path leads to "${p.id}" (${Math.round(d)} studs away)`, { position: [p.x, p.z], fix: { type: "connect", zone: p.id, from: [p.x, p.z] } });
+    if (d > p.r + 25) flag("player", "poi_unreached", "medium", 12 * among(pois.length, 8), `no path leads to "${p.id}" (${Math.round(d)} studs away)`, { position: [p.x, p.z], fix: { type: "connect", zone: p.id, from: [p.x, p.z] } });
   }
   if (pois.length < 3 && bake.zones.filter((z) => z.kind === "gameplay").length < 2) flag("player", "few_places", "medium", 14, `only ${pois.length} places to discover`);
   if (!bake.zones.some((z) => z.meta?.kind === "viewpoint" || z.meta?.kind === "secret")) flag("player", "nothing_hidden", "low", 8, "no viewpoint and no hidden place: everything is found at once");
@@ -362,7 +365,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
   const fields = bake.placements.filter((p) => p.prefab === "farm_field" || p.prefab === "crop_plot");
   for (const f of fields) {
     const d = Math.min(...all.map((b) => Math.hypot(b.x - f.position[0], b.z - f.position[2])), Infinity);
-    if (d > 90) flag("environment", "lonely_field", "low", 12, `a field lies ${Math.round(d)} studs from any building`, { position: [f.position[0], f.position[2]], placement: f.id, fix: { type: "remove_placement", id: f.id } });
+    if (d > 90) flag("environment", "lonely_field", "low", 12 * among(bake.placements.filter((q) => q.prefab === "farm_field").length, 40), `a field lies ${Math.round(d)} studs from any building`, { position: [f.position[0], f.position[2]], placement: f.id, fix: { type: "remove_placement", id: f.id } });
   }
   for (const b of bake.placements.filter((p) => p.prefab === "bridge")) {
     const wet = [-14, -7, 0, 7, 14].some((o) => waterAt(b.position[0] + Math.sin(b.rotationY) * o, b.position[2] + Math.cos(b.rotationY) * o));

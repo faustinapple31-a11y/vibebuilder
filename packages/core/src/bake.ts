@@ -83,7 +83,7 @@ export interface Placement {
   biome?: BiomeId;
   zone?: string;
   locked?: boolean;
-  /** Importance used when trimming to budgets (higher = keep). */
+  /** How much it matters to the composition: what is built first while a world loads. */
   importance: number;
   /** Keep the given height: cave interiors and other placements below / above the heightmap (no terrain snap). */
   fixed?: boolean;
@@ -216,7 +216,8 @@ export interface BakeStats {
   waterCoverage: number;
   vegetationCoverage: number;
   buildingCount: number;
-  budgets: Record<PrefabCategory, { max: number; used: number; trimmed: number }>;
+  /** Written by older generators, which dropped objects to fit a budget. */
+  budgets?: Record<PrefabCategory, { max: number; used: number; trimmed: number }>;
   generationMs: number;
 }
 

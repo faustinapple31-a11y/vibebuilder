@@ -116,7 +116,10 @@ export class Minimap {
 		const module = assets.FindFirstChild("WorldBake") as ModuleScript | undefined;
 		if (!module) return undefined;
 		const [ok, data] = pcall(() => require(module) as WorldBakeData);
-		return ok ? (data as WorldBakeData) : undefined;
+		if (!ok) return undefined;
+		// a chunked world carries a coarse copy of its ground for this
+		const overview = (data as { overview?: WorldBakeData["terrain"] }).overview;
+		return overview ? ({ ...(data as WorldBakeData), terrain: overview } as WorldBakeData) : (data as WorldBakeData);
 	}
 
 	/** Downsamples the terrain grids into CELLS × CELLS frames and drops the landmark / zone dots. */

@@ -1,3 +1,4 @@
+import { cellHash } from "../sampling";
 import { URBAN_LOT } from "./biomes";
 import { Rng, deriveSeed, smoothstep, type BiomeId, type Placement, type PrefabVariant, type PropKit, type VegetationSpecies, type Vec2 } from "@worldforge/core";
 import { PROP_KIT_PREFABS, VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
@@ -26,8 +27,6 @@ import { SPECIES_PREFAB, poissonDisk } from "./vegetation";
  */
 
 const VERGE_STEP = 6;
-const MAX_VERGE = 700;
-const MAX_HORIZON = 650;
 
 type Item = { position: [number, number, number]; radius: number };
 
@@ -48,7 +47,9 @@ export function placeDetail(ctx: GenContext): void {
     const variants = ctx.prefabs[prefab];
     if (!variants || variants.length === 0) return false;
     if (!inBounds(ctx, x, z, 4) || (!opts.allowWater && isWaterAt(ctx, x, z))) return false;
-    const vi = rng.int(0, variants.length - 1);
+    // decided by the place itself, so what one spot refuses changes nothing at the next
+    const own = new Rng(cellHash(ctx.seed, Math.round(x * 8), Math.round(z * 8)));
+    const vi = own.int(0, variants.length - 1);
     const v: PrefabVariant = variants[vi]!;
     // silhouettes are scaled up, and a rock's underside scales with it: a cliff block at ×3.3 buries
     // 20 studs, which on a mesa island — whose slab is a couple of studs over open sea — dangles out
@@ -75,7 +76,7 @@ export function placeDetail(ctx: GenContext): void {
       variant: vi,
       category: v.category,
       position,
-      rotationY: opts.rotationY ?? rng.float(0, Math.PI * 2),
+      rotationY: opts.rotationY ?? own.float(0, Math.PI * 2),
       scale,
       layer: layerFor(ctx, sx, sz, opts.big === true),
       biome: biomeAt(ctx, sx, sz),
@@ -132,20 +133,19 @@ function placeVerges(ctx: GenContext, rng: Rng, add: Add): void {
   // what this world's own prop kits offer for a kerb (a city wants a planter, not a pebble)
   const street = STREET_ACCENTS.filter((id) => ctx.prefabs[id]?.length);
   let placed = 0;
-  // longest roads first: the main arteries get their verge even when the budget runs out
   const ordered = [...roads].sort((a, b) => b.points.length * b.width - a.points.length * a.width);
   for (const road of ordered) {
     const pts = road.points;
     let acc = VERGE_STEP;
     let fenceRun = 0;
-    for (let i = 1; i < pts.length && placed < MAX_VERGE; i++) {
+    for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1]!;
       const b = pts[i]!;
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
       if (len < 1e-3) continue;
       const tx = (b[0] - a[0]) / len;
       const tz = (b[1] - a[1]) / len;
-      for (let t = 0; t < len && placed < MAX_VERGE; t += 1) {
+      for (let t = 0; t < len; t += 1) {
         acc += 1;
         if (acc < VERGE_STEP) continue;
         acc = 0;
@@ -262,9 +262,7 @@ function placeWaterline(ctx: GenContext, rng: Rng, add: Add): void {
   const shell = ["clam", "surfboard", "treasure_chest"].find((id) => ctx.prefabs[id]?.length);
   if (!pebble && !drift && !reeds) return;
   let placed = 0;
-  const limit = 380;
   for (const [x, z] of poissonDisk(ctx, rng, 7)) {
-    if (placed >= limit) break;
     if (!inBounds(ctx, x, z, 8)) continue;
     const wd = ctx.waterDistance.sample(x, z);
     const wet = isWaterAt(ctx, x, z);
@@ -326,7 +324,6 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
     lots.sort((p, q) => around(p) - around(q));
     {
       for (const [x, z] of lots) {
-        if (towers >= 72) break;
         if (!rng.chance(0.8)) continue;
         const d = Math.hypot(x - px, z - pz);
         const off = Math.atan2(z - pz, x - px) - view;
@@ -369,7 +366,6 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
     sides.push(...shoreClumps);
   }
   for (const [cx, cz] of sides) {
-    if (placed >= MAX_HORIZON) break;
     if (!inBounds(ctx, cx, cz, 10)) continue;
     // an island or an archipelago has open sea where the border band would be: give it sea stacks —
     // rocks standing on the shallow sea floor, scaled until they break the surface
@@ -378,7 +374,7 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
       const depth = ctx.water.sample(cx, cz) - ctx.heights.sample(cx, cz);
       if (!(depth > 1.5 && depth < 26)) continue;
       const count = rng.int(2, 4);
-      for (let k = 0; k < count && placed < MAX_HORIZON; k++) {
+      for (let k = 0; k < count; k++) {
         const a = rng.float(0, Math.PI * 2);
         const r = rng.float(0, 20);
         const x = cx + Math.cos(a) * r;
@@ -395,9 +391,9 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
     }
     const biome = biomeAt(ctx, cx, cz);
     // a skyline clump: two or three towers, then back to the natural silhouettes
-    if (towerIds.length > 0 && towers < 86 && rng.chance(0.55)) {
+    if (towerIds.length > 0 && rng.chance(0.55)) {
       const n = rng.int(1, 3);
-      for (let k = 0; k < n && towers < 86; k++) {
+      for (let k = 0; k < n; k++) {
         const a = rng.float(0, Math.PI * 2);
         const r = rng.float(6, 26);
         const x = cx + Math.cos(a) * r;
@@ -415,7 +411,7 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
     if (ids.length === 0) continue;
     const prefab = ids[rng.int(0, ids.length - 1)]!;
     const count = rng.int(3, 7);
-    for (let k = 0; k < count && placed < MAX_HORIZON; k++) {
+    for (let k = 0; k < count; k++) {
       const a = rng.float(0, Math.PI * 2);
       const r = rng.float(0, 24);
       const x = cx + Math.cos(a) * r;

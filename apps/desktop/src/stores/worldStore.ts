@@ -13,7 +13,10 @@ import {
   type QAReport,
   type StyleBible,
   type WorldBake,
+  type ChunkJSON,
   type WorldBakeJSON,
+  type WorldIndexJSON,
+  deserializeChunks,
   type WorldLocks,
   type WorldSpec,
 } from "@worldforge/core";
@@ -93,6 +96,16 @@ async function loadBakeFromProject(projectPath: string): Promise<WorldBake | nul
   const json = await readJsonFile<WorldBakeJSON>(path.join(projectPath, "assets", "world", "WorldBake.json"));
   if (!json || !json.terrain) return null;
   try {
+    const index = json as unknown as WorldIndexJSON;
+    if (index.format === "chunks") {
+      const chunks = await Promise.all(index.chunks.list.map((c) => readJsonFile<ChunkJSON>(path.join(projectPath, "assets", "world-chunks", `${c.id}.json`))));
+      const prefabs: WorldBake["prefabs"] = {};
+      for (const id of index.prefabIndex) {
+        const variants = await readJsonFile<WorldBake["prefabs"][string]>(path.join(projectPath, "assets", "world", "prefabs", `${id}.json`));
+        if (variants) prefabs[id] = variants;
+      }
+      return deserializeChunks({ index, chunks: chunks.filter((c): c is ChunkJSON => !!c), prefabs });
+    }
     return deserializeBake(json);
   } catch {
     return null;

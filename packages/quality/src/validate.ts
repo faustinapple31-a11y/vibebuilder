@@ -1,4 +1,4 @@
-import { type WorldBake } from "@worldforge/core";
+import { measureCapacity, type WorldBake } from "@worldforge/core";
 
 /** Parsed compiler / runtime errors (rbxtsc output and Studio logs). */
 export interface DiagnosticEntry {
@@ -78,8 +78,7 @@ export interface PublishCheck {
 /** Pre-publish validation over data we can check without the filesystem. */
 export function validateBakeForPublish(bake: WorldBake | null): PublishCheck {
   if (!bake) return { id: "world", label: "World", ok: false, details: "No world has been generated yet." };
-  const over = Object.entries(bake.stats.budgets).filter(([, b]) => b.used > b.max);
-  if (over.length) return { id: "world", label: "World", ok: false, details: `Budgets exceeded: ${over.map(([k]) => k).join(", ")}` };
-  if (bake.stats.partsEstimate > 55000) return { id: "world", label: "World", ok: false, details: `Too many parts (${bake.stats.partsEstimate})` };
+  const limits = measureCapacity(bake).advice.filter((a) => a.level === "limit");
+  if (limits.length) return { id: "world", label: "World", ok: false, details: limits.map((a) => `${a.message}: ${a.action}`).join("; ") };
   return { id: "world", label: "World", ok: true, details: `${bake.placements.length} placements, ≈${bake.stats.partsEstimate} parts, ${bake.meta.version}` };
 }

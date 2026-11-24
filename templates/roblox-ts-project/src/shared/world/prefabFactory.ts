@@ -160,6 +160,55 @@ function loadMeshAsset(variant: PrefabVariantData): Model | undefined {
 	return model;
 }
 
+/** A part players touch or systems look for: it lives on the server. The rest is only seen. */
+export function isSolidPart(p: PartData): boolean {
+	return (p.collide ?? true) || p.name !== undefined || p.billboard !== undefined;
+}
+
+export function hasSolid(variant: PrefabVariantData): boolean {
+	if (variant.source?.assetId !== undefined) return true;
+	return variant.parts.some((p) => isSolidPart(p));
+}
+
+/**
+ * Which parts of a prefab a model is made of.
+ *   full   everything                       solid  what the server holds
+ *   view0  every part that is only seen     view1  the main shapes of those
+ *   view2  the two largest of them          cover  a small thing nothing touches, whole
+ */
+export type ModelMode = "full" | "solid" | "view0" | "view1" | "view2" | "cover";
+
+function partsOf(variant: PrefabVariantData, mode: ModelMode): PartData[] {
+	if (mode === "full" || mode === "cover") return variant.parts;
+	if (mode === "solid") return variant.parts.filter((p) => isSolidPart(p));
+	// an uploaded model is whole on the server
+	if (variant.source?.assetId !== undefined) return [];
+	const seen = variant.parts.filter((p) => !isSolidPart(p));
+	if (mode === "view0") return seen;
+	if (mode === "view1") return seen.filter((p) => (p.lod ?? 0) >= 1 && p.material !== "Neon");
+	const big = [...seen].filter((p) => p.material !== "Neon");
+	big.sort((a, b) => a.size[0] * a.size[1] * a.size[2] > b.size[0] * b.size[1] * b.size[2]);
+	return big.filter((_, i) => i < 2).map((p) => ({ ...p, light: undefined, effect: undefined }));
+}
+
+export function buildModelAs(variant: PrefabVariantData, mode: ModelMode): Model {
+	if (mode === "full" || mode === "solid") {
+		const loaded = loadMeshAsset(variant);
+		if (loaded) {
+			loaded.SetAttribute("Prefab", variant.prefab);
+			loaded.SetAttribute("Category", variant.category);
+			return loaded;
+		}
+	}
+	const model = new Instance("Model");
+	model.Name = variant.id;
+	for (const p of partsOf(variant, mode)) makePart(p, variant).Parent = model;
+	model.WorldPivot = new CFrame();
+	model.SetAttribute("Prefab", variant.prefab);
+	model.SetAttribute("Category", variant.category);
+	return model;
+}
+
 export function buildPrefabModel(variant: PrefabVariantData, minLod = 0): Model {
 	const loaded = loadMeshAsset(variant);
 	if (loaded) {
@@ -194,6 +243,25 @@ export class PrefabCache {
 			map.set(variant.id, m);
 		}
 		return m;
+	}
+
+	private byMode = new Map<string, Model>();
+
+	/** Clone + place, with the parts of a mode. */
+	spawnAs(variant: PrefabVariantData, cf: CFrame, scale: number, mode: ModelMode, parent: Instance): Model {
+		const key = `${variant.id}#${mode}`;
+		let template = this.byMode.get(key);
+		if (!template) {
+			template = buildModelAs(variant, mode);
+			template.Name = key;
+			template.Parent = this.container;
+			this.byMode.set(key, template);
+		}
+		const clone = template.Clone();
+		if (math.abs(scale - 1) > 0.01) clone.ScaleTo(scale);
+		clone.PivotTo(cf);
+		clone.Parent = parent;
+		return clone;
 	}
 
 	/** Clone + place. */

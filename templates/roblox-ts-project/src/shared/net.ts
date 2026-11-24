@@ -87,6 +87,10 @@ export const Remotes = {
 	/** Toast: (text, kind?) — kind is "info" | "success" | "warn" and colours the toast. */
 	Notify: "Notify",
 	WorldProgress: "WorldProgress",
+	/** Client asks for what it must draw of a chunk. */
+	WorldChunkView: "WorldChunkView",
+	/** Something of a chunk was destroyed. */
+	WorldChunkRemoved: "WorldChunkRemoved",
 	ShopState: "ShopState",
 	/** Full profile replication for the inventory / quests / crafting screens (ProfileStateMsg). */
 	ProfileState: "ProfileState",

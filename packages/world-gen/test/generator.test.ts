@@ -23,7 +23,8 @@ describe("world generator", () => {
     expect(bake.stats.heightStd).toBeGreaterThan(8);
     expect(bake.stats.layerCounts.foreground).toBeGreaterThan(20);
     expect(bake.stats.layerCounts.background).toBeGreaterThan(20);
-    expect(bake.stats.partsEstimate).toBeLessThanOrEqual(50000);
+    // nothing is dropped to fit a number: the world keeps all it was given
+    expect(bake.stats.budgets).toBeUndefined();
     // no floating objects: the origin never sits above the terrain centre, and the whole base disk
     // (baseRadius) rests on or in the ground unless the slope exceeds the capped extra sink
     let floating = 0;
@@ -51,7 +52,6 @@ describe("world generator", () => {
     }
     expect(floating).toBe(0);
     expect(buried).toBe(0);
-    console.log("trimmed", JSON.stringify(Object.fromEntries(Object.entries(bake.stats.budgets).map(([k, v]) => [k, v.trimmed]))), "village", JSON.stringify(bake.zones.find((z) => z.kind === "settlement")?.center.map((v) => v.toFixed(0))));
     // determinism
     const bake2 = generateWorld(spec, style);
     expect(bake2.placements.length).toBe(bake.placements.length);

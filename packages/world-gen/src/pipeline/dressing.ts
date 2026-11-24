@@ -15,7 +15,7 @@ import { GROUND_STEP } from "./ground";
  *  - a graveyard behind the church,
  *  - paved grounds with lights and benches around focal landmarks,
  *  - lane stripes, zebra crossings and kerbs on asphalt / concrete streets.
- * Every placement id starts with `dress_`: never trimmed by the budget, restored with the buildings layer.
+ * Every placement id starts with `dress_`: restored with the buildings layer.
  */
 type Add = (prefab: string, x: number, y: number, z: number, rotationY: number, opts?: { scale?: number; zone?: string; importance?: number; variant?: number }) => Placement | undefined;
 
@@ -198,7 +198,6 @@ function placeFields(ctx: GenContext, rng: Rng, add: Add): void {
   const b = variants[0]!.bounds;
   const tw = b.max[0] - b.min[0] - 0.6;
   const td = b.max[2] - b.min[2] - 0.6;
-  const cap = Math.round(Math.min(60, (ctx.worldW * ctx.worldD) / 26_000));
   let placed = 0;
   for (const site of ctx.sites) {
     const plan = ctx.plan.settlements.find((s) => s.settlement === site.id);
@@ -206,9 +205,9 @@ function placeFields(ctx: GenContext, rng: Rng, add: Add): void {
     const houses = ctx.placements.filter((p) => p.zone === site.id && p.category === "building" && p.prefab !== "well").map((p) => [p.position[0], p.position[2]] as Vec2);
     const outer = [...houses].sort((p, q) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) - Math.hypot(p[0] - site.center[0], p[1] - site.center[1])).slice(0, 4);
     const owners = farms.length > 0 ? [...farms, ...outer.slice(0, 2)] : outer;
-    const blocks = site.spec.type === "farmstead" ? 4 : Math.max(2, Math.min(6, Math.round(site.spec.buildings / 4)));
+    const blocks = site.spec.type === "farmstead" ? 4 : Math.max(2, Math.round(site.spec.buildings / 4));
     let got = 0;
-    for (let attempt = 0; attempt < 160 && got < blocks && placed < cap; attempt++) {
+    for (let attempt = 0; attempt < 60 + blocks * 30 && got < blocks; attempt++) {
       const owner = owners.length > 0 ? owners[attempt % owners.length]! : site.center;
       const cols = rng.int(2, 3);
       const rows = rng.int(2, 4);
@@ -489,13 +488,13 @@ function placeRoadMarkings(ctx: GenContext, add: Add): void {
         acc += Math.min(len - t, 1);
         kerbAcc += Math.min(len - t, 1);
         // markings are flat plates: at a terrace step (where the road gets stairs) they would hang
-        if (acc >= 9 && stripes < 420 && !isWaterAt(ctx, x, z) && !nearCrossing(x, z, 7) && baseRelief(ctx, x, z, 5) < 2.5) {
+        if (acc >= 9 && !isWaterAt(ctx, x, z) && !nearCrossing(x, z, 7) && baseRelief(ctx, x, z, 5) < 2.5) {
           add("road_stripe", x, ctx.heights.sample(x, z) + 0.1, z, rotAlongX(tx, tz), { importance: 2 });
           stripes++;
           acc = 0;
         }
         // kerbs only along the settlement streets (the long inter-site roads stay bare)
-        if (kerbV?.length && road.id.includes("_street_") && kerbAcc >= 8 && kerbs < 420 && !nearCrossing(x, z, 5)) {
+        if (kerbV?.length && road.id.includes("_street_") && kerbAcc >= 8 && !nearCrossing(x, z, 5)) {
           for (const sgn of [-1, 1]) {
             const kx = x - tz * sgn * (road.width / 2 + 0.6);
             const kz = z + tx * sgn * (road.width / 2 + 0.6);

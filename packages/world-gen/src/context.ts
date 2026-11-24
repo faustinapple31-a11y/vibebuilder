@@ -21,6 +21,7 @@ import { Simplex2D } from "./noise";
 import { Grid } from "./grid";
 import type { TerrainAnalysis } from "./terrain-analysis";
 import type { Regions } from "./pipeline/regions";
+import type { Rect } from "./sampling";
 import type { Island } from "./pipeline/archipelago";
 
 export type GenLayer = "terrain" | "water" | "roads" | "landmarks" | "buildings" | "vegetation" | "props" | "lighting";
@@ -41,6 +42,10 @@ export interface GenerateOptions {
   version?: string;
   /** Progress callback. */
   onProgress?: (stage: string, progress: number) => void;
+  /** Draw only this part of the world again (with `previous`): what stands outside it is kept as it is. */
+  window?: Rect;
+  /** Another draw of the window; 0 gives the same one again. */
+  salt?: number;
   /** Variant counts per prefab (defaults from the registry). */
   variantCounts?: Record<string, number>;
 }
@@ -81,6 +86,8 @@ export interface GenContext {
   biomeIds: BiomeId[];
   /** Distance (studs) to nearest road centerline edge; large when none. */
   roadDistance: Grid;
+  /** The roads `roadDistance` was measured from. */
+  roadsMeasured?: { grid: Grid; roads: PathPolyline[] };
   /** Distance to river/lake/ocean edge. */
   waterDistance: Grid;
   /** Ocean mask 0..1 (island / coast features); undefined when the spec has no ocean. */
@@ -96,6 +103,9 @@ export interface GenContext {
   terrainMode?: "voxels" | "parts";
   /** 3D voxel ops (caves, overhangs, arches, craters) the runtime applies after the heightmap columns. */
   terrainOps: TerrainOp[];
+
+  /** Only what falls in here is drawn; the rest of the world is there as it was. */
+  window?: Rect;
 
   // structures
   zones: Zone[];
@@ -121,7 +131,6 @@ export interface GenContext {
   previous?: WorldBake;
   onProgress: (stage: string, progress: number) => void;
   variantCounts: Record<string, number>;
-  trimmed: Record<string, number>;
   startedAt: number;
 }
 

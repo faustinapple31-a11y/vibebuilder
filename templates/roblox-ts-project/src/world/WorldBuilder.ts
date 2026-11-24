@@ -1,7 +1,8 @@
 import { HttpService, Lighting, ReplicatedStorage, Workspace } from "@rbxts/services";
 import { base64ToBuffer, hexToColor3, readF32 } from "shared/world/decode";
 import { PrefabCache } from "shared/world/prefabFactory";
-import type { LightingData, WorldBakeData } from "shared/world/types";
+import type { LightingData, WorldBakeData, WorldIndexData } from "shared/world/types";
+import { buildChunks, groundAt } from "./ChunkBuilder";
 import { buildTerrain, makeHeightSampler } from "./TerrainBuilder";
 import { applyMaterials } from "./Materials";
 
@@ -21,6 +22,10 @@ export interface BuildOptions {
 	/** Yield every N placements (keeps the server responsive). */
 	yieldEvery?: number;
 	onProgress?: (stage: string, done: number, total: number) => void;
+	/** Chunked worlds: build every part in the place (Studio bake). */
+	static?: boolean;
+	/** Chunked worlds: what surrounds the spawn stands, the rest goes on building. */
+	onSpawnReady?: () => void;
 }
 
 export interface BuildReport {
@@ -29,7 +34,7 @@ export interface BuildReport {
 	seconds: number;
 }
 
-export function loadBake(): WorldBakeData {
+export function loadBake(): WorldBakeData | WorldIndexData {
 	const assets = ReplicatedStorage.WaitForChild("WorldAssets", 10) as Folder | undefined;
 	if (!assets) error("WorldForge: ReplicatedStorage.WorldAssets not found (is the project synced with Rojo?)");
 	// Live push from WorldForge (MCP): JSON chunks in StringValues take precedence over the Rojo ModuleScript.
@@ -42,7 +47,11 @@ export function loadBake(): WorldBakeData {
 	}
 	const module = assets.WaitForChild("WorldBake", 10) as ModuleScript | undefined;
 	if (!module) error("WorldForge: WorldAssets.WorldBake ModuleScript not found");
-	return require(module) as WorldBakeData;
+	return require(module) as WorldBakeData | WorldIndexData;
+}
+
+function isChunked(bake: WorldBakeData | WorldIndexData): bake is WorldIndexData {
+	return (bake as WorldIndexData).format === "chunks";
 }
 
 export function applyLighting(l: LightingData): void {
@@ -141,7 +150,71 @@ export function applyLighting(l: LightingData): void {
 	});
 }
 
-export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): BuildReport {
+/** Builds a world, whichever way it was delivered. */
+export function buildWorld(bake: WorldBakeData | WorldIndexData, options: BuildOptions = {}): BuildReport {
+	if (!isChunked(bake)) return buildWhole(bake, options);
+	const t0 = os.clock();
+	Workspace.SetAttribute("WorldReady", false);
+	Workspace.SetAttribute("WorldName", bake.meta.specName);
+	Workspace.SetAttribute("WorldVersion", bake.meta.version);
+	Workspace.SetAttribute("WorldStatic", options.static === true);
+	Workspace.FindFirstChild("World")?.Destroy();
+	const worldFolder = new Instance("Folder");
+	worldFolder.Name = "World";
+	worldFolder.Parent = Workspace;
+	if (options.lighting !== false) {
+		applyLighting(bake.lighting);
+		pcall(() => applyMaterials());
+	}
+	Workspace.Terrain.Clear();
+	if (options.spawn !== false) placeSpawn(worldFolder, bake.spawn);
+	const res = buildChunks(bake, worldFolder, { onProgress: options.onProgress, static: options.static, onSpawnReady: options.onSpawnReady });
+	placeZones(worldFolder, bake.zones, (x, z) => groundAt(x, z, 40));
+	Workspace.SetAttribute("WorldReady", true);
+	return { placements: res.placements, terrainChunks: res.chunks, seconds: os.clock() - t0 };
+}
+
+/** Invisible markers: audio ambience, NPC homes, quests hook onto them by name. */
+function placeZones(worldFolder: Folder, list: WorldBakeData["zones"], heightAt: (x: number, z: number) => number): void {
+	const zones = new Instance("Folder");
+	zones.Name = "Zones";
+	zones.Parent = worldFolder;
+	for (const z of list) {
+		const marker = new Instance("Part");
+		marker.Name = z.id;
+		marker.Anchored = true;
+		marker.CanCollide = false;
+		marker.CanQuery = false;
+		marker.CanTouch = false;
+		marker.Transparency = 1;
+		marker.Size = new Vector3(2, 2, 2);
+		const [cx, cz] = z.center;
+		marker.CFrame = new CFrame(cx, z.y !== undefined ? z.y + 2 : heightAt(cx, cz) + 4, cz);
+		marker.SetAttribute("Kind", z.kind);
+		marker.SetAttribute("Radius", z.radius);
+		if (z.meta) for (const [k, v] of pairs(z.meta)) marker.SetAttribute(k as string, v);
+		marker.Parent = zones;
+	}
+}
+
+function placeSpawn(worldFolder: Folder, data: WorldBakeData["spawn"]): void {
+	const [sx, sy, sz] = data.position;
+	const [lx, , lz] = data.lookAt;
+	let spawn = worldFolder.FindFirstChildOfClass("SpawnLocation");
+	if (!spawn) {
+		spawn = new Instance("SpawnLocation");
+		spawn.Name = "WorldSpawn";
+		spawn.Size = new Vector3(12, 1, 12);
+		spawn.Anchored = true;
+		spawn.CanCollide = true;
+		spawn.Transparency = 1;
+		spawn.Duration = 0;
+		spawn.Parent = worldFolder;
+	}
+	spawn.CFrame = CFrame.lookAt(new Vector3(sx, sy + 0.5, sz), new Vector3(lx, sy + 0.5, lz));
+}
+
+function buildWhole(bake: WorldBakeData, options: BuildOptions = {}): BuildReport {
 	const t0 = os.clock();
 	const report: BuildReport = { placements: 0, terrainChunks: 0, seconds: 0 };
 	const progress = options.onProgress ?? (() => {});
@@ -263,45 +336,8 @@ export function buildWorld(bake: WorldBakeData, options: BuildOptions = {}): Bui
 		}
 	}
 
-	// zone markers (invisible parts): audio ambience, NPC homes, quests hook onto them by name
-	{
-		const zones = new Instance("Folder");
-		zones.Name = "Zones";
-		zones.Parent = worldFolder;
-		for (const z of bake.zones) {
-			const marker = new Instance("Part");
-			marker.Name = z.id;
-			marker.Anchored = true;
-			marker.CanCollide = false;
-			marker.CanQuery = false;
-			marker.CanTouch = false;
-			marker.Transparency = 1;
-			marker.Size = new Vector3(2, 2, 2);
-			const [cx, cz] = z.center;
-			marker.CFrame = new CFrame(cx, z.y !== undefined ? z.y + 2 : heightAt(cx, cz) + 4, cz);
-			marker.SetAttribute("Kind", z.kind);
-			marker.SetAttribute("Radius", z.radius);
-			if (z.meta) for (const [k, v] of pairs(z.meta)) marker.SetAttribute(k as string, v);
-			marker.Parent = zones;
-		}
-	}
-
-	if (options.spawn !== false) {
-		const [sx, sy, sz] = bake.spawn.position;
-		const [lx, , lz] = bake.spawn.lookAt;
-		let spawn = worldFolder.FindFirstChildOfClass("SpawnLocation");
-		if (!spawn) {
-			spawn = new Instance("SpawnLocation");
-			spawn.Name = "WorldSpawn";
-			spawn.Size = new Vector3(12, 1, 12);
-			spawn.Anchored = true;
-			spawn.CanCollide = true;
-			spawn.Transparency = 1;
-			spawn.Duration = 0;
-			spawn.Parent = worldFolder;
-		}
-		spawn.CFrame = CFrame.lookAt(new Vector3(sx, sy + 0.5, sz), new Vector3(lx, sy + 0.5, lz));
-	}
+	placeZones(worldFolder, bake.zones, heightAt);
+	if (options.spawn !== false) placeSpawn(worldFolder, bake.spawn);
 
 	report.seconds = os.clock() - t0;
 	Workspace.SetAttribute("WorldReady", true);

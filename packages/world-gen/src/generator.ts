@@ -24,15 +24,18 @@ import { carveRoad, generateRoads, placeStairs, refreshRoadDistance } from "./pi
 import { placeBuildings } from "./pipeline/buildings";
 import { placeLayout } from "./pipeline/layout";
 import { placeDressing } from "./pipeline/dressing";
+import { PLACE_PROPS, placePlaces } from "./pipeline/places";
+import { impliedSettlements } from "./pipeline/populate";
 import { placeFacilities } from "./pipeline/facilities";
 import { placeDiscoveries } from "./pipeline/discovery";
 import { placeRelief } from "./pipeline/relief";
-import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
+import { placeVegetation, SPECIES_PREFAB, biomeSpecies } from "./pipeline/vegetation";
 import { placeRocksAndProps } from "./pipeline/props";
 import { computeLighting } from "./pipeline/lighting";
 import { GROUND_STEP, buildGround, quantizeHeights, snapHeightsToLevels } from "./pipeline/ground";
 import { placeDetail } from "./pipeline/detail";
-import { defaultBudget, optimizeAndStats } from "./pipeline/optimize";
+import type { Rect } from "./sampling";
+import { measureStats } from "./pipeline/optimize";
 
 export const GENERATOR_VERSION = "0.1.0";
 
@@ -104,7 +107,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     previous: compatiblePrevious,
     onProgress: options.onProgress ?? (() => {}),
     variantCounts: options.variantCounts ?? {},
-    trimmed: {},
+    ...(options.window && options.previous ? { window: options.window } : {}),
     startedAt: started,
   };
   ctx.terrainMode = spec.terrain.groundMode ?? "parts";
@@ -186,12 +189,14 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   if (regenerate.has("buildings") || !compatiblePrevious) {
     placeBuildings(ctx);
     placeFacilities(ctx);
+    placePlaces(ctx);
+    openFirstView(ctx);
     placeDressing(ctx);
   } else {
     // the streets a settlement opened for itself belong to the buildings layer too
     const known = new Set(ctx.paths.map((p) => p.id));
     for (const p of compatiblePrevious.paths) {
-      if (p.kind !== "road" || known.has(p.id) || !(p.id === "trail_viewpoint" || ctx.sites.some((s) => p.id.startsWith(`${s.id}_`)))) continue;
+      if (p.kind !== "road" || known.has(p.id) || !(p.id.startsWith("trail_") || ctx.sites.some((s) => p.id.startsWith(`${s.id}_`)))) continue;
       ctx.paths.push({ ...p, points: p.points.map((q) => [q[0], q[1]] as Vec2) });
       carveRoad(ctx, p.points, p.width, p.type);
       placeStairs(ctx, p.id, p.points);
@@ -204,7 +209,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
         const dv = ctx.prefabs[p.prefab]?.[p.variant];
         if (!dv) continue;
         ctx.placements.push({ ...p, position: [...p.position] as [number, number, number] });
-        if (dv.tags.includes("wall") || dv.tags.includes("field")) ctx.occupants.push({ position: p.position, radius: dv.footprintRadius * p.scale, kind: "building" });
+        if (dv.tags.includes("wall") || dv.tags.includes("field") || dv.category === "building") ctx.occupants.push({ position: p.position, radius: dv.footprintRadius * p.scale, kind: "building" });
         continue;
       }
       if (p.category !== "building" || p.prefab === "bridge" || p.prefab === "plank_bridge" || isGroundwork(p)) continue;
@@ -239,16 +244,23 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
     for (const z of compatiblePrevious.zones) if (z.kind === "gameplay" && (z.meta?.kind === "cave" || z.meta?.kind === "lava")) ctx.zones.push({ ...z });
   }
 
+  // a window changes nothing of the ground: it starts from the terrain as it was finished
+  const ground = ctx.window && compatiblePrevious ? compatiblePrevious.terrain : undefined;
+  if (ground) {
+    ctx.heights.data.set(ground.heights);
+    ctx.materials.set(ground.materials);
+  }
+
   // ---- vegetation
   if (regenerate.has("vegetation") || !compatiblePrevious) {
-    placeVegetation(ctx);
+    redraw(ctx, options, () => placeVegetation(ctx), (p) => p.category === "vegetation" && !p.id.startsWith("detail_"));
   } else {
     for (const p of compatiblePrevious.placements) if (p.category === "vegetation" && !p.fixed && !p.id.startsWith("detail_")) ctx.placements.push({ ...p });
   }
 
   // ---- rocks & props
   if (regenerate.has("props") || !compatiblePrevious) {
-    placeRocksAndProps(ctx);
+    redraw(ctx, options, () => placeRocksAndProps(ctx), (p) => (p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_") && !p.id.startsWith("detail_") && !isGroundwork(p));
   } else {
     for (const p of compatiblePrevious.placements) if ((p.category === "rock" || p.category === "prop" || p.category === "path") && !p.id.startsWith("dress_") && !p.id.startsWith("detail_") && !isGroundwork(p) && !p.fixed) ctx.placements.push({ ...p });
   }
@@ -256,8 +268,25 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   // ---- near-field & horizon detail (verges, spawn apron, edge silhouettes)
   // the detail pass reads the vegetation and the props it dresses around, so it follows either of them;
   // when neither was regenerated its placements are inherited whole (the layers above skip `detail_`)
-  if (regenerate.has("props") || regenerate.has("vegetation") || !compatiblePrevious) placeDetail(ctx);
+  if (regenerate.has("props") || regenerate.has("vegetation") || !compatiblePrevious) redraw(ctx, options, () => placeDetail(ctx), (p) => p.id.startsWith("detail_"));
   else for (const p of compatiblePrevious.placements) if (p.id.startsWith("detail_") && !p.fixed) ctx.placements.push({ ...p });
+
+  if (ground && ctx.window) {
+    // numbered names of the window may meet those of what was kept outside it
+    const names = new Set<string>();
+    for (const p of ctx.placements) {
+      while (names.has(p.id)) p.id += "b";
+      names.add(p.id);
+    }
+    // a ruin of the window may have levelled its own spot; nothing outside moves
+    for (let i = 0; i < ground.heights.length; i++) {
+      const x = ctx.origin[0] + (i % ctx.width) * ctx.cellSize;
+      const z = ctx.origin[1] + Math.floor(i / ctx.width) * ctx.cellSize;
+      if (x >= ctx.window.x0 + 8 && x < ctx.window.x1 - 8 && z >= ctx.window.z0 + 8 && z < ctx.window.z1 - 8) continue;
+      ctx.heights.data[i] = ground.heights[i]!;
+      ctx.materials[i] = ground.materials[i]!;
+    }
+  }
 
   // ---- locked placements survive the regeneration of their layer (manual inserts, hero meshes)
   if (compatiblePrevious) {
@@ -339,7 +368,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   if (ctx.terrainMode === "parts") buildGround(ctx);
 
   // ---- optimize + stats
-  const stats = optimizeAndStats(ctx, defaultBudget(worldW, worldD));
+  const stats = measureStats(ctx);
   stats.generationMs = Date.now() - started;
 
   const bake: WorldBake = {
@@ -431,10 +460,113 @@ function terrainNormal(ctx: GenContext, x: number, z: number, r: number): [numbe
   return [-dx / len, 1 / len, -dz / len];
 }
 
+/**
+ * Runs a placing stage. With a window, only what it places inside counts, and what the previous world had outside is put
+ * back: the stage sees the same neighbours it saw when the world was drawn whole, so the borders stay closed.
+ */
+function redraw(ctx: GenContext, options: GenerateOptions, stage: () => void, mine: (p: Placement) => boolean): void {
+  const win = ctx.window;
+  if (!win || !ctx.previous) return stage();
+  const inside = (p: Placement) => p.position[0] >= win.x0 && p.position[0] < win.x1 && p.position[2] >= win.z0 && p.position[2] < win.z1;
+  const seed = ctx.seed;
+  const before = ctx.placements.length;
+  if (options.salt) ctx.seed = deriveSeed(seed, `chunk-${options.salt}`);
+  stage();
+  ctx.seed = seed;
+  const drawn = ctx.placements.splice(before).filter(inside);
+  const kept = ctx.previous.placements.filter((p) => mine(p) && !p.fixed && !inside(p) && !p.locked).map((p): Placement => ({ ...p, position: [p.position[0], p.position[1], p.position[2]] }));
+  // a salted draw meets neighbours it did not know: what would stand in them is left out
+  const solid = options.salt ? kept.filter((p) => p.category !== "path") : [];
+  ctx.placements.push(...kept, ...drawn.filter((p) => !solid.some((q) => Math.hypot(q.position[0] - p.position[0], q.position[2] - p.position[2]) < 1.2)));
+}
+
+/** Draws part of a world again, its ground, streets and places kept. */
+export function regenerateWindow(spec: WorldSpec, style: StyleBible | undefined, previous: WorldBake, window: Rect, options: { layers?: GenLayer[]; salt?: number } = {}): WorldBake {
+  const layers = options.layers ?? ["vegetation", "props"];
+  return generateWorld(spec, style, { previous, window, salt: options.salt ?? 0, regenerate: layers.filter((l) => l === "vegetation" || l === "props") });
+}
+
+/**
+ * A town grown round the spawn can wall it in. Then the player starts on the street, the square or the road of that town
+ * that sees furthest, toward the focal when one can be seen from there.
+ */
+function openFirstView(ctx: GenContext): void {
+  // the town may have levelled the ground the spawn stood on
+  const floor = ctx.heights.sample(ctx.spawn.position[0], ctx.spawn.position[2]);
+  if (Math.abs(ctx.spawn.position[1] - floor - 3) > 3) ctx.spawn = { ...ctx.spawn, position: [ctx.spawn.position[0], floor + 3, ctx.spawn.position[2]] };
+  if (ctx.spec.gameplayHints.length === 0 && ctx.sites.length === 0) return;
+  const walls = ctx.placements.filter((p) => p.category === "building" && (ctx.prefabs[p.prefab]?.[p.variant]?.bounds.max[1] ?? 0) > 6).map((p) => {
+    const v = ctx.prefabs[p.prefab]![p.variant]!;
+    return { x: p.position[0], z: p.position[2], hx: ((v.bounds.max[0] - v.bounds.min[0]) / 2) * p.scale, hz: ((v.bounds.max[2] - v.bounds.min[2]) / 2) * p.scale, cos: Math.cos(p.rotationY), sin: Math.sin(p.rotationY) };
+  });
+  if (walls.length < 12) return;
+  const free = (x: number, z: number, a: number, max: number): number => {
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    let best = max;
+    for (const b of walls) {
+      if (Math.hypot(b.x - x, b.z - z) > max + b.hx + b.hz) continue;
+      const ox = (x - b.x) * b.cos - (z - b.z) * b.sin;
+      const oz = (x - b.x) * b.sin + (z - b.z) * b.cos;
+      const ux = dx * b.cos - dz * b.sin;
+      const uz = dx * b.sin + dz * b.cos;
+      let t0 = 0;
+      let t1 = best;
+      for (const [o, u, half] of [[ox, ux, b.hx + 1], [oz, uz, b.hz + 1]] as const) {
+        if (Math.abs(u) < 1e-9) {
+          if (Math.abs(o) > half) t1 = -1;
+        } else {
+          t0 = Math.max(t0, Math.min((-half - o) / u, (half - o) / u));
+          t1 = Math.min(t1, Math.max((-half - o) / u, (half - o) / u));
+        }
+      }
+      if (t1 >= t0) best = Math.min(best, t0);
+    }
+    return best;
+  };
+  /** The cone a player sees first: how far it goes, worst and mean. */
+  const cone = (x: number, z: number, a: number) => [-0.32, -0.16, 0, 0.16, 0.32].map((d) => Math.min(1, free(x, z, a + d, 140) / (Math.abs(d) > 0.2 ? 70 : 120)));
+  const mean = (v: number[]) => v.reduce((s, q) => s + q, 0) / v.length;
+  const [sx, , sz] = ctx.spawn.position;
+  const now = mean(cone(sx, sz, Math.atan2(ctx.spawn.lookAt[2] - sz, ctx.spawn.lookAt[0] - sx)));
+  if (now > 0.82) return;
+  const focal = ctx.landmarks.find((l) => l.role === "focal");
+  let best: { x: number; z: number; a: number; v: number; far: number } | null = null;
+  const site = [...ctx.sites].sort((p, q) => Math.hypot(p.center[0] - sx, p.center[1] - sz) - Math.hypot(q.center[0] - sx, q.center[1] - sz))[0]!;
+  for (const road of ctx.paths) {
+    if (road.kind !== "road" || road.width < 5) continue;
+    for (let i = 1; i + 1 < road.points.length; i += 3) {
+      const [x, z] = road.points[i]!;
+      if (Math.hypot(x - site.center[0], z - site.center[1]) > site.radius * 1.5 + 60 || ctx.occupants.some((o) => o.kind !== "keep" && Math.hypot(o.position[0] - x, o.position[2] - z) < o.radius + 4)) continue;
+      const along = Math.atan2(road.points[i + 1]![1] - road.points[i - 1]![1], road.points[i + 1]![0] - road.points[i - 1]![0]);
+      const looks = [along, along + Math.PI];
+      if (focal) looks.push(Math.atan2(focal.position[2] - z, focal.position[0] - x));
+      looks.forEach((a, k) => {
+        const c = cone(x, z, a);
+        let v = mean(c) + Math.min(...c) * 0.4;
+        if (focal) {
+          const off = Math.atan2(focal.position[2] - z, focal.position[0] - x) - a;
+          const d = Math.hypot(focal.position[0] - x, focal.position[2] - z);
+          if (Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < 0.4 && d < 620) v += (k === 2 ? 0.7 : 0.45) - Math.abs(d - 300) / 1500;
+        }
+        if (!best || v > best.v) best = { x, z, a, v, far: free(x, z, a, 300) };
+      });
+    }
+  }
+  const b = best as { x: number; z: number; a: number; v: number; far: number } | null;
+  if (!b || b.v < now + 0.15) return;
+  const y = ctx.heights.sample(b.x, b.z);
+  const reach = focal ? Math.min(300, Math.hypot(focal.position[0] - b.x, focal.position[2] - b.z)) : 160;
+  ctx.spawn = { position: [b.x, y + 3, b.z], lookAt: [b.x + Math.cos(b.a) * reach, y + 8, b.z + Math.sin(b.a) * reach] };
+  const zone = ctx.zones.find((q) => q.kind === "spawn");
+  if (zone) zone.center = [b.x, b.z];
+}
+
 function restoreSites(ctx: GenContext, prev: WorldBake): void {
+  const all = [...ctx.spec.settlements, ...impliedSettlements(ctx)];
   for (const z of prev.zones) {
     if (z.kind !== "settlement") continue;
-    const specS = ctx.spec.settlements.find((s) => s.id === z.id) ?? ctx.spec.settlements[0];
+    const specS = all.find((s) => s.id === z.id) ?? ctx.spec.settlements[0];
     if (!specS) continue;
     const baseHeight = flattenArea(ctx, z.center, z.radius, 0.55);
     ctx.sites.push({ id: z.id, center: z.center, radius: z.radius, baseHeight, spec: specS });
@@ -538,7 +670,7 @@ function faceLandmarksToSpawn(ctx: GenContext): void {
 /** All prefab ids a spec can use (built once per bake). */
 export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   const ids = new Set<string>();
-  for (const s of spec.vegetation.species) ids.add(SPECIES_PREFAB[s]);
+  for (const s of [...spec.vegetation.species, ...biomeSpecies(spec.biomes.map((b) => b.id))]) ids.add(SPECIES_PREFAB[s]);
   // buildings for every settlement type + kit props + kit vegetation
   for (const id of ["house", "house_large", "shop_building", "apartment_block", "skyscraper"]) ids.add(id);
   const kits = new Set<string>([...spec.props.sets, ...(style?.kits.props ?? [])]);
@@ -553,6 +685,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
   for (const id of ["treasure_chest", "torch_post"]) ids.add(id); // the hidden spot
   if (spec.design?.facilities.length) for (const id of ["car", "streetlight", "jeep", "sandbag_wall", "ammo_crate", "flag_pole", "pallet_stack", "trash_can", "bus_stop", "planter", "fire_hydrant", "traffic_cone", "road_barrier", "basketball_hoop", "tire_pile", "wrecked_car", "amphora", "sci_crate", "antenna_dish", "rubble_pile", "burning_barrel", "barricade"]) ids.add(id);
+  if (spec.design) for (const id of PLACE_PROPS) ids.add(id);
   ids.add("plank_bridge");
   ids.add("stairs");
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);

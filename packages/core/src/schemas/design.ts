@@ -31,12 +31,12 @@ export const DesignSchema = z.object({
   morphology: z.enum(MORPHOLOGIES).default("organic"),
   density: z.enum(DENSITIES).default("medium"),
   camera: z.enum(["first_person", "third_person", "top_down", "isometric", "fixed", "racing", "strategy"]).default("third_person"),
-  players: z.number().int().min(1).max(200).default(12),
+  players: z.number().int().min(1).max(700).default(12),
   /** 0 closed and tight, 1 open country. */
   openness: z.number().min(0).max(1).default(0.5),
   verticality: z.number().min(0).max(1).default(0.3),
   /** Places to find off the roads: viewpoints and hidden spots. */
-  discoveries: z.number().int().min(0).max(12).default(2),
+  discoveries: z.number().int().min(0).max(400).default(2),
   facilities: z.array(z.enum(FACILITIES)).default([]),
   expects: z.array(ExpectationSchema).default([]),
 });

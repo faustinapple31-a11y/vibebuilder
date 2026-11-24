@@ -90,6 +90,30 @@ const LANDMARK_KEYWORDS: [LandmarkType, string[], ZoneHint][] = [
 
 const LANDMARK_ZONE: Partial<Record<LandmarkType, ZoneHint>> = Object.fromEntries(LANDMARK_KEYWORDS.map(([t, , z]) => [t, z]));
 
+/** Studs across, by what kind of place it is. A stud is 28 cm. */
+const SCALE_WIDTH: Record<string, number> = { arena: 1024, neighbourhood: 1536, settlement: 1280, town: 1536, city: 2048, metropolis: 2560, region: 2560, island: 2048, archipelago: 1536, massive: 4096 };
+const STUDS_PER_KM = 3571;
+
+/** The width a request asks for: in so many words ("3 km", "4000 studs"), by an adjective, or by what it is. */
+function worldWidth(t: string, setting: SettingDef | undefined, bigTown: boolean): number {
+  const clampW = (w: number) => Math.round(Math.max(512, Math.min(16384, w)) / 64) * 64;
+  const km = /(\d+(?:[.,]\d+)?)\s*(?:km|kilometre|kilometer)/.exec(t);
+  if (km) return clampW(Number(km[1]!.replace(",", ".")) * STUDS_PER_KM);
+  const studs = /(\d{3,5})\s*(?:studs|blocs de large|stud)/.exec(t);
+  if (studs) return clampW(Number(studs[1]));
+  const says = (...words: string[]) => words.some((w) => new RegExp(`(^|[^a-z])${w}`).test(t));
+  const arena = setting?.scale === "arena";
+  const base = setting ? (arena ? (setting.width ?? 1024) : Math.max(setting.width ?? 0, SCALE_WIDTH[setting.scale] ?? 1024)) : bigTown ? 1536 : 1024;
+  if (says("plusieurs kilometres", "several kilometers", "several kilometres")) return clampW(Math.max(base * 2, STUDS_PER_KM * 2));
+  if (says("immense", "gigantesque", "colossal", "massive", "huge", "enorme", "infini", "tres grande map", "tres grand monde")) return clampW(arena ? base * 1.5 : Math.max(base * 1.7, 3072));
+  if (says("petit", "small", "tiny", "mini")) return clampW(arena ? base : Math.min(base, setting ? 1024 : 768));
+  if (!setting && says("grand", "large", "big", "vaste")) return clampW(base * 1.5);
+  return clampW(base);
+}
+
+/** How many buildings the place has: the size of its map, unless the request counts them. */
+const GROWTH: Record<string, number> = { city: 2.4, metropolis: 3, town: 1.9, neighbourhood: 2.2, settlement: 1.3, region: 1.6, island: 1.4 };
+
 export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const t = prompt.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const detected: string[] = [];
@@ -191,7 +215,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const abandoned = has(t, "abandon", "deserted", "ruine", "hante", "haunted", "fantome", "ghost", "zombie", "apocalyp", "infect");
   const count = (() => {
     const m = /(\d+)\s*(maisons|houses|batiments|buildings|huttes|huts|cabanes|cabins|immeubles|blocs)/.exec(t);
-    return m ? Math.max(1, Math.min(60, Number(m[1]))) : undefined;
+    return m ? Math.max(1, Math.min(4000, Number(m[1]))) : undefined;
   })();
   const interiors = has(t, "interieur", "interior", "inside", "meuble", "furnish", "entrer dans", "walk in") ? true : undefined;
   if (has(t, "ville", "town", "city", "cite", "metropole", "downtown", "quartier", "bourg", "bourgade")) {
@@ -218,12 +242,13 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     settlements.push({ id: "hub", type: abandoned ? "abandoned_village" : (famType as never), buildings: count ?? (famType === "city_district" ? 30 : 8), layout: modern ? "grid" : "organic", weathering: abandoned ? 0.8 : 0.35, interiors });
   }
 
+  const mapWidth0 = worldWidth(t, setting, false);
   // ---- the setting: what the request is about overrules what single words suggested
   if (setting) {
     if (setting.settlement === null) settlements.length = 0;
     else if (setting.settlement) {
       const q = setting.settlement;
-      settlements.splice(0, settlements.length, { id: settlements[0]?.id ?? "town", type: q.type, buildings: count ?? q.buildings, layout: q.layout ?? "organic", weathering: q.weathering ?? 0.35, interiors });
+      settlements.splice(0, settlements.length, { id: settlements[0]?.id ?? "town", type: q.type, buildings: count ?? Math.round(q.buildings * (GROWTH[setting.scale] ?? 1) * (has(t, "immense", "gigantesque", "huge", "enorme", "massive") ? 1.6 : has(t, "petit", "small") ? 0.6 : 1)), layout: q.layout ?? "organic", weathering: q.weathering ?? 0.35, interiors });
     }
     for (let k = 0; k < (setting.satellites?.count ?? 0); k++) {
       const q = setting.satellites!;
@@ -243,14 +268,14 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
       if (has1("coast")) features.push({ type: "coast", edges: ["south"], reach: 0.22, ruggedness: 0.5 });
       if (has1("island")) features.push({ type: "island", center: [0.5, 0.5], radius: 0.4, ruggedness: 0.55 });
       if (has1("archipelago")) features.splice(0, features.length, { type: "archipelago", islands: 5, terraces: 3, cliffHeight: 0.5, mainRadius: 0.24, ruggedness: 0.35 });
-      if (has1("river") && !rivers.length) rivers.push({ id: "river_1", from: "north", to: "south-east", width: (setting.width ?? 1024) > 1100 ? 22 : 18, depth: 6, meander: 0.65 });
-      if (has1("lake") && !lakes.length) lakes.push({ id: "lake_1", center: [0.3, 0.34], radius: (setting.width ?? 1024) * 0.07 });
+      if (has1("river") && !rivers.length) rivers.push({ id: "river_1", from: "north", to: "south-east", width: mapWidth0 > 1100 ? Math.min(60, 22 * Math.sqrt(mapWidth0 / 1280)) : 18, depth: 6, meander: 0.65 });
+      if (has1("lake") && !lakes.length) lakes.push({ id: "lake_1", center: [0.3, 0.34], radius: mapWidth0 * 0.06 });
     } else if (setting.settlement === null) rivers.length = 0;
   }
 
   // ---- a settlement in proportion with its map: nine houses fill a small map and get lost on a large one
   const bigTown = has(t, "grand bourg", "grande ville", "grand village", "grande cite", "large settlement", "big town", "large town", "large village", "tres dense", "dense");
-  const mapWidth = setting?.width && !has(t, "immense", "enorme", "huge", "gigantesque", "massive", "petit", "small") ? setting.width : has(t, "immense", "enorme", "huge", "gigantesque", "massive") ? 2048 : bigTown ? 1280 : has(t, "grand", "large", "big", "vaste") ? 1536 : has(t, "petit", "small", "tiny", "mini") ? 768 : 1024;
+  const mapWidth = worldWidth(t, setting, bigTown);
   const populated = genre.layout === "settlement" || genre.layout === "open_world" || genre.layout === "city_grid" || genre.layout === "campus";
   if (!setting?.settlement && count === undefined && populated && settlements[0] && !["camp", "outpost", "farmstead", "hamlet"].includes(settlements[0].type as string)) {
     const k = Math.min(2.2, (mapWidth / 768) ** 1.15) * (bigTown ? 1.35 : 1);
@@ -335,7 +360,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   // ---- gameplay layout from the genre (stage / plot / checkpoint counts from the prompt when given)
   const layoutCount = (() => {
     const m = /(\d+)\s*(stages|etapes|niveaux|levels|plots|parcelles|checkpoints|salles|rooms|portails|portals|vagues|waves)/.exec(t);
-    return m ? Math.max(2, Math.min(60, Number(m[1]))) : undefined;
+    return m ? Math.max(2, Math.min(4000, Number(m[1]))) : undefined;
   })();
   const layout: WorldSpecInput["layout"] = {
     archetype: setting && setting.settlement !== null && !genreWord ? "open_world" : genre.layout,
@@ -420,7 +445,7 @@ function designOf(
     players: setting?.players ?? 12,
     openness: setting?.openness ?? 0.5,
     verticality: setting?.verticality ?? 0.3,
-    discoveries: setting?.discoveries ?? 2,
+    discoveries: setting?.discoveries === 0 ? 0 : Math.max(setting?.discoveries ?? 2, Math.round((made.width / 1024) ** 2 * 2)),
     facilities: setting?.facilities ?? [],
     expects,
   };
@@ -710,7 +735,7 @@ export function interpretModification(spec: WorldSpec, prompt: string): Modifica
       draft.settlements.push({ id: `village_${draft.settlements.length + 1}`, type: has(t, "abandon") ? "abandoned_village" : "village", buildings: 6, layout: "organic", near: draft.rivers[0]?.id, weathering: 0.4 });
       summary.push("added village");
     } else if (more && draft.settlements[0]) {
-      draft.settlements[0].buildings = Math.min(30, draft.settlements[0].buildings + 3);
+      draft.settlements[0].buildings += 3;
       summary.push(`buildings → ${draft.settlements[0].buildings}`);
     }
     if (!draft.props.sets.includes("village")) draft.props.sets.push("village");
@@ -786,7 +811,7 @@ export function interpretModification(spec: WorldSpec, prompt: string): Modifica
     summary.push(`relief → ${draft.terrain.relief.toFixed(2)}`);
   }
   if (has(t, "plus grand", "bigger", "larger", "agrandi")) {
-    draft.size.width = Math.min(4096, Math.round(draft.size.width * 1.5));
+    draft.size.width = Math.min(16384, Math.round(draft.size.width * 1.5));
     draft.size.depth = draft.size.width;
     for (const l of ["terrain", "water", "roads", "landmarks", "buildings", "vegetation", "props"] as GenLayer[]) layers.add(l);
     summary.push(`size → ${draft.size.width}`);

@@ -153,8 +153,8 @@ export function reviewTraversal(bake: WorldBake): TraversalReport {
     for (const q of targets) {
       if (near(dry, q.x, q.z, q.r)) continue;
       bad++;
-      if (near(wet, q.x, q.z, q.r)) flag("swim_only", "medium", 5, `"${q.id}" is only reached by swimming`, [q.x, q.z]);
-      else flag("unreachable", "high", 12, `"${q.id}" cannot be reached on foot from the spawn`, [q.x, q.z]);
+      if (near(wet, q.x, q.z, q.r)) flag("swim_only", "medium", 5 * Math.min(1, 10 / targets.length), `"${q.id}" is only reached by swimming`, [q.x, q.z]);
+      else flag("unreachable", "high", 12 * Math.min(1, 10 / targets.length), `"${q.id}" cannot be reached on foot from the spawn`, [q.x, q.z]);
     }
     metrics.targets = targets.length;
     metrics.reached = targets.length ? 1 - bad / targets.length : 1;

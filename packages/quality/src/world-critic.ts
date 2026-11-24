@@ -1,4 +1,4 @@
-import type { Vec2, WorldBake, WorldSpec } from "@worldforge/core";
+import { measureCapacity, type Vec2, type WorldBake, type WorldSpec } from "@worldforge/core";
 import type { GenLayer } from "@worldforge/world-gen";
 import { reviewIntent } from "./intent";
 import { reviewLevelDesign } from "./level-design";
@@ -47,32 +47,14 @@ const LAYERS: Record<string, GenLayer[]> = {
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 const round = (v: number) => Math.round(v * 10) / 10;
 
-/** The budget of a Roblox place on a phone: parts, meshes alive at once, what was cut to fit. */
+/** What the world costs to hold and to draw. A large world is not a fault; a real limit of Roblox, or a place no device can draw, is. */
 function technical(bake: WorldBake, add: (p: CriticProblem) => void): number {
-  const s = bake.stats;
   let score = 100;
   const note = (id: string, cost: number, message: string, layers: GenLayer[]) => {
     score -= cost;
     add({ dimension: "technical", id, severity: cost > 20 ? "high" : cost > 8 ? "medium" : "low", message, layers });
   };
-  const t = bake.terrain;
-  // what is streamed at once depends on the density, what is held in memory on the total
-  const limit = Math.round(48_000 * Math.max(0.4, Math.min(1.6, (t.width * t.depth * t.cellSize * t.cellSize) / 1024 / 1024)));
-  if (s.partsEstimate > limit) note("too_many_parts", Math.min(60, 10 + (s.partsEstimate - limit) / 400), `about ${s.partsEstimate} parts, ${limit} at most`, GREEN);
-  for (const [k, b] of Object.entries(s.budgets)) if (b.max > 0 && b.trimmed > b.max * 0.35) note("budget_cut", Math.min(14, (b.trimmed / b.max) * 10), `${b.trimmed} ${k} had to be dropped to fit the budget`, GREEN);
-  const kinds = new Set(bake.placements.map((p) => `${p.prefab}/${p.variant}`)).size;
-  if (kinds > 420) note("many_models", Math.min(20, (kinds - 420) / 12), `${kinds} different models: few instances are shared`, ["buildings"]);
-  // crowding: the streaming radius of a phone holds so much
-  const cell = 128;
-  const w = Math.ceil((t.width * t.cellSize) / cell);
-  const heap = new Map<number, number>();
-  for (const p of bake.placements) {
-    const n = bake.prefabs[p.prefab]?.[p.variant]?.parts.length ?? 1;
-    const k = Math.floor((p.position[2] - t.origin[1]) / cell) * w + Math.floor((p.position[0] - t.origin[0]) / cell);
-    heap.set(k, (heap.get(k) ?? 0) + n);
-  }
-  const worst = Math.max(0, ...heap.values());
-  if (worst > 6500) note("crowded_cell", Math.min(25, (worst - 6500) / 250), `${worst} parts within 128 studs`, ["buildings"]);
+  for (const a of measureCapacity(bake).advice) note(a.id, a.level === "limit" ? 25 : 5, `${a.message}: ${a.action}`, []);
   const ids = new Set<string>();
   let twins = 0;
   for (const p of bake.placements) {

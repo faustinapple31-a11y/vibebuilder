@@ -21,6 +21,10 @@
       "World": { "$path": "out/world" },
       "Systems": { "$path": "out/systems" }
     },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "WorldChunks": { "$path": "assets/world-chunks" }
+    },
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "StarterPlayerScripts": {

@@ -31,6 +31,70 @@ const BIOME_PREFS: Record<BiomeId, { elevation: [number, number]; moisture: [num
 /** The lots of a city that goes on beyond its planned district. */
 export const URBAN_LOT = 64;
 
+/** 0 cold, 1 hot: what decides who is whose neighbour in a world of several climates. */
+const WARMTH: Partial<Record<BiomeId, number>> = { snow: 0, tundra: 0.1, pine_forest: 0.28, highlands: 0.32, rocky: 0.36, dark_forest: 0.42, forest: 0.46, mushroom_grove: 0.5, meadow: 0.54, farmland: 0.58, ruins_field: 0.6, swamp: 0.64, jungle: 0.78, savanna: 0.84, volcanic: 0.88, wasteland: 0.9, desert: 0.95 };
+
+/**
+ * The countries of a large world: provinces with ragged borders, each of one biome. The climate runs from one side of the
+ * map to the other, so snow never lies against sand; every biome gets the share it was asked for.
+ */
+function provinces(ctx: GenContext, n: Simplex2D): ((x: number, z: number) => number) | null {
+  const size = Math.min(ctx.worldW, ctx.worldD);
+  const list = ctx.spec.biomes.map((b, index) => ({ ...b, index })).filter((b) => b.id !== "beach" && b.weight > 0);
+  if (size < 2000 || list.length < 4) return null;
+  const cell = Math.max(520, size / 6);
+  const w = Math.ceil(ctx.worldW / cell) + 2;
+  const d = Math.ceil(ctx.worldD / cell) + 2;
+  const turn = (deriveSeed(ctx.seed, "climate") % 6283) / 1000;
+  const centers: { x: number; z: number; warm: number; biome: number; land: number }[] = [];
+  const slope = ctx.heights.minMax();
+  for (let j = 0; j < d; j++) for (let i = 0; i < w; i++) {
+    const h = deriveSeed(ctx.seed, `province-${i}-${j}`);
+    const x = ctx.origin[0] + (i - 0.5 + (h % 1000) / 1400) * cell;
+    const z = ctx.origin[1] + (j - 0.5 + ((h >>> 10) % 1000) / 1400) * cell;
+    const u = (x * Math.cos(turn) + z * Math.sin(turn)) / size + 0.5;
+    // the high country is colder than its latitude
+    const alt = (ctx.heights.sample(x, z) - slope[0]) / Math.max(1, slope[1] - slope[0]);
+    centers.push({ x, z, warm: u + n.noise2(x / 900, z / 900) * 0.16 - alt * 0.35, biome: 0, land: 0 });
+  }
+  const nearest = (x: number, z: number): number => {
+    const wx = x + n.fbm(x / 340 + 40, z / 340, 3) * cell * 0.34 + n.noise2(x / 70, z / 70) * 22;
+    const wz = z + n.fbm(x / 340, z / 340 - 40, 3) * cell * 0.34 + n.noise2(x / 70 + 9, z / 70) * 22;
+    const ci = Math.floor((wx - ctx.origin[0]) / cell + 0.5);
+    const cj = Math.floor((wz - ctx.origin[1]) / cell + 0.5);
+    let best = 0;
+    let bd = Infinity;
+    for (let j = Math.max(0, cj - 1); j <= Math.min(d - 1, cj + 2); j++) for (let i = Math.max(0, ci - 1); i <= Math.min(w - 1, ci + 2); i++) {
+      const c = centers[j * w + i]!;
+      const dd = (c.x - wx) ** 2 + (c.z - wz) ** 2;
+      if (dd < bd) {
+        bd = dd;
+        best = j * w + i;
+      }
+    }
+    return best;
+  };
+  // how much land each province holds
+  let total = 0;
+  const step = Math.max(8, Math.round(ctx.width / 90));
+  for (let z = 0; z < ctx.depth; z += step) for (let x = 0; x < ctx.width; x += step) {
+    if (!Number.isNaN(ctx.water.data[z * ctx.width + x]!)) continue;
+    centers[nearest(ctx.origin[0] + x * ctx.cellSize, ctx.origin[1] + z * ctx.cellSize)]!.land++;
+    total++;
+  }
+  // coldest first, each biome until it has its share
+  const order = [...list].sort((a, b) => (WARMTH[a.id] ?? 0.5) - (WARMTH[b.id] ?? 0.5));
+  const weight = order.reduce((s, b) => s + b.weight, 0);
+  let k = 0;
+  let have = 0;
+  for (const c of [...centers].sort((a, b) => a.warm - b.warm)) {
+    c.biome = order[k]!.index;
+    have += c.land;
+    while (k < order.length - 1 && have >= (total * order.slice(0, k + 1).reduce((s, b) => s + b.weight, 0)) / weight) k++;
+  }
+  return (x, z) => centers[nearest(x, z)]!.biome;
+}
+
 export function getBiomePrefs(id: BiomeId) {
   return BIOME_PREFS[id];
 }
@@ -65,6 +129,9 @@ export function generateBiomes(ctx: GenContext): void {
   const range = Math.max(1, maxH - minH);
   const slope = ctx.heights.slopeGrid();
   const transition = ctx.style.biomeTransition;
+  // a biome is a country of its own on a large world, not a patch
+  const stretch = Math.max(1, Math.min(4, Math.max(ctx.worldW, ctx.worldD) / 1400));
+  const span = 260 * stretch;
   const biomes = spec.biomes.map((b, i) => ({ ...b, prefs: BIOME_PREFS[b.id], index: i, noiseOffset: i * 37.1 }));
   const snowLine = ctx.style.environment.snowLine;
   const sea = seaLevelOf(spec);
@@ -90,7 +157,7 @@ export function generateBiomes(ctx: GenContext): void {
       const mo = b.moisture ?? b.prefs.moisture;
       const fitE = bandFit(h, el, 0.15 + transition * 0.2);
       const fitM = bandFit(m, mo, 0.2 + transition * 0.2);
-      const noise = (n.fbm(wx / 260 + b.noiseOffset, wz / 260 - b.noiseOffset, 3) + 1) * 0.5;
+      const noise = (n.fbm(wx / span + b.noiseOffset, wz / span - b.noiseOffset, 3) + 1) * 0.5;
       const score = bias[b.index]! * (0.3 + b.weight * 0.9) * (0.4 + fitE) * (0.4 + fitM) * (0.55 + noise * 0.9);
       if (score > bestScore) {
         bestScore = score;
@@ -99,8 +166,9 @@ export function generateBiomes(ctx: GenContext): void {
     }
     return best;
   };
+  const country = provinces(ctx, n);
   // calibration: sample the grid, compare the shares with the requested weights, nudge the biases
-  if (biomes.length > 1) {
+  if (biomes.length > 1 && !country) {
     const stride = Math.max(1, Math.round(Math.min(width, depth) / 48));
     const totalWeight = biomes.reduce((a, b) => a + b.weight, 0) || 1;
     for (let pass = 0; pass < 10; pass++) {
@@ -133,7 +201,7 @@ export function generateBiomes(ctx: GenContext): void {
       const wz = origin[1] + z * cellSize;
       const h = (ctx.heights.data[i]! - minH) / range;
       const wd = ctx.waterDistance.data[i]!;
-      const best = pick(i, wx, wz);
+      const best = country ? country(wx, wz) : pick(i, wx, wz);
       ctx.biomes[i] = best;
 
       // materials
