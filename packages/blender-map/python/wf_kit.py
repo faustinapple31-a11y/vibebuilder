@@ -3,7 +3,8 @@ import random
 from wf_mesh import DETAIL, lin
 from wf_flora import FLORA, outcrop
 from wf_arch import ARCH
-from wf_props import PROPS, from_parts
+from wf_props import PROPS
+import wf_sense
 import wf_build
 from wf_families import FAMILIES, WORN
 try:
@@ -11,7 +12,7 @@ try:
 except ImportError:
     PLACES = {}
 
-KIT_VERSION = 6
+KIT_VERSION = 7
 HOUSES = ("house", "house_large", "shop_building", "cottage", "chalet", "manor")
 SCATTER = {"meadow_grass": FLORA["grass"], "meadow_fern": FLORA["fern"], "meadow_pebble": FLORA["stone"], "meadow_outcrop": outcrop}
 TREES = ("round_tree", "birch", "pine_tree", "snow_pine", "dead_tree", "willow", "palm", "jungle_tree", "cherry_tree", "acacia", "baobab", "cypress", "burnt_tree", "bamboo", "alien_tree", "giant_mushroom", "candy_tree", "giant_tree")
@@ -46,7 +47,7 @@ def make(entry, plan, build, level=0):
         if entry["prefab"] in build:
             fn = build[entry["prefab"]]
             return (fn(rng, pal, size, entry["variant"], entry) if getattr(fn, "wants_entry", False) else fn(rng, pal, size, entry["variant"])), False
-        return from_parts(rng, entry["parts"]), True
+        return wf_sense.build(rng, pal, entry), True
     finally:
         DETAIL.set(0)
 

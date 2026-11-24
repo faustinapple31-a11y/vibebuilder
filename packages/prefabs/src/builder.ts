@@ -16,6 +16,7 @@ import {
   type PartLight,
   type PartBillboard,
   type PrefabCategory,
+  type PrefabModule,
   type PrefabVariant,
   type RobloxMaterial,
   type Rng,
@@ -77,6 +78,15 @@ export const v3 = {
 export class PartListBuilder {
   readonly parts: Part[] = [];
   readonly meshes: Record<string, MeshData> = {};
+  readonly modules: PrefabModule[] = [];
+
+  /** Names what the parts added by `fn` are, for the builders that can model it. */
+  module(kind: string, data: PrefabModule["data"], fn: () => void): this {
+    const from = this.parts.length;
+    fn();
+    this.modules.push({ kind, from, to: this.parts.length, data });
+    return this;
+  }
 
   /**
    * Procedural mesh part: `data` is centred on its bounds centre (see MeshBuilder), `position` is the
@@ -324,6 +334,7 @@ export class PartListBuilder {
       baseRadius: Math.min(baseRadius, footprint * 1.05),
       tags: input.tags ?? [],
       ...(meshKeys.length ? { meshes: this.meshes } : {}),
+      ...(this.modules.length ? { modules: this.modules } : {}),
     };
   }
 }

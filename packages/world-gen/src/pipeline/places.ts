@@ -1,4 +1,4 @@
-import { Rng, deriveSeed, mixHex, type Placement, type Vec2 } from "@worldforge/core";
+import { Rng, deriveSeed, mixHex, type Placement, type PrefabVariant, type Vec2 } from "@worldforge/core";
 import { PartListBuilder } from "@worldforge/prefabs";
 import { baseRelief, biomeAt, distanceToEdge, inBounds, isWaterAt, layerFor, progress, type GenContext } from "../context";
 import { facilityKit } from "./facilities";
@@ -81,6 +81,16 @@ const PLACES: PlaceDef[] = [
 
 /** Prefabs the places are dressed with. */
 export const PLACE_PROPS = [...new Set(PLACES.flatMap((p) => p.props.map((q) => q[0])))];
+
+/** Every place in a style, for the model sheets. */
+export function placeLibrary(style: GenContext["style"], seed: number): PrefabVariant[] {
+  const kit = facilityKit({ style }, new Rng(seed));
+  return PLACES.map((p) => {
+    const b = new PartListBuilder();
+    p.build?.(b, kit);
+    return b.build({ id: `place_${p.id}/0`, prefab: `place_${p.id}`, category: "building", sinkDepth: 0.3, tags: ["layout"] });
+  });
+}
 
 export function placePlaces(ctx: GenContext): void {
   const design = ctx.spec.design;

@@ -24,6 +24,8 @@ export interface KitEntry {
   /** Colliding boxes of the layout: centre, size, rotation in degrees (Roblox axes). */
   boxes: { c: number[]; s: number[]; r: number[] }[];
   /** The layout's own shapes, for what has no builder yet. */
+  /** Runs of `parts` whose meaning is known: the kit models these instead. */
+  modules?: { kind: string; from: number; to: number; data: Record<string, number | string | boolean> }[];
   parts: { shape: string; position: number[]; size: number[]; rotation: number[]; color: string; material: string; transparency: number; name?: string }[];
   uses: number;
 }
@@ -85,7 +87,7 @@ export interface PlanFiles {
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-function kitEntry(v: PrefabVariant, prefab: string, variant: number): KitEntry {
+export function kitEntry(v: PrefabVariant, prefab: string, variant: number): KitEntry {
   return {
     key: `${prefab}_${variant}`,
     prefab,
@@ -97,6 +99,7 @@ function kitEntry(v: PrefabVariant, prefab: string, variant: number): KitEntry {
     sink: r2(v.sinkDepth),
     boxes: v.parts.filter((p) => p.collide !== false && p.shape !== "sphere" && p.shape !== "mesh").map((p) => ({ c: p.position.map(r2), s: p.size.map(r2), r: p.rotation.map(r2) })),
     parts: v.parts.map((p) => ({ shape: p.shape, position: p.position.map(r2), size: p.size.map(r2), rotation: p.rotation.map(r2), color: p.color, material: p.material, transparency: p.transparency ?? 0, ...(p.name ? { name: p.name } : {}) })),
+    ...(v.modules ? { modules: v.modules.map(({ kind, from, to, data }) => ({ kind, from, to, data })) } : {}),
     uses: 0,
   };
 }

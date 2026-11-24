@@ -194,6 +194,15 @@ export interface PrefabMeshSource {
   nativeSize?: Vec3;
 }
 
+/** What a run of parts means: a hall, a colonnade, a sign. The Blender kit models the meaning instead of the parts. */
+export interface PrefabModule {
+  kind: string;
+  /** Index of the first part and of the one after the last. */
+  from: number;
+  to: number;
+  data: Record<string, number | string | boolean>;
+}
+
 export interface PrefabVariant {
   /** e.g. "pine_tree/03" */
   id: string;
@@ -213,6 +222,7 @@ export interface PrefabVariant {
    */
   baseRadius?: number;
   tags: string[];
+  modules?: PrefabModule[];
   source?: PrefabMeshSource;
   /** Procedural meshes referenced by parts of shape "mesh". */
   meshes?: Record<string, MeshData>;
