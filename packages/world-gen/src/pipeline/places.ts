@@ -208,7 +208,7 @@ export function placePlaces(ctx: GenContext): void {
       // (forward is -Z of the place, side its +X)
       const x = p[0] - fwd[0] * f + Math.cos(yaw) * s;
       const z = p[1] - fwd[1] * f - Math.sin(yaw) * s;
-      if (isWaterAt(ctx, x, z) || baseRelief(ctx, x, z, 2) > 3.2 || (ctx.plateau && Math.abs(ctx.plateau.sample(x, z) - ctx.plateau.sample(p[0], p[1])) > 0.1)) continue;
+      if (isWaterAt(ctx, x, z) || baseRelief(ctx, x, z, /wall|arch/.test(prop) ? 6 : 2) > (/wall|arch/.test(prop) ? 2.4 : 3.2) || (ctx.plateau && Math.abs(ctx.plateau.sample(x, z) - ctx.plateau.sample(p[0], p[1])) > 0.1)) continue;
       const vi = rng.int(0, vs.length - 1);
       ctx.placements.push({ id: `dress_${zone}_${prop}_${f}_${s}`, prefab: prop, variant: vi, category: vs[vi]!.category, position: [x, ctx.heights.sample(x, z), z], rotationY: yaw + (turn * Math.PI) / 180, scale: 1, layer: layerFor(ctx, x, z, false), zone, importance: 6 });
     }

@@ -95,7 +95,9 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   const environment = design?.environment ?? "";
   const town = design ? environment === "urban" || (environment === "industrial" && design.density === "very_dense") : ["modern_city", "cyberpunk"].includes(bake.meta.stylePreset);
   const bare = ["desert", "arctic", "space", "alien", "volcanic", "underwater", "underground", "industrial", "military", "scientific", "abstract"].includes(environment);
-  const arena = design?.scale === "arena";
+  // islands are judged as islands: no range, no long road, no forest mass to find on them
+  const isles = design?.scale === "archipelago";
+  const arena = design?.scale === "arena" || isles;
   const wild = design !== undefined && ["sparse", "open", "wilderness"].includes(design.density);
 
   // ---------------------------------------------------------------- from the air
@@ -188,7 +190,7 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   note("aerial", "noisy_ground", scores.calm, `gentle ground is bumpy: ${metrics.bumpiness.toFixed(2)} studs every 12 studs`);
   const ranges = regions(steep, f.w, f.d);
   metrics.rangeShare = steepN ? ranges.filter((n) => n >= 12).reduce((a, b) => a + b, 0) / steepN : 1;
-  scores.ranges = steepN < 20 ? 1 : clamp((metrics.rangeShare - 0.3) / 0.45);
+  scores.ranges = steepN < 20 || isles ? 1 : clamp((metrics.rangeShare - 0.3) / 0.45);
   note("aerial", "isolated_rocks", scores.ranges, `${Math.round((1 - metrics.rangeShare) * 100)}% of the steep ground is isolated bumps, not ranges`);
   // borders: does the world close?
   let closed = 0;

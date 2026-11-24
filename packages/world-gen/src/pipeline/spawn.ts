@@ -170,8 +170,19 @@ export function clearViewAxis(ctx: GenContext): void {
       const a = Math.atan2(p.position[2] - sz, p.position[0] - sx) - heading;
       return d > reach || Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > 0.14;
     }
-    if (p.category !== "vegetation" || p.locked || p.fixed) return true;
+    if ((p.category !== "vegetation" && p.category !== "rock") || p.locked || p.fixed) return true;
     const d = Math.hypot(p.position[0] - sx, p.position[2] - sz);
+    // right in front of the camera nothing stands above the eyes, trunk or boulder (what frames the view is further aside)
+    if (d < 66) {
+      const v = ctx.prefabs[p.prefab]?.[p.variant] ?? ctx.prefabs[p.prefab]?.[0];
+      const off = Math.atan2(p.position[2] - sz, p.position[0] - sx) - heading;
+      const wide = v ? Math.atan2(v.footprintRadius * p.scale * 0.7, Math.max(4, d)) : 0;
+      if (v && p.position[1] + v.bounds.max[1] * p.scale > sy + 5 && Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < 0.36 + wide) {
+        if (low && p.category === "vegetation") replacements.push({ ...p, id: `${p.id}_low`, prefab: low, variant: 0, scale: 1, layer: "foreground" });
+        return false;
+      }
+    }
+    if (p.category !== "vegetation") return true;
     if (d < 30 || d > farReach) return true;
     const a = Math.atan2(p.position[2] - sz, p.position[0] - sx) - heading;
     // past the near cone only a narrow line stays open: one tree far off must not hide the target

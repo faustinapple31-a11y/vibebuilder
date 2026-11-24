@@ -169,7 +169,9 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
       const kinds = new Set(districts.map((d) => d.function));
       if (kinds.size < 3) flag("urban", "few_districts", "low", 10, `only ${kinds.size} different district functions`);
     }
-    const covered = parcels.length / all.length;
+    // a ruin in the woods has no plot, a house does
+    const housed = all.filter((f) => /^(house|cottage|shop|apartment|skyscraper)/.test(f.p.prefab)).length;
+    const covered = parcels.length / Math.max(1, housed);
     metrics.parcels = parcels.length;
     if (covered < 0.6) flag("urban", "no_parcels", "medium", 18 * (1 - covered), `${Math.round((1 - clamp(covered, 0, 1)) * 100)}% of the buildings have no plot of their own`);
     for (const s of settlements) {
@@ -273,9 +275,12 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
   metrics.steepRoad = segments ? steep / segments : 0;
   if (metrics.steepRoad > 0.06) flag("roads", "steep_roads", "medium", (metrics.steepRoad - 0.06) * 260, `${Math.round(metrics.steepRoad * 100)}% of the road length climbs more than 31°`);
   // a road end must meet another road, a settlement, a landmark, the spawn or the border
+  // a path that ends at a bridge or a flight of stairs goes on over it
+  const spans = bake.placements.filter((p) => /bridge|stairs/.test(p.prefab)).map((p) => ({ x: p.position[0], z: p.position[2], r: ((bake.prefabs[p.prefab]?.[p.variant]?.bounds.max[0] ?? 10) * p.scale) + 22 }));
   let dead = 0;
   for (const e of ends) {
     const meets =
+      spans.some((s) => Math.hypot(s.x - e.p[0], s.z - e.p[1]) < s.r) ||
       roads.some((r) => r.id !== e.road && r.points.some((q) => Math.hypot(q[0] - e.p[0], q[1] - e.p[1]) < 14)) ||
       bake.zones.some((z) => (z.kind === "settlement" || z.kind === "landmark" || z.kind === "spawn" || z.kind === "gameplay") && Math.hypot(z.center[0] - e.p[0], z.center[1] - e.p[1]) < z.radius + 18) ||
       e.p[0] < t.origin[0] + 60 || e.p[1] < t.origin[1] + 60 || e.p[0] > t.origin[0] + t.width * t.cellSize - 60 || e.p[1] > t.origin[1] + t.depth * t.cellSize - 60;
@@ -296,7 +301,7 @@ export function reviewLevelDesign(bake: WorldBake, weights: Partial<Record<Level
   if (view.openness < 0.6) flag("player", "view_blocked", "high", 30, `the first view is ${Math.round(view.openness * 100)}% open`);
   if (!view.targetVisible) flag("player", "target_hidden", "medium", 16, `the spawn faces a target hidden by ${view.targetBlocker}`);
   if (view.focalAngle !== undefined && view.focalAngle < 8) flag("player", "focal_small", "medium", 14, `the focal stands ${view.focalAngle.toFixed(1)}° tall in the first view`);
-  const pois = [...bake.landmarks.map((l) => ({ id: l.id, x: l.position[0], z: l.position[2], r: 34 })), ...settlements.map((s) => ({ id: s.id, x: s.center[0], z: s.center[1], r: s.radius }))];
+  const pois = [...bake.landmarks.filter((l) => l.role !== "hidden").map((l) => ({ id: l.id, x: l.position[0], z: l.position[2], r: 34 })), ...settlements.map((s) => ({ id: s.id, x: s.center[0], z: s.center[1], r: s.radius }))];
   for (const p of pois) {
     const d = roadDistance(p.x, p.z).d;
     if (d > p.r + 25) flag("player", "poi_unreached", "medium", 12 * among(pois.length, 8), `no path leads to "${p.id}" (${Math.round(d)} studs away)`, { position: [p.x, p.z], fix: { type: "connect", zone: p.id, from: [p.x, p.z] } });

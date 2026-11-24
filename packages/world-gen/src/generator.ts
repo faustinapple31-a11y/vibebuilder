@@ -499,11 +499,17 @@ function openFirstView(ctx: GenContext): void {
     const v = ctx.prefabs[p.prefab]![p.variant]!;
     return { x: p.position[0], z: p.position[2], hx: ((v.bounds.max[0] - v.bounds.min[0]) / 2) * p.scale, hz: ((v.bounds.max[2] - v.bounds.min[2]) / 2) * p.scale, cos: Math.cos(p.rotationY), sin: Math.sin(p.rotationY) };
   });
-  if (walls.length < 12) return;
+  if (ctx.sites.length === 0 || ctx.islands) return;
   const free = (x: number, z: number, a: number, max: number): number => {
     const dx = Math.cos(a);
     const dz = Math.sin(a);
     let best = max;
+    // the ground itself: a bank in front of the eyes is a wall too
+    const eye = ctx.heights.sample(x, z) + 6;
+    for (let d = 8; d < max; d += 6) if (ctx.heights.sample(x + dx * d, z + dz * d) > eye) {
+      best = d;
+      break;
+    }
     for (const b of walls) {
       if (Math.hypot(b.x - x, b.z - z) > max + b.hx + b.hz) continue;
       const ox = (x - b.x) * b.cos - (z - b.z) * b.sin;
@@ -531,7 +537,9 @@ function openFirstView(ctx: GenContext): void {
   const now = mean(cone(sx, sz, Math.atan2(ctx.spawn.lookAt[2] - sz, ctx.spawn.lookAt[0] - sx)));
   if (now > 0.82) return;
   const focal = ctx.landmarks.find((l) => l.role === "focal");
-  let best: { x: number; z: number; a: number; v: number; far: number } | null = null;
+  // how far the landmark still stands nine degrees tall, and out of the haze
+  const reads = focal ? Math.min(400, (LANDMARK_PREFAB[focal.type].height * focal.scale) / 0.16) : 0;
+  let best: { x: number; z: number; a: number; v: number; focal: boolean } | null = null;
   const site = [...ctx.sites].sort((p, q) => Math.hypot(p.center[0] - sx, p.center[1] - sz) - Math.hypot(q.center[0] - sx, q.center[1] - sz))[0]!;
   for (const road of ctx.paths) {
     if (road.kind !== "road" || road.width < 5) continue;
@@ -547,17 +555,26 @@ function openFirstView(ctx: GenContext): void {
         if (focal) {
           const off = Math.atan2(focal.position[2] - z, focal.position[0] - x) - a;
           const d = Math.hypot(focal.position[0] - x, focal.position[2] - z);
-          if (Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < 0.4 && d < 620) v += (k === 2 ? 0.7 : 0.45) - Math.abs(d - 300) / 1500;
+          if (Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < 0.4 && d < reads) v += (k === 2 ? 0.9 : 0.45) - Math.abs(d - reads * 0.6) / 1200;
+          else if (k === 2) v -= 0.6;
         }
-        if (!best || v > best.v) best = { x, z, a, v, far: free(x, z, a, 300) };
+        // turning one's back on the landmark of the map is a last resort
+        if (focal && k < 2) v -= 0.5;
+        if (!best || v > best.v) best = { x, z, a, v, focal: k === 2 };
       });
     }
   }
-  const b = best as { x: number; z: number; a: number; v: number; far: number } | null;
+  const b = best as { x: number; z: number; a: number; v: number; focal: boolean } | null;
   if (!b || b.v < now + 0.15) return;
   const y = ctx.heights.sample(b.x, b.z);
   const reach = focal ? Math.min(300, Math.hypot(focal.position[0] - b.x, focal.position[2] - b.z)) : 160;
-  ctx.spawn = { position: [b.x, y + 3, b.z], lookAt: [b.x + Math.cos(b.a) * reach, y + 8, b.z + Math.sin(b.a) * reach] };
+  ctx.spawn = b.focal && focal ? { position: [b.x, y + 3, b.z], lookAt: [focal.position[0], focal.position[1], focal.position[2]] } : { position: [b.x, y + 3, b.z], lookAt: [b.x + Math.cos(b.a) * reach, y + 8, b.z + Math.sin(b.a) * reach] };
+  // what looked at the player still does
+  for (const p of ctx.placements) {
+    if (p.category !== "landmark" || p.locked) continue;
+    const was = Math.atan2(-(sx - p.position[0]), -(sz - p.position[2])) - p.rotationY;
+    if (Math.abs(Math.atan2(Math.sin(was), Math.cos(was))) < 0.15) p.rotationY = Math.atan2(-(b.x - p.position[0]), -(b.z - p.position[2]));
+  }
   const zone = ctx.zones.find((q) => q.kind === "spawn");
   if (zone) zone.center = [b.x, b.z];
 }

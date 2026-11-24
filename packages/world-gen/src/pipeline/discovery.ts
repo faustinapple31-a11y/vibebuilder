@@ -45,6 +45,8 @@ export function placeDiscoveries(ctx: GenContext): void {
   const add = (prefab: string, x: number, z: number, rotationY: number, zone: string, scale = 1): Placement | undefined => {
     const variants = ctx.prefabs[prefab];
     if (!variants?.length || isWaterAt(ctx, x, z)) return undefined;
+    // a wall stands on ground that is level under its whole length
+    if (/wall|arch/.test(prefab) && baseRelief(ctx, x, z, 6 * scale) > 2.4) return undefined;
     const vi = rng.int(0, variants.length - 1);
     const p: Placement = { id: `dress_find_${n++}`, prefab, variant: vi, category: variants[vi]!.category, position: [x, ctx.heights.sample(x, z), z], rotationY, scale, layer: layerFor(ctx, x, z, false), zone, importance: 9 };
     ctx.placements.push(p);
@@ -109,7 +111,7 @@ export function placeDiscoveries(ctx: GenContext): void {
     if (tale === 0) {
       add("treasure_chest", spot.x, spot.z, a, zone);
       around("torch_post", 0, 4.5);
-      for (let i = 0; i < 3; i++) around(i === 0 ? "boulder" : "ruin_wall", Math.PI * 0.6 + i * 1.25, 12, i === 0 ? 1.2 : 0.8);
+      for (let i = 0; i < 3; i++) around(i === 0 ? "boulder" : "ruin_wall", Math.PI * 0.5 + i * 1.6, 13, i === 0 ? 1.2 : 0.8);
     } else if (tale === 1) {
       add("campfire", spot.x, spot.z, a, zone);
       around("log", 0.3, 6);
@@ -122,7 +124,7 @@ export function placeDiscoveries(ctx: GenContext): void {
       add("treasure_chest", spot.x, spot.z, a, zone);
     } else {
       around("ruin_arch", 0, 8, 0.9);
-      for (let i = 0; i < 2; i++) around("ruin_wall", 2 + i * 1.6, 10, 0.8);
+      for (let i = 0; i < 2; i++) around("ruin_wall", 2 + i * 2, 13, 0.8);
       add("treasure_chest", spot.x, spot.z, a, zone);
     }
     ctx.occupants.push({ position: [spot.x, ctx.heights.sample(spot.x, spot.z), spot.z], radius: 11, kind: "keep" });

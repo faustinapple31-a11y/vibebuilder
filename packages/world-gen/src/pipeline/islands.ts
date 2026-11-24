@@ -114,6 +114,17 @@ export function connectIslands(ctx: GenContext, rng: Rng): void {
     }
   }
 
+  // --- what is worth the crossing has a way to it too
+  for (const l of ctx.landmarks) {
+    if (l.role === "hidden" || !isLand([l.position[0], l.position[2]])) continue;
+    const isl = [...islands].sort((a, b) => Math.hypot(a.center[0] - l.position[0], a.center[1] - l.position[2]) - Math.hypot(b.center[0] - l.position[0], b.center[1] - l.position[2]))[0]!;
+    const foot = (ctx.occupants.find((o) => o.kind === "landmark" && Math.hypot(o.position[0] - l.position[0], o.position[2] - l.position[2]) < 1)?.radius ?? 20) + 8;
+    const level = Math.round(levelAt([l.position[0], l.position[2]]));
+    const doors = Array.from({ length: 12 }, (_, k): Vec2 => [l.position[0] + Math.cos(k * 0.5236) * foot, l.position[2] + Math.sin(k * 0.5236) * foot]).filter((q) => Math.round(levelAt(q)) === level);
+    const door = doors.sort((a, b) => Math.hypot(a[0] - isl.center[0], a[1] - isl.center[1]) - Math.hypot(b[0] - isl.center[0], b[1] - isl.center[1]))[0];
+    if (door) landings.push({ island: isl, point: door });
+  }
+
   // --- paths: every landing joins the island's existing paths / site (same plateau level: the router
   // cannot climb cliffs, stairs and bridges are the only level changes)
   let p = 0;
