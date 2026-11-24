@@ -1,4 +1,5 @@
-import { Rng, deriveSeed, smoothstep, type BiomeId, type Placement, type PrefabVariant, type PropKit, type VegetationSpecies } from "@worldforge/core";
+import { URBAN_LOT } from "./biomes";
+import { Rng, deriveSeed, smoothstep, type BiomeId, type Placement, type PrefabVariant, type PropKit, type VegetationSpecies, type Vec2 } from "@worldforge/core";
 import { PROP_KIT_PREFABS, VEGETATION_KIT_SPECIES } from "@worldforge/prefabs";
 import { biomeAt, distanceToEdge, inBounds, isWaterAt, layerFor, progress, settleOnGround, slopeAtWorld, type GenContext } from "../context";
 import { SpatialHash } from "../grid";
@@ -312,13 +313,21 @@ function placeHorizon(ctx: GenContext, rng: Rng, add: Add): void {
     const [px, , pz] = ctx.spawn.position;
     const view = Math.atan2(ctx.spawn.lookAt[2] - pz, ctx.spawn.lookAt[0] - px);
     const blocks = ["apartment_block", "skyscraper"].filter((id) => ctx.prefabs[id]?.length);
-    for (let r = site.radius + 50; r < Math.max(ctx.worldW, ctx.worldD) * 0.7 && towers < 64; r += 58) {
-      const count = Math.floor((r * Math.PI * 2) / 58);
-      for (let i = 0; i < count && towers < 64; i++) {
-        if (!rng.chance(0.62)) continue;
-        const a = (i / count) * Math.PI * 2 + rng.float(-0.05, 0.05);
-        const x = site.center[0] + Math.cos(a) * r;
-        const z = site.center[1] + Math.sin(a) * r;
+    // on the lots the ground is cut into, nearest first
+    const lots: Vec2[] = [];
+    const reach = Math.max(ctx.worldW, ctx.worldD) / 2;
+    const around = (q: Vec2) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]);
+    for (let i = -Math.ceil(reach / URBAN_LOT); i <= reach / URBAN_LOT; i++) {
+      for (let j = -Math.ceil(reach / URBAN_LOT); j <= reach / URBAN_LOT; j++) {
+        const q: Vec2 = [(i + 0.5) * URBAN_LOT + 5.5, (j + 0.5) * URBAN_LOT + 5.5];
+        if (around(q) > site.radius + 34) lots.push(q);
+      }
+    }
+    lots.sort((p, q) => around(p) - around(q));
+    {
+      for (const [x, z] of lots) {
+        if (towers >= 72) break;
+        if (!rng.chance(0.8)) continue;
         const d = Math.hypot(x - px, z - pz);
         const off = Math.atan2(z - pz, x - px) - view;
         if (d < 110 || Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < 0.35) continue;

@@ -2,6 +2,7 @@ import { TERRAIN_MATERIAL_INDEX, deriveSeed, mixHex, type Placement, type Prefab
 import { Rng } from "@worldforge/core";
 import { PartListBuilder } from "@worldforge/prefabs";
 import { inBounds, layerFor, progress, slopeAtWorld, type GenContext } from "../context";
+import { circuit, defensePath, laneArena, rounded } from "./layout-play";
 import { carveRoad, refreshRoadDistance } from "./roads";
 import { flattenArea } from "./sites";
 
@@ -62,10 +63,12 @@ export function placeLayout(ctx: GenContext): void {
       obbyCourse(api, layout.count, layout.intensity, extent);
       break;
     case "arena":
-      arena(api, center, Math.min(extent, 90), layout.count, layout.intensity);
+      // shooters fight over lanes; duels and gladiators keep the ring
+      if (spec.design?.camera === "first_person") laneArena(api, center, Math.max(90, Math.min(extent, 118)), layout.count, layout.intensity);
+      else arena(api, center, Math.min(extent, 90), layout.count, layout.intensity);
       break;
     case "race_track":
-      raceTrack(api, center, extent, layout.count);
+      circuit(api, center, extent, layout.count);
       break;
     case "tycoon_plots":
       tycoonPlots(api, center, extent, layout.count);
@@ -93,7 +96,7 @@ export function placeLayout(ctx: GenContext): void {
   progress(ctx, "layout:done", 1);
 }
 
-interface LayoutApi {
+export interface LayoutApi {
   ctx: GenContext;
   rng: Rng;
   accent: string;
@@ -121,11 +124,11 @@ function layoutCenter(ctx: GenContext, position?: [number, number]): Vec2 {
   return [x, z];
 }
 
-function ground(ctx: GenContext, x: number, z: number): number {
+export function ground(ctx: GenContext, x: number, z: number): number {
   return ctx.heights.sample(x, z);
 }
 
-function build(b: PartListBuilder, id: string, category: PrefabVariant["category"] = "building"): PrefabVariant {
+export function build(b: PartListBuilder, id: string, category: PrefabVariant["category"] = "building"): PrefabVariant {
   return b.build({ id, prefab: id, category, sinkDepth: 0, tags: ["layout"] });
 }
 
@@ -140,7 +143,12 @@ function obbyCourse(api: LayoutApi, stages: number, intensity: number, extent: n
   let z = sp[2] + Math.sin(heading) * 30;
   let y = ground(ctx, x, z) + 4;
   const palette = ["#e05050", "#e0a040", "#e0e050", "#60d060", "#40b0e0", "#8060e0", "#e060c0"];
-  const gap = 5 + intensity * 7;
+  // a jump is a share of what a Roblox character can do, rise included; never past it
+  const share = 0.42 + intensity * 0.4;
+  const reach = (rise: number) => (16 * (53.15 + Math.sqrt(Math.max(0, 2825 - 392.4 * rise)))) / 196.2 + 1;
+  let prev = { heading, len: 16, w: 16 };
+  /** Half the previous platform, seen along the way out of it. */
+  const halfAlong = () => Math.min(prev.len / 2 / Math.max(1e-6, Math.abs(Math.cos(heading - prev.heading))), prev.w / 2 / Math.max(1e-6, Math.abs(Math.sin(heading - prev.heading))));
   const stepsPerStage = 3 + Math.round(intensity * 3);
   const totalLen = stages * stepsPerStage;
   const turnEvery = 6;
@@ -185,11 +193,12 @@ function obbyCourse(api: LayoutApi, stages: number, intensity: number, extent: n
       const kind = rng.next();
       const len = kind < 0.25 ? 14 : 8;
       const w = kind < 0.25 ? 3 : kind < 0.5 ? 6 : 8;
-      x += Math.cos(heading) * (len / 2 + gap + 4);
-      z += Math.sin(heading) * (len / 2 + gap + 4);
-      y += rng.float(1.5, 3.5 + intensity * 2);
-      const gY = groundMax(x, z, len / 2);
-      if (y < gY + 3) y = gY + 3;
+      const rise = rng.float(1, 2.6 + intensity * 2.6);
+      const step = halfAlong() + reach(rise) * share + len / 2;
+      x += Math.cos(heading) * step;
+      z += Math.sin(heading) * step;
+      prev = { heading, len, w };
+      y += rise;
       const pb = new PartListBuilder();
       pb.box([0, -0.75, 0], [w, 1.5, len], col, { material: "SmoothPlastic", collide: true, lod: 2 });
       if (kind > 0.75) {
@@ -200,11 +209,11 @@ function obbyCourse(api: LayoutApi, stages: number, intensity: number, extent: n
       api.place("obby_step", build(pb, "obby_step"), [x, y, z], -heading + Math.PI / 2, undefined, undefined, Math.max(w, len) * 0.6);
     }
     steer();
-    x += Math.cos(heading) * (gap + 14);
-    z += Math.sin(heading) * (gap + 14);
+    const out = halfAlong() + reach(2) * share + 8;
+    x += Math.cos(heading) * out;
+    z += Math.sin(heading) * out;
     y += 2;
-    const gY = groundMax(x, z, 9);
-    if (y < gY + 3) y = gY + 3;
+    prev = { heading: 0, len: 16, w: 16 };
     void totalLen;
     void extent;
   }
@@ -250,41 +259,6 @@ function arena(api: LayoutApi, c: Vec2, R: number, covers: number, intensity: nu
   api.place("arena_center", build(cb, "arena_center"), [c[0], base, c[1]], 0, "arena_center", { kind: "capture_point" }, 7);
   ctx.spawn = { position: [c[0] + Math.cos(Math.PI / 2) * (R + 22), base + 3, c[1] + Math.sin(Math.PI / 2) * (R + 22)], lookAt: [c[0], base + 3, c[1]] };
   api.zone("arena", c[0], c[1], R, { kind: "arena" }, base);
-}
-
-// ------------------------------------------------------------------ race track
-function raceTrack(api: LayoutApi, c: Vec2, extent: number, checkpoints: number): void {
-  const { ctx, rng, accent, glow } = api;
-  const rx = Math.max(60, extent);
-  const rz = Math.max(45, extent * 0.65);
-  const n = 64;
-  const pts: Vec2[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2;
-    const wob = 1 + Math.sin(a * 3 + 1.3) * 0.12 + Math.cos(a * 2) * 0.08;
-    pts.push([c[0] + Math.cos(a) * rx * wob, c[1] + Math.sin(a) * rz * wob]);
-  }
-  pts.push(pts[0]!);
-  const type = ctx.style.kits.road === "asphalt_road" || ctx.style.kits.road === "neon_road" || ctx.style.kits.road === "concrete_road" ? ctx.style.kits.road : "asphalt_road";
-  ctx.paths.push({ id: "race_track", kind: "road", type, points: pts, width: 22 });
-  carveRoad(ctx, pts, 22, type);
-  // checkpoint gates
-  for (let k = 0; k < checkpoints; k++) {
-    const i = Math.floor((k / checkpoints) * n);
-    const p = pts[i]!;
-    const q = pts[(i + 1) % n]!;
-    const heading = Math.atan2(q[1] - p[1], q[0] - p[0]);
-    const y = ground(ctx, p[0], p[1]);
-    const b = new PartListBuilder();
-    const start = k === 0;
-    for (const sx of [-1, 1]) b.box([sx * 13, 6, 0], [1.4, 12, 1.4], start ? "#f4f4f0" : accent, { material: "Metal", collide: true, lod: 1 });
-    b.box([0, 12.4, 0], [28, 1.4, 1.4], start ? "#f4f4f0" : accent, { material: "Metal", collide: true, lod: 1 });
-    b.box([0, 10.6, 0], [26, 2, 0.3], start ? "#202020" : glow, { material: "Neon", collide: false, lod: 1, light: { type: "point", color: glow, brightness: 1, range: 24 } });
-    if (start) for (let i2 = 0; i2 < 12; i2++) b.box([-11 + i2 * 2, 0.15, 0], [2, 0.3, 4], i2 % 2 ? "#ffffff" : "#202020", { material: "SmoothPlastic", collide: false, lod: 0 });
-    api.place("race_gate", build(b, "race_gate"), [p[0], y, p[1]], -heading + Math.PI / 2, start ? "race_start" : `race_cp_${k}`, { index: k, kind: start ? "start" : "checkpoint" }, 4);
-    if (start) ctx.spawn = { position: [p[0] - Math.cos(heading) * 12, y + 3, p[1] - Math.sin(heading) * 12], lookAt: [q[0], y + 3, q[1]] };
-  }
-  api.zone("race_track", c[0], c[1], Math.max(rx, rz), { kind: "track", laps: 3 });
 }
 
 // ------------------------------------------------------------------ tycoon plots
@@ -365,23 +339,17 @@ function lobbyPortals(api: LayoutApi, c: Vec2, portals: number): void {
 
 // ------------------------------------------------------------------ tower defense path
 function baseDefense(api: LayoutApi, c: Vec2, extent: number, waypoints: number, intensity: number): void {
-  const { ctx, rng, accent, glow, stone } = api;
+  const { ctx, accent, glow, stone } = api;
   const R = Math.max(80, extent);
-  // winding path from the far side of the layout area to the base at the centre
-  const startA = rng.float(0, Math.PI * 2);
-  const pts: Vec2[] = [];
-  const n = Math.max(6, waypoints);
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const r = R * (1 - t) + 14 * t;
-    const a = startA + t * (1.5 + intensity * 2.5) * Math.PI + Math.sin(t * 9) * 0.25;
-    pts.push([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]);
-  }
-  const smooth: Vec2[] = [];
-  for (let i = 0; i < pts.length - 1; i++) for (let k = 0; k < 6; k++) smooth.push([pts[i]![0] + (pts[i + 1]![0] - pts[i]![0]) * (k / 6), pts[i]![1] + (pts[i + 1]![1] - pts[i]![1]) * (k / 6)]);
-  smooth.push(pts[pts.length - 1]!);
+  const soil = Uint8Array.from(ctx.materials);
+  flattenArea(ctx, c, R * 1.25, 0.75, undefined, 0.85);
+  ctx.materials.set(soil);
+  const pts = defensePath(api, c, R, waypoints);
+  const n = pts.length - 1;
+  const smooth = rounded(pts, 9);
   ctx.paths.push({ id: "td_path", kind: "road", type: "dirt_path", points: smooth, width: 10 });
   carveRoad(ctx, smooth, 10, "dirt_path");
+  refreshRoadDistance(ctx);
   for (let i = 0; i <= n; i++) {
     const p = pts[i]!;
     const y = ground(ctx, p[0], p[1]);
@@ -399,14 +367,15 @@ function baseDefense(api: LayoutApi, c: Vec2, extent: number, waypoints: number,
     if (i < n) {
       const q = pts[i + 1]!;
       const heading = Math.atan2(q[1] - p[1], q[0] - p[0]);
-      for (const side of [-1, 1]) {
-        const px = p[0] + Math.cos(heading + Math.PI / 2) * 11 * side;
-        const pz = p[1] + Math.sin(heading + Math.PI / 2) * 11 * side;
-        if (slopeAtWorld(ctx, px, pz) > 0.4) continue;
+      const leg = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      for (const f of leg > 70 ? (intensity > 0.8 ? [0.5] : [0.3, 0.7]) : [0.5]) for (const side of [-1, 1]) {
+        const px = p[0] + (q[0] - p[0]) * f + Math.cos(heading + Math.PI / 2) * 11 * side;
+        const pz = p[1] + (q[1] - p[1]) * f + Math.sin(heading + Math.PI / 2) * 11 * side;
+        if (slopeAtWorld(ctx, px, pz) > 0.4 || ctx.roadDistance.sample(px, pz) < 4) continue;
         const b = new PartListBuilder();
         b.cylinder([0, 0.3, 0], 8, 0.6, mixHex(stone, "#ffffff", 0.2), { material: "Concrete", collide: true, lod: 1 });
         b.cylinder([0, 0.65, 0], 5, 0.1, glow, { material: "Neon", collide: false, lod: 0, name: "TowerPad" });
-        api.place("td_pad", build(b, "td_pad"), [px, ground(ctx, px, pz), pz], 0, `td_pad_${i}_${side > 0 ? "r" : "l"}`, { kind: "tower_pad", index: i }, 4.5);
+        api.place("td_pad", build(b, "td_pad"), [px, ground(ctx, px, pz), pz], 0, `td_pad_${i}_${side > 0 ? "r" : "l"}${f > 0.5 ? "2" : ""}`, { kind: "tower_pad", index: i }, 4.5);
       }
     }
   }
@@ -563,7 +532,7 @@ function storyCheckpoints(api: LayoutApi, count: number): void {
   }
 }
 
-function paint(ctx: GenContext, c: Vec2, r: number, material: number): void {
+export function paint(ctx: GenContext, c: Vec2, r: number, material: number): void {
   const h = ctx.heights;
   const [cx0, cz0] = h.toCell(c[0] - r, c[1] - r);
   const [cx1, cz1] = h.toCell(c[0] + r, c[1] + r);

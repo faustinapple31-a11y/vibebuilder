@@ -276,6 +276,8 @@ export interface WorldBake {
     generatedAt: string;
     generatorVersion: string;
     stylePreset: string;
+    /** What kind of place it was designed to be, so it is judged as one; maps from before the design plan have none. */
+    design?: { environment: string; density: string; scale: string; openness: number; discoveries: number };
   };
   terrain: TerrainData;
   prefabs: Record<string, PrefabVariant[]>;

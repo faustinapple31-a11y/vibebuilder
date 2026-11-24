@@ -24,6 +24,7 @@ import { carveRoad, generateRoads, placeStairs, refreshRoadDistance } from "./pi
 import { placeBuildings } from "./pipeline/buildings";
 import { placeLayout } from "./pipeline/layout";
 import { placeDressing } from "./pipeline/dressing";
+import { placeFacilities } from "./pipeline/facilities";
 import { placeDiscoveries } from "./pipeline/discovery";
 import { placeRelief } from "./pipeline/relief";
 import { placeVegetation, SPECIES_PREFAB } from "./pipeline/vegetation";
@@ -184,6 +185,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
   // ---- buildings
   if (regenerate.has("buildings") || !compatiblePrevious) {
     placeBuildings(ctx);
+    placeFacilities(ctx);
     placeDressing(ctx);
   } else {
     // the streets a settlement opened for itself belong to the buildings layer too
@@ -349,6 +351,7 @@ export function generateWorld(specInput: WorldSpec, styleInput?: StyleBible, opt
       generatedAt: new Date().toISOString(),
       generatorVersion: GENERATOR_VERSION,
       stylePreset: style.id,
+      ...(spec.design ? { design: { environment: spec.design.environment, density: spec.design.density, scale: spec.design.scale, openness: spec.design.openness, discoveries: spec.design.discoveries } } : {}),
     },
     terrain: {
       cellSize,
@@ -549,6 +552,7 @@ export function requiredPrefabs(spec: WorldSpec, style?: StyleBible): string[] {
   for (const id of ["pier", "farm_field", "road_stripe", "crosswalk", "kerb", "dead_tree", "rowboat", "dock_post", "spawn_plaza"]) ids.add(id);
   if (spec.landmarks.some((l) => l.type === "cave")) for (const id of ["treasure_chest", "torch_post", "small_mushroom", "crystal_cluster"]) ids.add(id);
   for (const id of ["treasure_chest", "torch_post"]) ids.add(id); // the hidden spot
+  if (spec.design?.facilities.length) for (const id of ["car", "streetlight", "jeep", "sandbag_wall", "ammo_crate", "flag_pole", "pallet_stack", "trash_can", "bus_stop", "planter", "fire_hydrant", "traffic_cone", "road_barrier", "basketball_hoop", "tire_pile", "wrecked_car", "amphora", "sci_crate", "antenna_dish", "rubble_pile", "burning_barrel", "barricade"]) ids.add(id);
   ids.add("plank_bridge");
   ids.add("stairs");
   return [...ids].filter((id) => !!PREFAB_INDEX[id]);

@@ -22,7 +22,7 @@ export function selectSettlementSites(ctx: GenContext): void {
     if (s.position) {
       center = normToWorld(ctx, s.position);
     } else {
-      center = findFlatSite(ctx, slope, radius, s.near, rng, s.type === "harbor");
+      center = findFlatSite(ctx, slope, radius, s.near, rng, s.type === "harbor" || (idx === 1 && spec.design?.environment === "coastal"), idx > 1 && spec.design !== undefined);
     }
     const baseHeight = flattenArea(ctx, center, radius, 0.55);
     const site: SettlementSite = { id: s.id, center, radius, baseHeight, spec: s };
@@ -47,7 +47,7 @@ export function circlePoly(c: Vec2, r: number, n: number): Vec2[] {
   return out;
 }
 
-function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["slopeGrid"]>, radius: number, near: string | undefined, rng: Rng, shore = false): Vec2 {
+function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["slopeGrid"]>, radius: number, near: string | undefined, rng: Rng, shore = false, spread = false): Vec2 {
   const h = ctx.heights;
   const step = 3; // cells
   const rc = Math.ceil(radius / ctx.cellSize);
@@ -95,6 +95,11 @@ function findFlatSite(ctx: GenContext, slope: ReturnType<GenContext["heights"]["
         score += Math.abs(Math.hypot(wx - nearLandmark.position[0], wz - nearLandmark.position[2]) - radius * 1.6) / 60;
       } else if (nearSite) {
         score += Math.abs(Math.hypot(wx - nearSite.center[0], wz - nearSite.center[1]) - radius * 2.5) / 60;
+      } else if (spread && ctx.sites.length > 0) {
+        // the other places share the map out: far from each other and from the edge, not all round the middle
+        const edge = Math.min(wx - ctx.origin[0], ctx.origin[0] + ctx.worldW - wx, wz - ctx.origin[1], ctx.origin[1] + ctx.worldD - wz);
+        const other = Math.min(...ctx.sites.map((q) => Math.hypot(wx - q.center[0], wz - q.center[1]) - q.radius * 0.5));
+        score += 6 - Math.min(6, (Math.min(other, edge * 2.2) / (ctx.worldW * 0.42)) * 6);
       } else {
         // prefer central-ish
         const cx = ctx.origin[0] + ctx.worldW / 2;

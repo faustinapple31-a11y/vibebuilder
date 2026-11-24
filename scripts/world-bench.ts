@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { interpretPrompt } from "../packages/agents/src/local/interpreter";
 import { STYLE_FAMILY_INDEX, StyleBibleSchema, styleFamilyToBible } from "../packages/core/src";
-import { aerialPixels, reviewLevelDesign, reviewWorld } from "../packages/quality/src";
+import { aerialPixels, improveWorld, reviewWhole, reviewIntent, reviewLevelDesign, reviewWorld } from "../packages/quality/src";
 import { encodePng } from "../packages/textures/src";
 import { generateWorld } from "../packages/world-gen/src";
 
@@ -43,15 +43,21 @@ async function main() {
   for (const [i, [id, prompt]] of BENCH.entries()) {
     if (only.length && !only.includes(i)) continue;
     for (let s = 0; s < seeds; s++) {
-      const { spec, game, bake, ms } = makeWorld(prompt, s);
+      const made = makeWorld(prompt, s);
+      const { spec, game, style } = made;
+      const t0 = Date.now();
+      const bake = args.includes("--improve") ? improveWorld(spec, style, made.bake).bake : made.bake;
+      const ms = made.ms + Date.now() - t0;
+      const whole = reviewWhole(bake, spec);
       const level = reviewLevelDesign(bake);
       const world = reviewWorld(bake);
-      const row: BenchRow = { id: `${id}_${s}`, prompt, style: spec.stylePreset, genre: game.genre, layout: spec.layout.archetype, settlement: spec.settlements.map((q) => `${q.type}:${q.buildings}`).join("+") || "-", width: spec.size.width, level: level.score, world: world.score, score: Math.round((level.score + world.score) * 5) / 10, ms, placements: bake.placements.length, parts: bake.stats.partsEstimate, problems: [...new Set([...level.problems.filter((p) => p.severity !== "low").map((p) => p.id), ...world.problems.map((p) => p.id)])] };
+      const intent = reviewIntent(bake, spec);
+      const row: BenchRow = { id: `${id}_${s}`, prompt, style: spec.stylePreset, genre: game.genre, layout: spec.layout.archetype, settlement: spec.settlements.map((q) => `${q.type}:${q.buildings}`).join("+") || "-", width: spec.size.width, level: level.score, world: world.score, intent: intent.score, setting: spec.design?.setting ?? "-", score: whole.score, dimensions: whole.dimensions, ms, placements: bake.placements.length, parts: bake.stats.partsEstimate, problems: [...new Set([...level.problems.filter((p) => p.severity !== "low").map((p) => p.id), ...world.problems.map((p) => p.id), ...whole.problems.filter((p) => p.severity === "high").map((p) => `!${p.id}`)])] };
       rows.push(row);
       const img = aerialPixels(bake, 480);
       writeFileSync(join(out, `${row.id}.png`), await encodePng(img.width, img.height, img.data, 3, (d) => new Uint8Array(deflateSync(d))));
       const o = old.find((q) => q.id === row.id);
-      console.log(`${row.id.padEnd(17)} ${row.score}${o ? ` (${(row.score - o.score).toFixed(1)})` : ""} L${row.level} W${row.world} ${row.style}/${row.genre}/${row.layout}/${row.settlement}/${row.width} ${ms}ms ${row.problems.slice(0, 7).join(" ")}`);
+      console.log(`${row.id.padEnd(17)} ${row.score}${o ? ` (${(row.score - o.score).toFixed(1)})` : ""} L${row.level} W${row.world} I${row.intent} ${Object.values(whole.dimensions).map((v) => Math.round(v)).join("/")} [${row.setting}] ${row.style}/${row.genre}/${row.layout}/${row.settlement}/${row.width} ${ms}ms ${[...row.problems].sort((a, b) => Number(b[0] === "!") - Number(a[0] === "!")).slice(0, 6).join(" ")}${intent.missing.length ? " | missing " + intent.missing.map((m) => `${m.label} ${m.found}/${m.wanted}`).join(", ") : ""}`);
     }
   }
   console.log(`mean ${(rows.reduce((a, r) => a + r.score, 0) / rows.length).toFixed(1)} min ${Math.min(...rows.map((r) => r.score))}`);

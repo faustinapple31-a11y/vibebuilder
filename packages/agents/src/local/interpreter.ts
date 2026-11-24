@@ -18,6 +18,7 @@ import {
   type WorldSpec,
   type WorldSpecInput,
 } from "@worldforge/core";
+import { STRONG_STYLES, matchSetting, type SettingDef } from "./settings";
 import type { GenLayer } from "@worldforge/world-gen";
 import { defaultGameContent } from "@worldforge/roblox-export";
 
@@ -28,7 +29,16 @@ import { defaultGameContent } from "@worldforge/roblox-export";
  * layout), so any genre × any style resolves to a coherent world. It powers generation when no
  * agent is installed and gives agents a solid draft to refine.
  */
-const has = (text: string, ...words: string[]) => words.some((w) => text.includes(w));
+/** Keywords match at the start of a word: "pic" is a peak, not the end of "tropical"; "port" is not in "aeroport". */
+const HAS = new Map<string, RegExp>();
+const has = (text: string, ...words: string[]) =>
+  words.some((w) => {
+    let re = HAS.get(w);
+    if (!re) HAS.set(w, (re = new RegExp(`(^|[^a-z0-9])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)));
+    return re.test(text);
+  });
+/** Genre words strong enough to overrule what the setting suggests. */
+const GENRE_WORDS = /(^|[^a-z0-9])(tycoon|simulator|simulateur|obby|rpg|fps|racing|tower defense|battle royale|horreur|horror|roleplay|survie|survival|sandbox|parkour|puzzle|pvp|minigame|mini-jeu|hangout|farming|mining)/;
 
 export interface Interpretation {
   spec: WorldSpec;
@@ -86,9 +96,14 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const tag = (s: string) => detected.push(s);
 
   // ---- genre + style family (taxonomy keyword matching; the genre suggests a style when none is named)
-  const genre: GenreDef = matchGenre(t, GENRES) ?? GENRE_INDEX.adventure!;
+  const setting = matchSetting(t)?.def;
+  const genreWord = GENRE_WORDS.exec(t)?.[2];
+  const genre: GenreDef = (setting ? ((genreWord ? matchGenre(genreWord, GENRES) : undefined) ?? GENRE_INDEX[setting.genre ?? ""]) : undefined) ?? matchGenre(t, GENRES) ?? GENRE_INDEX.adventure!;
+  if (setting) tag(`setting:${setting.id}`);
   tag(`genre:${genre.id}`);
-  const named = matchStyleFamily(t);
+  const spoken = matchStyleFamily(t);
+  // the place decides, unless the request names a style of its own ("un aeroport cyberpunk")
+  const named = setting && !(setting.openStyle && spoken && STRONG_STYLES.has(spoken.id)) ? (STYLE_FAMILY_INDEX[setting.style] ?? spoken) : spoken;
   const fam: StyleFamilyDef = named ?? STYLE_FAMILY_INDEX[genre.defaultStyles[0]!] ?? STYLE_FAMILY_INDEX.stylized_mystical!;
   tag(`style:${fam.id}${named ? "" : " (from genre)"}`);
   const stylePreset = fam.id as StylePresetId;
@@ -203,19 +218,49 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     settlements.push({ id: "hub", type: abandoned ? "abandoned_village" : (famType as never), buildings: count ?? (famType === "city_district" ? 30 : 8), layout: modern ? "grid" : "organic", weathering: abandoned ? 0.8 : 0.35, interiors });
   }
 
+  // ---- the setting: what the request is about overrules what single words suggested
+  if (setting) {
+    if (setting.settlement === null) settlements.length = 0;
+    else if (setting.settlement) {
+      const q = setting.settlement;
+      settlements.splice(0, settlements.length, { id: settlements[0]?.id ?? "town", type: q.type, buildings: count ?? q.buildings, layout: q.layout ?? "organic", weathering: q.weathering ?? 0.35, interiors });
+    }
+    for (let k = 0; k < (setting.satellites?.count ?? 0); k++) {
+      const q = setting.satellites!;
+      settlements.push({ id: `${q.type}_${k + 1}`, type: q.type, buildings: Math.max(1, q.buildings + ((hashString(`${prompt}${k}`) % 3) - 1)), layout: "organic", weathering: 0.4, interiors });
+    }
+    if (setting.biomes) biomes.splice(0, biomes.length, ...setting.biomes.map(([id, weight, vegetation]) => ({ id, weight, vegetation, ...(id === "beach" ? { elevation: [0, 0.2] as [number, number] } : {}) })));
+    if (setting.features) features.splice(0, features.length, ...setting.features.map((f) => ({ ...f })));
+    if (setting.landmarks) {
+      const kept = landmarks.filter((l) => LANDMARK_KEYWORDS.some(([type, words]) => type === l.type && has(t, ...words)) && !setting.landmarks!.some(([type]) => type === l.type));
+      landmarks.length = 0;
+      for (const [type, role, zone] of setting.landmarks) landmarks.push({ id: type, type, role, preferredZone: zone as ZoneHint, scale: 1 });
+      for (const l of kept.slice(0, 2)) landmarks.push({ ...l, role: "secondary" });
+    }
+    if (setting.water) {
+      const has1 = (w: NonNullable<typeof setting.water>[number]) => setting.water!.includes(w);
+      for (let k = features.length - 1; k >= 0; k--) if (["coast", "island", "archipelago"].includes(features[k]!.type)) features.splice(k, 1);
+      if (has1("coast")) features.push({ type: "coast", edges: ["south"], reach: 0.22, ruggedness: 0.5 });
+      if (has1("island")) features.push({ type: "island", center: [0.5, 0.5], radius: 0.4, ruggedness: 0.55 });
+      if (has1("archipelago")) features.splice(0, features.length, { type: "archipelago", islands: 5, terraces: 3, cliffHeight: 0.5, mainRadius: 0.24, ruggedness: 0.35 });
+      if (has1("river") && !rivers.length) rivers.push({ id: "river_1", from: "north", to: "south-east", width: (setting.width ?? 1024) > 1100 ? 22 : 18, depth: 6, meander: 0.65 });
+      if (has1("lake") && !lakes.length) lakes.push({ id: "lake_1", center: [0.3, 0.34], radius: (setting.width ?? 1024) * 0.07 });
+    } else if (setting.settlement === null) rivers.length = 0;
+  }
+
   // ---- a settlement in proportion with its map: nine houses fill a small map and get lost on a large one
   const bigTown = has(t, "grand bourg", "grande ville", "grand village", "grande cite", "large settlement", "big town", "large town", "large village", "tres dense", "dense");
-  const mapWidth = has(t, "immense", "enorme", "huge", "gigantesque", "massive") ? 2048 : bigTown ? 1280 : has(t, "grand", "large", "big", "vaste") ? 1536 : has(t, "petit", "small", "tiny", "mini") ? 768 : 1024;
+  const mapWidth = setting?.width && !has(t, "immense", "enorme", "huge", "gigantesque", "massive", "petit", "small") ? setting.width : has(t, "immense", "enorme", "huge", "gigantesque", "massive") ? 2048 : bigTown ? 1280 : has(t, "grand", "large", "big", "vaste") ? 1536 : has(t, "petit", "small", "tiny", "mini") ? 768 : 1024;
   const populated = genre.layout === "settlement" || genre.layout === "open_world" || genre.layout === "city_grid" || genre.layout === "campus";
-  if (count === undefined && populated && settlements[0] && !["camp", "outpost", "farmstead", "hamlet"].includes(settlements[0].type as string)) {
+  if (!setting?.settlement && count === undefined && populated && settlements[0] && !["camp", "outpost", "farmstead", "hamlet"].includes(settlements[0].type as string)) {
     const k = Math.min(2.2, (mapWidth / 768) ** 1.15) * (bigTown ? 1.35 : 1);
     settlements[0].buildings = Math.min(settlements[0].type === "city_district" ? 60 : 40, Math.round((settlements[0].buildings ?? 8) * k));
   }
   // the ranges do not always stand to the north-west
   const turn = hashString(prompt) % 4;
-  for (const f of features) if (f.type === "mountains" && f.edges && !mountains) f.edges = (coast ? [["north", "west"], ["north"], ["north", "east"], ["west"]] : [["north", "west"], ["north", "east"], ["east", "south"], ["south", "west"]])[turn] as typeof f.edges;
+  for (const f of features) if (!setting?.features && f.type === "mountains" && f.edges && !mountains) f.edges = (coast ? [["north", "west"], ["north"], ["north", "east"], ["west"]] : [["north", "west"], ["north", "east"], ["east", "south"], ["south", "west"]])[turn] as typeof f.edges;
   // people settle by water: a rural map without any gets a river, away from its ranges
-  if (!rivers.length && !lakes.length && !coast && !island && !archipelago && !dry && !modern && settlements.length && fam.group !== "future" && hashString(prompt + "river") % 10 < 7) {
+  if (!setting && !rivers.length && !lakes.length && !coast && !island && !archipelago && !dry && !modern && settlements.length && fam.group !== "future" && hashString(prompt + "river") % 10 < 7) {
     rivers.push({ id: "river_1", from: (["north", "east", "south", "west"] as const)[turn]!, to: (["south-east", "south-west", "north-west", "north-east"] as const)[turn]!, width: mapWidth > 900 ? 20 : 15, depth: 6, meander: 0.7 });
     settlements[0]!.near ??= "river_1";
   }
@@ -228,6 +273,10 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (mainNodes.length >= 2) roads.push({ id: "main_path", type: roadType, connects: mainNodes, width: modern ? 12 : 7 });
   const secondary = landmarks.find((l) => l.role === "secondary");
   if (secondary && settlements[0]) roads.push({ id: "side_path", type: roadType === "asphalt_road" ? "concrete_road" : "dirt_path", connects: [settlements[0].id, secondary.id], width: modern ? 9 : 5 });
+
+  // every other place is on the way to somewhere: each joins the nearest end of the chain, so the network has loops
+  settlements.slice(1).forEach((q, k) => roads.push({ id: `road_${q.id}`, type: modern ? "asphalt_road" : "dirt_path", connects: [settlements[0]!.id!, q.id!], width: modern ? 9 : 6 }));
+  for (let k = 2; k < settlements.length; k++) roads.push({ id: `loop_${k}`, type: "dirt_path", connects: [settlements[k - 1]!.id!, settlements[k]!.id!], width: 5 });
 
   // ---- vegetation: the family's kit species (+ prompt extras)
   type Species = NonNullable<NonNullable<WorldSpecInput["vegetation"]>["species"]>[number];
@@ -278,8 +327,8 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const night = has(t, "nuit", "night", "lune", "moon", "nocturne", "etoile", "star");
   const dusk = has(t, "crepuscule", "dusk", "coucher", "sunset");
   const dawn = has(t, "aube", "dawn", "lever", "sunrise", "matin", "morning");
-  const timeOfDay = night ? 20.5 : dusk ? 18.2 : dawn ? 6.5 : fam.lighting.timeOfDay;
-  const mood = night ? "moonlit" : dusk ? "dusk" : dawn ? "dawn" : has(t, "orage", "storm", "pluie", "rain") ? "stormy" : has(t, "nuage", "cloud", "gris", "overcast") ? "overcast" : fam.lighting.mood;
+  const timeOfDay = setting?.time !== undefined && !night && !dusk && !dawn ? setting.time : night ? 20.5 : dusk ? 18.2 : dawn ? 6.5 : fam.lighting.timeOfDay;
+  const mood = setting?.mood && !night && !dusk && !dawn ? (setting.mood as "eerie") : night ? "moonlit" : dusk ? "dusk" : dawn ? "dawn" : has(t, "orage", "storm", "pluie", "rain") ? "stormy" : has(t, "nuage", "cloud", "gris", "overcast") ? "overcast" : fam.lighting.mood;
   const volcanic = has(t, "volcan", "volcano", "magma");
   const fogDensity = has(t, "brume", "brouillard", "fog", "mist", "myster") ? Math.max(0.55, fam.fog.density) : fam.fog.density;
 
@@ -289,7 +338,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     return m ? Math.max(2, Math.min(60, Number(m[1]))) : undefined;
   })();
   const layout: WorldSpecInput["layout"] = {
-    archetype: genre.layout,
+    archetype: setting && setting.settlement !== null && !genreWord ? "open_world" : genre.layout,
     count: layoutCount ?? { obby_course: 12, tycoon_plots: 8, lobby_portals: 6, base_defense: 10, dungeon: 6, arena: 14, race_track: 8, linear_story: 6 }[genre.layout as string] ?? 8,
     intensity: has(t, "difficile", "hard", "extreme", "hardcore") ? 0.85 : has(t, "facile", "easy", "casual") ? 0.25 : 0.5,
     extent: 0.45,
@@ -308,7 +357,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     theme,
     stylePreset,
     size: { width, depth: width },
-    terrain: { baseHeight: 40, relief, roughness: fam.geometry === "blocky" ? 0.3 : 0.45, erosion: 0.55, features },
+    terrain: { baseHeight: 40, relief: setting?.relief ?? relief, roughness: fam.geometry === "blocky" ? 0.3 : 0.45, erosion: 0.55, features },
     biomes,
     rivers,
     lakes,
@@ -323,12 +372,58 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
     colorPalette: { primary: fam.palette.primary, secondary: fam.palette.secondary, accent: fam.palette.accent, ground: fam.palette.ground, stone: fam.palette.stone, wood: fam.palette.wood, foliage: fam.palette.foliage, water: fam.palette.water },
     cameraComposition: { spawnFacing: focalId, spawnZone: "clearing" },
     layout,
+    design: designOf(setting, genre, fam, t, { settlements, landmarks, biomes, features, rivers, lakes, width }),
     gameplayHints: [genre.id, ...gameplayHints(t)],
     notes: prompt,
   };
   const spec = WorldSpecSchema.parse(specInput);
   const game = interpretGame(prompt, spec, genre, fam);
   return { spec, game, detected };
+}
+
+/**
+ * The design plan of the request: what kind of place, how it is laid out, and the list of what the finished map must
+ * show. The generator reads the first half, the critic checks the second on the map that was really built.
+ */
+function designOf(
+  setting: SettingDef | undefined,
+  genre: GenreDef,
+  fam: StyleFamilyDef,
+  t: string,
+  made: { settlements: NonNullable<WorldSpecInput["settlements"]>; landmarks: NonNullable<WorldSpecInput["landmarks"]>; biomes: NonNullable<WorldSpecInput["biomes"]>; features: NonNullable<NonNullable<WorldSpecInput["terrain"]>["features"]>; rivers: NonNullable<WorldSpecInput["rivers"]>; lakes: NonNullable<WorldSpecInput["lakes"]>; width: number },
+): NonNullable<WorldSpecInput["design"]> {
+  const first = made.settlements[0];
+  const n = first?.buildings ?? 0;
+  const expects: NonNullable<NonNullable<WorldSpecInput["design"]>["expects"]> = [
+    { kind: "style", any: [fam.id], label: `the ${fam.id} style` },
+    { kind: "genre", any: [genre.id], label: `a ${genre.id} game` },
+  ];
+  if (first) expects.push({ kind: "buildings", any: [], min: Math.max(1, Math.round(n * 0.7)), label: `about ${n} buildings` });
+  if (made.settlements.length > 1) expects.push({ kind: "settlements", any: [], min: made.settlements.length, label: `${made.settlements.length} places to live` });
+  for (const l of made.landmarks.filter((q) => q.role !== "hidden").slice(0, 3)) expects.push({ kind: "landmark", any: [l.type], label: `the ${l.type}` });
+  if (made.rivers.length) expects.push({ kind: "water", any: ["river"], label: "a river" });
+  if (made.lakes.length) expects.push({ kind: "water", any: ["lake"], label: "a lake" });
+  if (made.features.some((f) => ["coast", "island", "archipelago"].includes(f.type))) expects.push({ kind: "water", any: ["sea"], label: "the sea" });
+  const main = [...made.biomes].sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))[0];
+  if (main) expects.push({ kind: "biome", any: [main.id], min: 0.25, label: `mostly ${main.id}` });
+  if (made.features.some((f) => f.type === "mountains" && (f.reach ?? 0) >= 0.3)) expects.push({ kind: "relief", any: [], min: 110, label: "real mountains" });
+  if (setting?.relief !== undefined && setting.relief <= 0.2) expects.push({ kind: "flat", any: [], min: 0.55, label: "flat ground" });
+  for (const f of new Set(setting?.facilities ?? [])) expects.push({ kind: "facility", any: [f], min: setting!.facilities!.filter((q) => q === f).length, label: f.replace("_", " ") });
+  const density = setting?.density ?? (has(t, "dense") ? "dense" : first ? "medium" : "open");
+  return {
+    setting: setting?.id ?? `${fam.id}_${genre.id}`,
+    environment: setting?.env ?? (first?.type === "city_district" ? "urban" : fam.group === "nature" ? "forest" : "rural"),
+    scale: setting?.scale ?? (n >= 40 ? "city" : n >= 16 ? "town" : made.width >= 1500 ? "region" : first ? "settlement" : "arena"),
+    morphology: setting?.morphology ?? (first?.layout === "grid" ? "grid" : first?.layout === "linear" ? "linear" : first?.layout === "ring" ? "radial" : "organic"),
+    density,
+    camera: setting?.camera ?? "third_person",
+    players: setting?.players ?? 12,
+    openness: setting?.openness ?? 0.5,
+    verticality: setting?.verticality ?? 0.3,
+    discoveries: setting?.discoveries ?? 2,
+    facilities: setting?.facilities ?? [],
+    expects,
+  };
 }
 
 /** Whole-word match for short keywords ("car" must not match "cartoon"). */

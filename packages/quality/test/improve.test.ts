@@ -17,7 +17,7 @@ describe("correction loop", () => {
     const a = improveWorld(spec, style, bake, { target: 99 });
     const b = improveWorld(spec, style, bake, { target: 99 });
     expect(a.after).toBeGreaterThanOrEqual(a.before);
-    expect(a.after).toBe(mapScore(a.bake));
+    expect(a.after).toBe(mapScore(a.bake, spec));
     expect(a.steps.length).toBeGreaterThan(0);
     expect(JSON.stringify(b.steps)).toBe(JSON.stringify(a.steps));
     expect(a.bake.landmarks.map((l) => l.position)).toEqual(bake.landmarks.map((l) => l.position));

@@ -5,6 +5,7 @@ export * from "./ids";
 export * from "./partlist";
 export * from "./effects";
 export * from "./bake";
+export * from "./schemas/design";
 export * from "./schemas/world-spec";
 export * from "./schemas/style-bible";
 export * from "./schemas/game-spec";

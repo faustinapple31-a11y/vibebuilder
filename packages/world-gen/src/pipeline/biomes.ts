@@ -28,6 +28,9 @@ const BIOME_PREFS: Record<BiomeId, { elevation: [number, number]; moisture: [num
   farmland: { elevation: [0.05, 0.4], moisture: [0.3, 0.7], surface: "Grass", alt: "Ground" },
 };
 
+/** The lots of a city that goes on beyond its planned district. */
+export const URBAN_LOT = 64;
+
 export function getBiomePrefs(id: BiomeId) {
   return BIOME_PREFS[id];
 }
@@ -139,6 +142,13 @@ export function generateBiomes(ctx: GenContext): void {
       const detail = n2.noise2(wx / 92, wz / 92);
       const patch = n2.fbm(wx / 46 + 50, wz / 46 - 50, 2); // moss / bare-earth patches, the size of a clearing
       let mat: TerrainMaterial = detail > 0.35 ? b.prefs.alt : b.prefs.surface;
+      if (b.id === "urban") {
+        // city ground is cut into lots by streets, it has no meadows
+        const lx = ((wx % URBAN_LOT) + URBAN_LOT) % URBAN_LOT;
+        const lz = ((wz % URBAN_LOT) + URBAN_LOT) % URBAN_LOT;
+        const lot = Math.abs(Math.sin(Math.floor(wx / URBAN_LOT) * 127.1 + Math.floor(wz / URBAN_LOT) * 311.7) * 43758.5453) % 1;
+        mat = lx < 11 || lz < 11 ? b.prefs.alt : lot < 0.72 ? b.prefs.surface : lot < 0.86 ? "Concrete" : "Ground";
+      }
       const forest = b.id === "dark_forest" || b.id === "forest" || b.id === "pine_forest" || b.id === "mushroom_grove";
       if (forest && patch > 0.45) mat = "Ground"; // bare earth under dense canopy
       else if (forest && patch < -0.5) mat = "LeafyGrass"; // moss

@@ -90,7 +90,13 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   const roads = bake.paths.filter((p) => p.kind === "road");
   const sites = bake.zones.filter((z) => z.kind === "settlement");
   const level = reviewLevelDesign(bake);
-  const town = ["modern_city", "cyberpunk"].includes(bake.meta.stylePreset);
+  const design = bake.meta.design;
+  // a place is judged as what it was meant to be: a desert has no forest, an outpost no suburbs, a city no meadows
+  const environment = design?.environment ?? "";
+  const town = design ? environment === "urban" || (environment === "industrial" && design.density === "very_dense") : ["modern_city", "cyberpunk"].includes(bake.meta.stylePreset);
+  const bare = ["desert", "arctic", "space", "alien", "volcanic", "underwater", "underground", "industrial", "military", "scientific", "abstract"].includes(environment);
+  const arena = design?.scale === "arena";
+  const wild = design !== undefined && ["sparse", "open", "wilderness"].includes(design.density);
 
   // ---------------------------------------------------------------- from the air
   const f = treeField(bake);
@@ -145,7 +151,7 @@ export function reviewWorld(bake: WorldBake): WorldReview {
     const reg = regions(wooded, f.w, f.d);
     const mass = reg.filter((n) => n >= 24).reduce((a, b) => a + b, 0) / Math.max(1, woodN);
     metrics.forestMass = mass;
-    scores.mass = clamp((mass - 0.35) / 0.4);
+    scores.mass = bare || arena ? Math.max(0.8, clamp((mass - 0.35) / 0.4)) : clamp((mass - 0.35) / 0.4);
     note("aerial", "scattered_trees", scores.mass, `only ${Math.round(mass * 100)}% of the wooded ground belongs to a real forest, the rest is scatter`);
   } else {
     scores.forest = 1;
@@ -158,7 +164,7 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   metrics.openShare = openShare;
   metrics.openings = bigOpen;
   metrics.largestOpening = largest;
-  scores.negative = town ? 1 : band(openShare, 0.18, 0.62, 0.2) * clamp((bigOpen + 1) / 4);
+  scores.negative = town || arena || (design && design.openness >= 0.7) ? 1 : band(openShare, 0.18, 0.62, 0.2) * clamp((bigOpen + 1) / 4);
   note("aerial", "no_negative_space", scores.negative, `${bigOpen} open spaces over 30 cells, ${Math.round(openShare * 100)}% of the land is open`);
   // relief: small bumps on ground one walks on
   let bump = 0;
@@ -215,6 +221,8 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   }
   metrics.closedBorder = closed / total;
   scores.border = clamp((metrics.closedBorder - 0.5) / 0.38);
+  // flat country, a base or a circuit ends on open ground: the border still needs a fence of relief or trees, but less of one
+  if (design && (bare || arena || design.openness >= 0.7)) scores.border = Math.max(scores.border, clamp((metrics.closedBorder - 0.2) / 0.4));
   note("aerial", "open_border", scores.border, `${Math.round((1 - metrics.closedBorder) * 100)}% of the border simply ends: no relief, no forest, no water`);
   // proportions: what share of the map lives
   const main = [...sites].sort((a, b) => b.radius - a.radius)[0];
@@ -226,7 +234,7 @@ export function reviewWorld(bake: WorldBake): WorldReview {
     metrics.settlementShare = share;
     const type = bake.plan?.settlements[0] ? houses.length : 0;
     metrics.buildings = houses.length;
-    scores.proportion = town ? band(share, 0.12, 0.7, 0.12) : band(share, 0.055, 0.3, 0.055);
+    scores.proportion = town ? band(share, 0.12, 0.7, 0.12) : wild ? band(share, 0.004, 0.2, 0.004) : band(share, 0.055, 0.3, 0.055);
     void type;
     note("aerial", "settlement_proportion", scores.proportion, `the settlement covers ${(share * 100).toFixed(1)}% of the map`, main.center as Vec2);
   } else scores.proportion = 1;
@@ -272,7 +280,7 @@ export function reviewWorld(bake: WorldBake): WorldReview {
     const fields = bake.placements.filter((p) => p.prefab === "farm_field").length;
     metrics.fields = fields;
     const farming = bake.prefabs["farm_field"] && (bake.plan?.settlements ?? []).some((s) => s.districts.some((q) => q.function === "farm"));
-    if (farming) {
+    if (farming && !["alpine", "mountain", "arctic", "desert", "urban", "suburban", "underground", "jungle"].includes(environment)) {
       mid.push(clamp(fields / 8));
       note("mid", "no_farmland", clamp(fields / 8), `${fields} field tile(s) for a farming settlement`);
     }
@@ -288,7 +296,7 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   const ground: number[] = [level.criteria.player / 100, level.criteria.composition / 100, level.criteria.relief / 100];
   // rhythm along the main road: open and closed alternate
   const way = [...roads].sort((a, b) => b.points.length - a.points.length)[0];
-  if (way && trees > 60) {
+  if (way && trees > 60 && !town && !bare && !arena) {
     const closedAt = way.points.filter((_, i) => i % 4 === 0).map((q) => {
       const x = Math.floor((q[0] - t.origin[0]) / f.cell);
       const z = Math.floor((q[1] - t.origin[1]) / f.cell);
@@ -307,8 +315,9 @@ export function reviewWorld(bake: WorldBake): WorldReview {
   }
   const finds = bake.zones.filter((z) => z.meta?.kind === "viewpoint" || z.meta?.kind === "secret").length;
   metrics.finds = finds;
-  ground.push(clamp(finds / 2));
-  note("ground", "nothing_to_find", clamp(finds / 2), `${finds} viewpoint or hidden place`);
+  const found = clamp(finds / Math.max(1, Math.min(2, design?.discoveries ?? 2)));
+  if (design?.discoveries !== 0) ground.push(found);
+  note("ground", "nothing_to_find", design?.discoveries === 0 ? 1 : found, `${finds} viewpoint or hidden place`);
   const groundScore = (100 * ground.reduce((a, b) => a + b, 0)) / ground.length;
 
   const rank = { high: 0, medium: 1, low: 2 };

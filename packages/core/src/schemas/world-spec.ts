@@ -1,3 +1,4 @@
+import { DesignSchema } from "./design";
 import { z } from "zod";
 
 /**
@@ -407,6 +408,8 @@ export const WorldSpecSchema = z.object({
   colorPalette: ColorPaletteSchema.prefault({}),
   cameraComposition: CameraCompositionSchema.prefault({}),
   layout: LayoutSchema.prefault({}),
+  /** What kind of place this is and what it must contain; absent on older specs. */
+  design: DesignSchema.optional(),
   locks: LocksSchema.prefault({}),
   gameplayHints: z.array(z.string()).default([]),
   /** Free-form notes from the designer/agent (not used by the generator). */

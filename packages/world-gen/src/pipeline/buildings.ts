@@ -1,6 +1,7 @@
-import { TERRAIN_MATERIAL_INDEX, deriveSeed, type DistrictFunction, type Placement, type PrefabVariant, type SettlementPlan, type Vec2, type Vec3 } from "@worldforge/core";
+import { TERRAIN_MATERIAL_INDEX, deriveSeed, type DistrictFunction, type Placement, type PrefabVariant, type Vec2, type Vec3 } from "@worldforge/core";
 import { Rng } from "@worldforge/core";
 import { layerFor, progress, slopeAtWorld, type GenContext, type SettlementSite } from "../context";
+import { blockShape, layoutBlocks } from "./blocks";
 import { flattenArea, plazaRadius } from "./sites";
 import { carveRoad, placeStairs, refreshRoadDistance, routeRoad } from "./roads";
 import { nearestRoadPoint, planSettlement } from "./urban-plan";
@@ -47,11 +48,6 @@ function prefabMix(ctx: GenContext, s: SettlementSite["spec"]): { item: string; 
   return mix;
 }
 
-/** Street type for grid settlements from the style's road kit. */
-function streetType(ctx: GenContext): string {
-  return ctx.style.kits.road;
-}
-
 const MAX_BUILDING_SLOPE = 0.21; // ~12°
 
 /**
@@ -78,12 +74,10 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     const id = rng.weighted(mix);
     return [id, ctx.prefabs[id] ?? []];
   };
-  // an old town grows along its lanes: a medieval village came out as a perfect 3×3 block. Only paved, planned
-  // towns get streets on a grid when the spec leaves the layout organic
-  const paved = ["asphalt_road", "concrete_road", "neon_road", "metal_walkway"].includes(ctx.style.kits.road);
-  const gridLike = s.layout === "grid" || (s.layout === "organic" && (s.type === "city_district" || s.type === "base" || (s.type === "town" && paved)));
-  if (gridLike) {
-    layoutGrid(ctx, site, rng, pick);
+  // a planned town is built in blocks; an old one grows along its lanes
+  const shape = blockShape(ctx, site);
+  if (shape) {
+    layoutBlocks(ctx, site, rng, shape, pick);
     return;
   }
   const cottages = ctx.prefabs[mix[0]!.item] ?? [];
@@ -159,7 +153,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
     return n > 0 ? { prefab: id, variant: rng.int(0, n - 1) } : null;
   };
   let planned = 0;
-  if (!ctx.islands) {
+  {
     planned = planSettlement(ctx, site, rng, count, choose, (b, position, rotationY, scale) => {
       const foot = ctx.prefabs[b.prefab]![b.variant]!.footprintRadius;
       const p: Placement = { id: `${site.id}_${b.prefab}_${placed.length}`, prefab: b.prefab, variant: b.variant, category: "building", position, rotationY, scale, layer: layerFor(ctx, position[0], position[2], true), zone: site.id, importance: 9 };
@@ -209,7 +203,7 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
   }
   void cottages;
   // what stands off the streets gets a footpath to the nearest one
-  if (!ctx.islands) {
+  {
     const blocked = (q: Vec2) => !Number.isNaN(ctx.water.sample(q[0], q[1])) || placed.some((o) => Math.hypot(o.position[0] - q[0], o.position[2] - q[1]) < (ctx.prefabs[o.prefab]?.[o.variant]?.footprintRadius ?? 10) * 0.9);
     for (const p of placed.slice(planned)) {
       const foot = ctx.prefabs[p.prefab]?.[p.variant]?.footprintRadius ?? 10;
@@ -273,177 +267,6 @@ function layoutSettlement(ctx: GenContext, site: SettlementSite, rng: Rng): void
   }
   void centerY;
   void placedCount;
-}
-
-/**
- * Grid layout for towns, city districts and bases: streets every block, buildings aligned to the
- * street they face, central block kept as a plaza. Streets are real road polylines (carved, marked
- * with the style's road material) so street props, lights and vehicles follow them.
- */
-function layoutGrid(ctx: GenContext, site: SettlementSite, rng: Rng, pick: () => [string, PrefabVariant[]]): void {
-  const s = site.spec;
-  const R = site.radius;
-  const city = s.type === "city_district";
-  const streetW = city ? 14 : 10;
-  const avgFoot = (() => {
-    const [, pv] = pick();
-    return pv[0]?.footprintRadius ?? 12;
-  })();
-  const cell = avgFoot * 2 + 6 + streetW; // block pitch
-  // grid just big enough for the requested buildings (plus the plaza cell), capped by the site radius
-  const half = Math.min(Math.floor(R / cell), Math.max(1, Math.ceil((Math.sqrt(s.buildings + 2) - 1) / 2)));
-  if (half < 1) return;
-  const through = ctx.paths.filter((p) => p.kind === "road");
-  const arrival = through.flatMap((p) => p.points).filter((q) => Math.abs(Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) - half * cell) < cell);
-  const yaw = arrival.length ? Math.atan2(arrival[0]![1] - site.center[1], arrival[0]![0] - site.center[0]) : rng.float(0, Math.PI / 2);
-  const cosY = Math.cos(yaw);
-  const sinY = Math.sin(yaw);
-  // a road routed before the district existed would cut its blocks: it ends on the ring street instead
-  const bound = (half + 0.5) * cell;
-  const local = (q: Vec2): Vec2 => [(q[0] - site.center[0]) * cosY + (q[1] - site.center[1]) * sinY, -(q[0] - site.center[0]) * sinY + (q[1] - site.center[1]) * cosY];
-  const inside = (q: Vec2) => {
-    const l = local(q);
-    return Math.abs(l[0]) < bound && Math.abs(l[1]) < bound;
-  };
-  const erased = new Set<number>();
-  for (const road of through) {
-    if (!road.points.some((q) => inside(q as Vec2))) continue;
-    const runs: Vec2[][] = [[]];
-    for (const q of road.points as Vec2[]) {
-      if (inside(q)) {
-        if (runs[runs.length - 1]!.length) runs.push([]);
-        const [cx, cz] = ctx.heights.toCell(q[0], q[1]);
-        const rc = Math.ceil(road.width / ctx.cellSize);
-        for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) erased.add((Math.round(cz) + dz) * ctx.width + Math.round(cx) + dx);
-      } else runs[runs.length - 1]!.push(q);
-    }
-    const snap = (q: Vec2): Vec2 => {
-      const l = local(q);
-      const onX = Math.abs(l[0]) >= Math.abs(l[1]);
-      const line = (v: number) => (Math.round(v / cell - 0.5) + 0.5) * cell;
-      const e: Vec2 = onX ? [Math.sign(l[0]) * bound, line(l[1])] : [line(l[0]), Math.sign(l[1]) * bound];
-      return [site.center[0] + e[0] * cosY - e[1] * sinY, site.center[1] + e[0] * sinY + e[1] * cosY];
-    };
-    const kept = runs.filter((r) => r.length > 2);
-    ctx.paths.splice(ctx.paths.indexOf(road), 1);
-    kept.forEach((r, k) => {
-      const first = r[0]!;
-      const last = r[r.length - 1]!;
-      const reach = bound * 1.5 + 20;
-      const near = (q: Vec2) => Math.hypot(q[0] - site.center[0], q[1] - site.center[1]) < reach;
-      const pts = [...(near(first) && (k > 0 || inside(road.points[0] as Vec2)) ? [snap(first)] : []), ...r, ...(near(last) ? [snap(last)] : [])];
-      ctx.paths.push({ ...road, id: k === 0 ? road.id : `${road.id}_${k}`, points: pts });
-      carveRoad(ctx, pts, road.width, road.type);
-    });
-  }
-  const ground = TERRAIN_MATERIAL_INDEX[["modern_city", "cyberpunk", "industrial"].includes(ctx.style.id) ? "Pavement" : "Ground"];
-  for (const i of erased) if (i >= 0 && i < ctx.materials.length && ctx.materials[i] !== TERRAIN_MATERIAL_INDEX.Water) ctx.materials[i] = ground;
-  // the district stands on one gentle plane, not on forty little pads
-  flattenArea(ctx, site.center, bound * 1.5, 0.82, undefined, 0.8);
-  const toWorld = (gx: number, gz: number): Vec2 => [site.center[0] + gx * cosY - gz * sinY, site.center[1] + gx * sinY + gz * cosY];
-  // streets: lines through the grid (offset by half a cell so buildings sit between them)
-  const type = streetType(ctx);
-  for (let i = -half; i <= half + 1; i++) {
-    const c = (i - 0.5) * cell;
-    const a = toWorld(c, -(half + 0.5) * cell);
-    const b = toWorld(c, (half + 0.5) * cell);
-    const a2 = toWorld(-(half + 0.5) * cell, c);
-    const b2 = toWorld((half + 0.5) * cell, c);
-    for (const [pts, id] of [
-      [[a, b], `${site.id}_street_x${i}`],
-      [[a2, b2], `${site.id}_street_z${i}`],
-    ] as [Vec2[], string][]) {
-      const points = resample(pts[0]!, pts[1]!, ctx.cellSize * 2);
-      // the streets either side of the central block are the avenues, the outer ones are narrower
-      const w = i === 0 || i === 1 ? streetW : Math.round(streetW * 0.75);
-      ctx.paths.push({ id, kind: "road", type, points, width: w });
-      carveRoad(ctx, points, w, type);
-    }
-  }
-  refreshRoadDistance(ctx);
-  // blocks → buildings
-  const base = s.type === "base" || s.type === "outpost";
-  const quarters: { id: string; function: DistrictFunction; r0: number; r1: number }[] = base
-    ? [
-        { id: "command", function: "civic", r0: 0, r1: 1.2 },
-        { id: "quarters", function: "military", r0: 1.2, r1: 1.9 },
-        { id: "stores", function: "craft", r0: 1.9, r1: 9 },
-      ]
-    : [
-        { id: "centre", function: "civic", r0: 0, r1: 0.8 },
-        { id: "downtown", function: "commerce", r0: 0.8, r1: 1.6 },
-        { id: "homes", function: "residential", r0: 1.6, r1: 9 },
-      ];
-  const plan: SettlementPlan = {
-    settlement: site.id,
-    plaza: { center: site.center, radius: cell * 0.45 },
-    districts: quarters.map((q, i) => ({ id: `${site.id}_${q.id}`, function: q.function, center: site.center, radius: Math.min(R, q.r1 * cell), priority: i + 1, capacity: 0 })),
-    parcels: [],
-    refused: {},
-  };
-  ctx.plan.settlements.push(plan);
-  /** Tall buildings gather in the middle of a city, homes and shops go outward. */
-  const pickFor = (r: number): [string, PrefabVariant[]] => {
-    const has = (id: string) => (ctx.prefabs[id]?.length ?? 0) > 0;
-    let id = pick()[0];
-    if (city && r < 1.2 && has("skyscraper") && rng.chance(0.7)) id = "skyscraper";
-    else if (city && r >= 1.9 && id === "skyscraper" && has("apartment_block")) id = rng.chance(0.7) ? "apartment_block" : "shop_building";
-    else if (base && r < 1.2 && has("house_large")) id = "house_large";
-    return [id, ctx.prefabs[id] ?? []];
-  };
-  let placed = 0;
-  // a district that asked for thirty buildings on a seven by seven grid left a third of its lots empty
-  const target = city ? Math.max(s.buildings, Math.round((2 * half + 1) ** 2 * 0.9)) : s.buildings;
-  const cells: [number, number][] = [];
-  for (let gx = -half; gx <= half; gx++) for (let gz = -half; gz <= half; gz++) cells.push([gx, gz]);
-  cells.sort((p, q) => Math.hypot(p[0], p[1]) - Math.hypot(q[0], q[1]));
-  for (const [gx, gz] of cells) {
-    if (placed >= target) break;
-    if (gx === 0 && gz === 0 && !city) continue; // plaza
-    const ringOf = Math.hypot(gx, gz);
-    const [pid, pv] = pickFor(ringOf);
-    if (pv.length === 0) continue;
-    const vi = rng.int(0, pv.length - 1);
-    const v = pv[vi]!;
-    const c = toWorld(gx * cell, gz * cell);
-    // face the nearest street: -Z of the prefab points toward the street side chosen by the cell parity
-    const faceX = Math.abs(gx) >= Math.abs(gz);
-    const dir = faceX ? [-Math.sign(gx || 1) * cosY, -Math.sign(gx || 1) * sinY] : [Math.sign(gz || 1) * sinY, -Math.sign(gz || 1) * cosY];
-    const rotY = Math.atan2(-dir[0]!, -dir[1]!) + yaw * 0;
-    const x = c[0];
-    const z = c[1];
-    if (ctx.waterDistance.sample(x, z) < v.footprintRadius + 3) continue;
-    // the grid carves its own streets, but a road routed before the district can cross a block: without
-    // this a tower ends up in the middle of the main road (the organic layout already keeps a clearance)
-    if (ctx.roadDistance.sample(x, z) < v.footprintRadius * 0.75) continue;
-    if (slopeAtWorld(ctx, x, z) > 0.55) continue;
-    let blockedByLandmark = false;
-    for (const o of ctx.occupants) if (o.kind === "landmark" && Math.hypot(x - o.position[0], z - o.position[2]) < o.radius + v.footprintRadius * 0.6) blockedByLandmark = true;
-    if (blockedByLandmark) continue;
-    const padY = flattenArea(ctx, [x, z], v.footprintRadius * 1.5, 1.0, undefined, 0.78);
-    if (slopeAtWorld(ctx, x, z) > MAX_BUILDING_SLOPE) continue;
-    const scale = 1 + (rng.next() * 2 - 1) * ctx.style.architecture.scaleVariance * 0.3;
-    const position: Vec3 = [x, padY, z];
-    const p: Placement = { id: `${site.id}_${pid}_${placed}`, prefab: pid, variant: vi, category: "building", position, rotationY: rotY, scale, layer: layerFor(ctx, position[0], position[2], true), zone: site.id, importance: 9 };
-    ctx.placements.push(p);
-    ctx.occupants.push({ position, radius: v.footprintRadius * scale, kind: "building" });
-    const quarter = quarters.findIndex((q) => ringOf >= q.r0 && ringOf < q.r1);
-    plan.districts[quarter]!.capacity++;
-    plan.parcels.push({ id: `${site.id}_block_${placed}`, district: plan.districts[quarter]!.id, function: plan.districts[quarter]!.function, center: [x, z], rotationY: rotY, frontage: cell - streetW, depth: cell - streetW, street: `${site.id}_street_${faceX ? "x" : "z"}${faceX ? gx : gz}`, building: p.id });
-    placed++;
-  }
-  plan.districts = plan.districts.filter((d) => d.capacity > 0);
-  // paved core (plaza) for towns
-  const plazaMat = type === "asphalt_road" || type === "concrete_road" || type === "neon_road" ? TERRAIN_MATERIAL_INDEX.Pavement : type === "metal_walkway" ? TERRAIN_MATERIAL_INDEX.Slate : type === "sand_path" ? TERRAIN_MATERIAL_INDEX.Sandstone : TERRAIN_MATERIAL_INDEX.Cobblestone;
-  if (!city) paveDisc(ctx, site.center, cell * 0.45, plazaMat);
-}
-
-function resample(a: Vec2, b: Vec2, step: number): Vec2[] {
-  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const n = Math.max(2, Math.ceil(len / step));
-  const out: Vec2[] = [];
-  for (let i = 0; i <= n; i++) out.push([a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n]);
-  return out;
 }
 
 /** Paints a disc of terrain material; `ringOnly` keeps existing Cobblestone (paints the surroundings only). */

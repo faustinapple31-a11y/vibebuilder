@@ -7,3 +7,6 @@ export * from "./level-design";
 export * from "./world-review";
 export * from "./visual";
 export * from "./improve";
+export * from "./intent";
+export * from "./traversal";
+export * from "./world-critic";

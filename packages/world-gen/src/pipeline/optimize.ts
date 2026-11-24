@@ -21,7 +21,8 @@ export function defaultBudget(worldW: number, worldD: number): PerformanceBudget
       water: 0,
       npc: s(30),
     },
-    maxParts: s(48000),
+    // streaming hides what is far, memory does not: the density of a large map is capped before its area is
+    maxParts: Math.round(48000 * Math.max(0.35, Math.min(1.6, areaK))),
   };
 }
 

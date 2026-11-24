@@ -9,7 +9,7 @@ import { nearestRoadPoint } from "./urban-plan";
  * nobody sees from the spawn. Chosen from the terrain analysis, never at random.
  */
 export function placeDiscoveries(ctx: GenContext): void {
-  if (ctx.islands || ctx.spec.layout?.archetype === "obby_course") return;
+  if (ctx.spec.layout?.archetype === "obby_course") return;
   const keepOut = layoutKeepOut(ctx);
   if (ctx.sites.length === 0 && ctx.landmarks.length === 0) return;
   progress(ctx, "discovery", 0);
@@ -33,7 +33,7 @@ export function placeDiscoveries(ctx: GenContext): void {
       if (baseRelief(ctx, x, z, 7) > (ctx.terrainMode === "parts" ? 0.5 : 5)) continue;
       const y = ctx.heights.sample(x, z);
       const ds = Math.hypot(x - sx, z - sz);
-      if (ds < 90) continue;
+      if (ds < (ctx.islands ? 55 : 90)) continue;
       spots.push({ x, z, rd: ctx.roadDistance.sample(x, z), tpi: g.tpi, ds, seen: targets.filter((t) => hasLineOfSight(ctx, [x, y + 6, z], t)).length, spawnSees: hasLineOfSight(ctx, [sx, sy + 5, sz], [x, y + 4, z]) });
     }
   }
@@ -83,24 +83,47 @@ export function placeDiscoveries(ctx: GenContext): void {
     break;
   }
 
-  // ---- the hidden spot: out of sight of the spawn, off every path, low or behind something
-  const hidden = spots
-    .filter((s) => !s.spawnSees && s.rd > 34 && s.rd < 170 && s.ds > 130 && (!view || Math.hypot(s.x - view[0], s.z - view[1]) > 90))
-    .map((s) => ({ s, v: -s.tpi * 0.08 - Math.abs(s.rd - 80) / 70 + rng.next() * 0.5 }))
-    .sort((a, b) => b.v - a.v)[0];
-  // on open ground the trees hide it instead: the furthest place from the spawn and the roads
-  const fallback = [...spots].filter((s) => s.rd > 50 && (!view || Math.hypot(s.x - view[0], s.z - view[1]) > 90)).sort((a, b) => b.rd + b.ds * 0.3 - (a.rd + a.ds * 0.3))[0];
-  const spot = hidden?.s ?? fallback;
-  if (spot) {
+  // ---- hidden spots: out of sight of the spawn, off every path, low or behind something; far from one another
+  const found: Vec2[] = view ? [view] : [];
+  const wanted = Math.max(1, (ctx.spec.design?.discoveries ?? 2) - 1);
+  const near = ctx.islands ? 12 : 34;
+  for (let k = 0; k < wanted; k++) {
+    const apart = (s: { x: number; z: number }) => found.every((q) => Math.hypot(s.x - q[0], s.z - q[1]) > (k === 0 ? 90 : 130));
+    const hidden = spots
+      .filter((s) => !s.spawnSees && s.rd > near && s.rd < 170 && s.ds > (ctx.islands ? 80 : 130) && apart(s))
+      .map((s) => ({ s, v: -s.tpi * 0.08 - Math.abs(s.rd - 80) / 70 + rng.next() * 0.5 }))
+      .sort((a, b) => b.v - a.v)[0];
+    // on open ground the trees hide it instead: the furthest place from the spawn and the roads
+    const fallback = [...spots].filter((s) => s.rd > near && apart(s)).sort((a, b) => b.rd + b.ds * 0.3 - (a.rd + a.ds * 0.3))[0];
+    const spot = hidden?.s ?? fallback;
+    if (!spot) break;
+    const zone = k === 0 ? "secret" : `secret_${k + 1}`;
     const a = rng.float(0, Math.PI * 2);
-    add("treasure_chest", spot.x, spot.z, a, "secret");
-    add("torch_post", spot.x + Math.cos(a) * 4.5, spot.z + Math.sin(a) * 4.5, 0, "secret");
-    for (let i = 0; i < 3; i++) {
-      const b = a + Math.PI * 0.6 + i * 1.25;
-      add(i === 0 ? "boulder" : "ruin_wall", spot.x + Math.cos(b) * 12, spot.z + Math.sin(b) * 12, Math.PI / 2 - b, "secret", i === 0 ? 1.2 : 0.8);
+    // each tells something else: a cache, an abandoned camp, a grave, an old shrine
+    const tale = k === 0 ? 0 : rng.int(0, 3);
+    const around = (prefab: string, ang: number, r: number, scale = 1) => add(prefab, spot.x + Math.cos(a + ang) * r, spot.z + Math.sin(a + ang) * r, Math.PI / 2 - (a + ang), zone, scale);
+    if (tale === 0) {
+      add("treasure_chest", spot.x, spot.z, a, zone);
+      around("torch_post", 0, 4.5);
+      for (let i = 0; i < 3; i++) around(i === 0 ? "boulder" : "ruin_wall", Math.PI * 0.6 + i * 1.25, 12, i === 0 ? 1.2 : 0.8);
+    } else if (tale === 1) {
+      add("campfire", spot.x, spot.z, a, zone);
+      around("log", 0.3, 6);
+      around("crate", 1.6, 7);
+      around("barrel", 2.1, 7.5);
+      around("treasure_chest", 3.6, 8);
+    } else if (tale === 2) {
+      for (let i = 0; i < 3; i++) around("gravestone", (i - 1) * 0.5, 7);
+      around("dead_tree", Math.PI, 8);
+      add("treasure_chest", spot.x, spot.z, a, zone);
+    } else {
+      around("ruin_arch", 0, 8, 0.9);
+      for (let i = 0; i < 2; i++) around("ruin_wall", 2 + i * 1.6, 10, 0.8);
+      add("treasure_chest", spot.x, spot.z, a, zone);
     }
     ctx.occupants.push({ position: [spot.x, ctx.heights.sample(spot.x, spot.z), spot.z], radius: 11, kind: "keep" });
-    ctx.zones.push({ id: "secret", kind: "gameplay", polygon: [], center: [spot.x, spot.z], radius: 12, meta: { kind: "secret" } });
+    ctx.zones.push({ id: zone, kind: "gameplay", polygon: [], center: [spot.x, spot.z], radius: 12, meta: { kind: "secret" } });
+    found.push([spot.x, spot.z]);
   }
   progress(ctx, "discovery", 1);
 }
