@@ -111,6 +111,12 @@ function worldWidth(t: string, setting: SettingDef | undefined, bigTown: boolean
   return clampW(base);
 }
 
+/** Off the middle, never at the same place twice. */
+function lakeSpot(prompt: string): [number, number] {
+  const a = ((hashString(`${prompt}lake`) % 360) * Math.PI) / 180;
+  return [0.5 + Math.cos(a) * 0.23, 0.5 + Math.sin(a) * 0.23];
+}
+
 /** How many buildings the place has: the size of its map, unless the request counts them. */
 const GROWTH: Record<string, number> = { city: 2.4, metropolis: 3, town: 1.9, neighbourhood: 2.2, settlement: 1.3, region: 1.6, island: 1.4 };
 
@@ -190,7 +196,7 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   const rivers: WorldSpecInput["rivers"] = [];
   const lakes: WorldSpecInput["lakes"] = [];
   if (has(t, "riviere", "river", "ruisseau", "stream", "fleuve", "cours d'eau")) rivers.push({ id: "river_1", from: "north", to: "south-east", width: 16, depth: 6, meander: 0.65 }), tag("river");
-  if (has(t, "lac", "lake", "etang", "pond")) lakes.push({ id: "lake_1", center: [0.32, 0.36], radius: 80 }), tag("lake");
+  if (has(t, "lac", "lake", "etang", "pond")) lakes.push({ id: "lake_1", center: lakeSpot(prompt), radius: 80 }), tag("lake");
   if (fam.id === "space_station" || fam.id === "underwater") rivers.length = 0;
 
   // ---- landmarks: prompt keywords first, then the family's signature landmarks
@@ -267,9 +273,9 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
       for (let k = features.length - 1; k >= 0; k--) if (["coast", "island", "archipelago"].includes(features[k]!.type)) features.splice(k, 1);
       if (has1("coast")) features.push({ type: "coast", edges: ["south"], reach: 0.22, ruggedness: 0.5 });
       if (has1("island")) features.push({ type: "island", center: [0.5, 0.5], radius: 0.4, ruggedness: 0.55 });
-      if (has1("archipelago")) features.splice(0, features.length, { type: "archipelago", islands: 5, terraces: 3, cliffHeight: 0.5, mainRadius: 0.24, ruggedness: 0.35 });
+      if (has1("archipelago")) features.splice(0, features.length, { type: "archipelago", islands: Math.max(5, Math.round(5 * (mapWidth0 / 1024) ** 1.8)), terraces: 3, cliffHeight: 0.5, mainRadius: mapWidth0 > 1300 ? 0.19 : 0.24, ruggedness: 0.5 });
       if (has1("river") && !rivers.length) rivers.push({ id: "river_1", from: "north", to: "south-east", width: mapWidth0 > 1100 ? Math.min(60, 22 * Math.sqrt(mapWidth0 / 1280)) : 18, depth: 6, meander: 0.65 });
-      if (has1("lake") && !lakes.length) lakes.push({ id: "lake_1", center: [0.3, 0.34], radius: mapWidth0 * 0.06 });
+      if (has1("lake") && !lakes.length) lakes.push({ id: "lake_1", center: lakeSpot(prompt), radius: mapWidth0 * 0.06 });
     } else if (setting.settlement === null) rivers.length = 0;
   }
 
@@ -324,8 +330,8 @@ export function interpretPrompt(prompt: string, seed?: number): Interpretation {
   if (has(t, "volcan", "volcano", "lave", "lava", "magma")) density = Math.min(density, 0.35);
   if (archipelago) {
     // mesa islands read as open lawns with a few palms: sparse, no forest biome
-    density = Math.min(density, 0.22);
-    for (const b of biomes) b.vegetation = "sparse";
+    density = setting?.id === "floating_islands" ? 0.6 : Math.min(density, 0.4);
+    biomes.forEach((b, i) => (b.vegetation = i === 0 && setting?.id === "floating_islands" ? "medium" : "sparse"));
     for (let i = biomes.length - 1; i >= 0; i--) if (["forest", "jungle", "dark_forest", "pine_forest"].includes(biomes[i]!.id)) biomes.splice(i, 1);
     if (biomes.length === 0) biomes.push({ id: "meadow", weight: 0.6, vegetation: "sparse" });
     species.length = 0;

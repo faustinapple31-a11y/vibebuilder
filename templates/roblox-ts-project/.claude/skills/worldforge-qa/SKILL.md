@@ -58,8 +58,9 @@ Fix root causes; never wrap errors in `pcall` to hide them, never delete a featu
 The critic scores composition, lighting, terrain, vegetation, architecture, consistency, atmosphere,
 variety and performance. Proposed fixes are `spec_patch` entries (dotted path → value) on
 `worlds/main/world.spec.json` or `regenerate` actions — apply them with the `worldforge-world` skill
-and keep `locks` in mind. Dressing structures (walls, piers, fields, markings) and layout structures are never
-trimmed by the budget; if the parts budget is exceeded, lower vegetation / prop density first.
+and keep `locks` in mind. There is no parts budget and nothing is trimmed: never lower the size, the density or the
+number of buildings to save parts. When a place is heavy, change how it is shown (`detail`: performance, balanced,
+high, maximum), publish the kit meshes, or split the world into several places.
 
 ## 5. Report (`qa/report.json`)
 

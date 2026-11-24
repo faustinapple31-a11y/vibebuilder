@@ -170,8 +170,8 @@ function rimPoint(from: Vec2, dir: Vec2, isLand: (p: Vec2) => boolean): Vec2 | n
 /** A point on the terrace rim with the level below outside it, plus the inward direction. */
 function stairSpot(t: Terrace, isl: Island, levelAt: (p: Vec2) => number, rng: Rng): { point: Vec2; dir: Vec2 } | null {
   const a0 = rng.float(0, Math.PI * 2);
-  for (let k = 0; k < 16; k++) {
-    const a = a0 + (k / 16) * Math.PI * 2;
+  for (let k = 0; k < 48; k++) {
+    const a = a0 + (k / 48) * Math.PI * 2;
     const dir: Vec2 = [Math.cos(a), Math.sin(a)];
     // walk outward from the terrace centre until the level drops
     let rim: Vec2 | null = null;

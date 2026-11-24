@@ -40,7 +40,12 @@ const SIZE: Partial<Record<Kind, [number, number]>> = { town: [18, 36], village:
 /** The places the country adds to those of the spec. Nothing on a map the size of one settlement. */
 export function impliedSettlements(ctx: GenContext): SettlementSpec[] {
   const design = ctx.spec.design;
-  if (!design || ctx.islands || ctx.spec.settlements.length === 0) return [];
+  if (!design || ctx.spec.settlements.length === 0) return [];
+  if (ctx.islands) {
+    // the islands large enough to live on, one hamlet each
+    const homes = ctx.islands.filter((i) => !i.main && i.radius > 92).sort((a, b) => b.radius - a.radius);
+    return homes.slice(0, Math.ceil(homes.length * 0.6)).map((isl, k) => ({ id: `hamlet_x${k + 1}`, type: "hamlet" as const, buildings: Math.max(2, Math.min(5, Math.round(isl.radius / 30))), layout: "organic" as const, weathering: 0.4, position: [(isl.center[0] - ctx.origin[0]) / ctx.worldW, (isl.center[1] - ctx.origin[1]) / ctx.worldD] as [number, number] }));
+  }
   if (!["region", "massive", "city", "metropolis", "island", "town", "settlement"].includes(design.scale)) return [];
   const land = ((ctx.worldW * ctx.worldD) / 1024 / 1024) * (ctx.ocean ? 0.55 : 1);
   const beyond = land - (design.scale === "city" || design.scale === "metropolis" ? 1.6 : 1.25);
@@ -66,7 +71,7 @@ export function impliedSettlements(ctx: GenContext): SettlementSpec[] {
 /** Every place the spec does not route itself joins the network: to the nearest road or place, and some twice (loops). */
 export function connectCountry(ctx: GenContext): void {
   const extra = ctx.sites.filter((s) => !ctx.spec.settlements.some((q) => q.id === s.id));
-  if (extra.length === 0) return;
+  if (extra.length === 0 || ctx.islands) return; // bridges join the islands
   progress(ctx, "roads:country", 0);
   const rng = new Rng(deriveSeed(ctx.seed, "country-roads"));
   const modern = ["asphalt_road", "concrete_road", "neon_road"].includes(ctx.style.kits.road);

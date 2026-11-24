@@ -1,3 +1,4 @@
+import { completeSpec } from "./local/complete-spec";
 import { GameSpecSchema, WorldSpecSchema, newId, nowIso, type GameSpec, type WorldSpec } from "@worldforge/core";
 import { reviewGameDesign } from "./game-review";
 import { interpretPrompt } from "./local/interpreter";
@@ -220,7 +221,11 @@ export class Orchestrator {
     }
   }
 
+  /** What the player asked for, for the checks that need it. */
+  private request = "";
+
   private async buildContext(plan: Plan, task: TaskState): Promise<RoleContext> {
+    this.request = plan.userPrompt;
     const gameSpec = await this.readJson<GameSpec>("design/game.spec.json", GameSpecSchema);
     const worldSpec = await this.readJson<WorldSpec>("worlds/main/world.spec.json", WorldSpecSchema);
     const history = this.deps.history ? await this.deps.history() : [];
@@ -247,9 +252,11 @@ export class Orchestrator {
         const blocking = reviewGameDesign(v.data as GameSpec).filter((p) => p.severity === "high");
         if (blocking.length) return { ok: false, errors: blocking.map((p) => `- ${p.message}`).join("\n") };
       }
-      if (task.role === "world" && this.deps.bakeCheck) {
+      const worldSpec = task.role === "world" ? completeSpec(v.data as WorldSpec, this.request) : undefined;
+      if (worldSpec && worldSpec !== v.data) await this.deps.files.writeText(path, JSON.stringify(worldSpec, null, 2));
+      if (worldSpec && this.deps.bakeCheck) {
         try {
-          await this.deps.bakeCheck(v.data as WorldSpec);
+          await this.deps.bakeCheck(worldSpec);
         } catch (e) {
           return { ok: false, errors: `The WorldSpec cannot be generated: ${(e as Error).message}` };
         }

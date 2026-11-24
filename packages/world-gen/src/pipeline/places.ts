@@ -52,7 +52,7 @@ const PLACES: PlaceDef[] = [
   { id: "standing_stones", age: "old", site: "height", radius: 18, props: [["campfire", 0, 0, 0]], build: (b, k) => { for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; const h = k.rng.float(6, 10); if (i === 4) continue; b.box([Math.cos(a) * 13, h / 2 - 0.5, Math.sin(a) * 13], [3.4, h, 2.2], mixHex(k.stone, "#5f6258", k.rng.next() * 0.5), { ...ROCK, rotation: [k.rng.float(-6, 6), 90 - (a * 180) / Math.PI, k.rng.float(-5, 5)] }); } for (const a of [0.35, 2.4]) b.box([Math.cos(a) * 13, 9.4, Math.sin(a) * 13], [9, 1.6, 2.6], k.stone, { ...ROCK, rotation: [0, 90 - (a * 180) / Math.PI, 0] }); } },
   { id: "hermit_hut", age: "old", site: "wood", radius: 14, trail: true, props: [["campfire", -10, 3, 0], ["barrel", -5, 7, 0], ["log", 6, -9, 30], ["crate", -4, -8, 10]], build: (b, k) => hut(b, k.wood, k.roof) },
   { id: "wayside_shrine", age: "old", site: "open", radius: 10, trail: true, props: [["lantern_post", -5, 5, 0], ["bench", -6, -5, 0], ["flower_patch", 4, 5, 0]], build: (b, k) => { b.box([0, 0.5, 0], [8, 1, 7], k.stone, ROCK); b.box([0, 1.3, 0.6], [5.6, 0.8, 4.6], k.stone, ROCK); for (const s of [-1, 1]) b.box([s * 2.2, 4.6, 0.6], [0.8, 6, 0.8], k.wood, WOOD); b.box([0, 4.2, 2.2], [4.8, 5, 0.6], k.stone, ROCK); for (const s of [-1, 1]) b.wedge([0, 8.8, 0.6 + s * 1.7], [6.4, 2.6, 3.4], k.roof, { ...PLANK, rotation: [0, s > 0 ? 180 : 0, 0] }); b.box([0, 3.4, 1.4], [1.6, 3, 1], k.trim, { material: "Marble", collide: true, lod: 1 }); } },
-  { id: "ruined_keep", age: "old", site: "height", radius: 22, props: [["ruin_wall", 14, 10, 40], ["boulder", -12, 12, 0], ["treasure_chest", 2, 3, 20], ["dead_tree", 15, -12, 0]], build: (b, k) => { const c = mixHex(k.stone, "#6c6a60", 0.35); const hs = [17, 12, 6, 14, 9, 4]; for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; const h = hs[i % 6]!; if (i === 7) continue; b.box([Math.cos(a) * 9, h / 2 - 0.5, Math.sin(a) * 9], [6, h, 2], mixHex(c, "#000000", (i % 3) * 0.07), { ...ROCK, rotation: [0, 90 - (a * 180) / Math.PI, 0] }); } for (let i = 0; i < 8; i++) b.box([k.rng.float(-13, 13), 0.6, k.rng.float(-13, 13)], [k.rng.float(1.5, 3.4), k.rng.float(1, 2.2), k.rng.float(1.5, 3)], c, { ...ROCK, lod: 1, rotation: [0, k.rng.float(0, 180), k.rng.float(-15, 15)] }); b.box([0, 0.3, 0], [15, 0.6, 15], mixHex(c, "#3d3a34", 0.3), { ...ROCK, lod: 1 }); } },
+  { id: "ruined_keep", age: "old", site: "height", radius: 22, props: [["ruin_wall", 18, 15, 40], ["boulder", -12, 12, 0], ["treasure_chest", 2, 3, 20], ["dead_tree", 15, -12, 0]], build: (b, k) => { const c = mixHex(k.stone, "#6c6a60", 0.35); const hs = [17, 12, 6, 14, 9, 4]; for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; const h = hs[i % 6]!; if (i === 7) continue; b.box([Math.cos(a) * 9, h / 2 - 0.5, Math.sin(a) * 9], [6, h, 2], mixHex(c, "#000000", (i % 3) * 0.07), { ...ROCK, rotation: [0, 90 - (a * 180) / Math.PI, 0] }); } for (let i = 0; i < 8; i++) b.box([k.rng.float(-13, 13), 0.6, k.rng.float(-13, 13)], [k.rng.float(1.5, 3.4), k.rng.float(1, 2.2), k.rng.float(1.5, 3)], c, { ...ROCK, lod: 1, rotation: [0, k.rng.float(0, 180), k.rng.float(-15, 15)] }); b.box([0, 0.3, 0], [15, 0.6, 15], mixHex(c, "#3d3a34", 0.3), { ...ROCK, lod: 1 }); } },
   { id: "old_mine", age: "any", site: "slope", radius: 18, trail: true, props: [["crate", -12, 6, 10], ["barrel", -11, -7, 0], ["cart", -14, 2, 60], ["torch_post", -7, 6, 0], ["torch_post", -7, -6, 0]], build: (b, k) => { for (const s of [-1, 1]) b.box([s * 4.4, 4.5, -2], [1.6, 9, 1.6], k.wood, WOOD); b.box([0, 9.4, -2], [11.6, 1.6, 2], k.wood, WOOD); b.box([0, 4.6, 1.6], [8, 8.4, 1], "#14110e", { material: "Slate", collide: true, lod: 2 }); for (const s of [-1, 1]) for (let i = 0; i < 3; i++) b.box([s * (7 + i * 1.6), 3.4 - i * 0.6, 1 + i], [5, 8 - i * 1.6, 7], mixHex(k.stone, "#4d4a44", i * 0.2), { ...ROCK, rotation: [0, s * 18, s * (8 + i * 5)] }); b.box([0, 11.6, 3], [18, 5, 8], mixHex(k.stone, "#4d4a44", 0.2), { ...ROCK, rotation: [-10, 0, 0] }); for (const s of [-1, 1]) b.box([s * 1.6, 0.4, -8], [0.5, 0.5, 14], "#6a6d70", { ...STEEL, lod: 1 }); for (let i = 0; i < 6; i++) b.box([0, 0.2, -3 - i * 2.2], [5, 0.3, 0.9], k.wood, { ...WOOD, lod: 0 }); b.box([4.6, 1.8, -12], [5, 3.6, 4], "#57504a", { ...ROCK, lod: 1 }); } },
   { id: "quarry", age: "any", site: "slope", radius: 22, trail: true, not: ["space", "alien"], props: [["cart", -8, 12, 20], ["crate", -12, -8, 0], ["stone", 4, -14, 0], ["rock_cluster", 12, 10, 0]], build: (b, k) => { for (let i = 0; i < 4; i++) b.box([0, 1.4 + i * 2.8, 4 + i * 3], [30 - i * 5, 2.8, 10], mixHex(k.stone, i % 2 ? "#ffffff" : "#8a857a", 0.18), ROCK); for (let i = 0; i < 7; i++) b.box([k.rng.float(-13, 13), 1.4, k.rng.float(-12, -4)], [k.rng.float(3, 5), 2.8, k.rng.float(2.5, 4)], mixHex(k.stone, "#ffffff", 0.22), { ...ROCK, lod: 1, rotation: [0, k.rng.float(0, 90), 0] }); b.box([-13, 8, 0], [1.2, 16, 1.2], k.wood, WOOD); b.box([-8, 15.4, 0], [14, 1, 1], k.wood, { ...WOOD, rotation: [0, 0, 8] }); b.box([-2, 9, 0], [0.3, 12, 0.3], "#2e2a26", { material: "Metal", collide: false, lod: 0 }); } },
   { id: "log_yard", age: "any", site: "wood", radius: 18, trail: true, not: ["urban", "space"], props: [["log", -10, 10, 20], ["log", -8, -11, 70], ["cart", 12, -8, 30], ["crate", -12, 0, 0]], build: (b, k) => { for (const [x, z, n] of [[-7, 3, 4], [7, 5, 3]] as const) for (let r = 0; r < n; r++) for (let i = 0; i < n - r; i++) b.cylinder([x, 1 + r * 1.8, z - n + i * 2.1 + r], 2, 11, mixHex(k.wood, "#3b2a1c", (i + r) * 0.06), { ...WOOD, rotation: [0, 0, 90] }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box([sx * 6, 4, -9 + sz * 4], [0.9, 8, 0.9], k.wood, WOOD); b.box([0, 8.4, -9], [15, 0.7, 11], k.roof, { ...PLANK, rotation: [8, 0, 0] }); b.box([0, 2.2, -9], [11, 0.8, 3], k.wood, PLANK); b.cylinder([0, 3.2, -9], 5, 0.4, "#b9bdc0", { material: "Metal", collide: false, lod: 1, rotation: [90, 0, 0] }); } },
@@ -84,14 +84,14 @@ export const PLACE_PROPS = [...new Set(PLACES.flatMap((p) => p.props.map((q) => 
 
 export function placePlaces(ctx: GenContext): void {
   const design = ctx.spec.design;
-  if (!design || ctx.islands || ["arena"].includes(design.scale) || design.environment === "abstract" || design.discoveries === 0) return;
+  if (!design || ["arena"].includes(design.scale) || design.environment === "abstract" || design.discoveries === 0) return;
   progress(ctx, "places", 0);
   const rng = new Rng(deriveSeed(ctx.seed, "places"));
   const kit = facilityKit(ctx, rng);
   const age: Age = kit.future ? "future" : kit.old ? "old" : "modern";
-  const pool = PLACES.filter((p) => (p.age === "any" || p.age === age) && (!p.env || p.env.includes(design.environment)) && !p.not?.includes(design.environment));
+  const pool = PLACES.filter((p) => (p.age === "any" || p.age === age) && (!p.env || p.env.includes(design.environment)) && !p.not?.includes(design.environment) && !(ctx.islands && (p.site === "shore" || p.site === "slope")));
   // how far one walks before something happens
-  const gap = design.density === "wilderness" ? 250 : design.density === "open" ? 290 : design.density === "very_dense" ? 330 : 270;
+  const gap = ctx.islands ? 150 : design.density === "wilderness" ? 250 : design.density === "open" ? 290 : design.density === "very_dense" ? 330 : 270;
   const cell = 24;
   const w = Math.ceil(ctx.worldW / cell);
   const d = Math.ceil(ctx.worldD / cell);
@@ -138,6 +138,7 @@ export function placePlaces(ctx: GenContext): void {
       const r = gap * 0.42 * Math.sqrt(k / 70);
       const x = c[0] + Math.cos(a) * r;
       const z = c[1] + Math.sin(a) * r;
+      if (ctx.islands && (ctx.plateau?.sample(x, z) ?? 0) < -0.5) continue;
       if (!inBounds(ctx, x, z, 40) || isWaterAt(ctx, x, z) || ctx.roadDistance.sample(x, z) < 16) continue;
       const g = ctx.analysis!.at(x, z);
       if (g.cls === "cliff" || g.cls === "water" || g.slope > 0.5) continue;
@@ -146,6 +147,11 @@ export function placePlaces(ctx: GenContext): void {
       const wooded = /forest|jungle|grove/.test(biome);
       for (const def of pool) {
         if (def.site === "shore" ? wd > 26 || wd < 6 : wd < def.radius + 6) continue;
+        // on a mesa the whole place stands on one level, back from the edge
+        if (ctx.plateau) {
+          const level = ctx.plateau.sample(x, z);
+          if ([0, 1, 2, 3, 4, 5, 6, 7].some((q) => Math.abs(ctx.plateau!.sample(x + Math.cos(q * 0.785) * (def.radius + 5), z + Math.sin(q * 0.785) * (def.radius + 5)) - level) > 0.1)) continue;
+        }
         if (baseRelief(ctx, x, z, def.radius * 0.8) > (def.site === "slope" ? 16 : def.site === "height" ? 11 : 8)) continue;
         if (ctx.occupants.some((o) => Math.hypot(o.position[0] - x, o.position[2] - z) < o.radius + def.radius + 4)) continue;
         let v = rng.next() * 0.5 - (used.get(def.id) ?? 0) * 0.9;
@@ -202,7 +208,7 @@ export function placePlaces(ctx: GenContext): void {
       // (forward is -Z of the place, side its +X)
       const x = p[0] - fwd[0] * f + Math.cos(yaw) * s;
       const z = p[1] - fwd[1] * f - Math.sin(yaw) * s;
-      if (isWaterAt(ctx, x, z) || baseRelief(ctx, x, z, 2) > 3.2) continue;
+      if (isWaterAt(ctx, x, z) || baseRelief(ctx, x, z, 2) > 3.2 || (ctx.plateau && Math.abs(ctx.plateau.sample(x, z) - ctx.plateau.sample(p[0], p[1])) > 0.1)) continue;
       const vi = rng.int(0, vs.length - 1);
       ctx.placements.push({ id: `dress_${zone}_${prop}_${f}_${s}`, prefab: prop, variant: vi, category: vs[vi]!.category, position: [x, ctx.heights.sample(x, z), z], rotationY: yaw + (turn * Math.PI) / 180, scale: 1, layer: layerFor(ctx, x, z, false), zone, importance: 6 });
     }

@@ -40,7 +40,7 @@ export function generateWater(ctx: GenContext): void {
 
   // distance-to-water grid for biome moisture and placement rules
   const waterLines = ctx.paths.filter((p) => p.kind === "river").map((p) => ({ points: p.points, width: p.width }));
-  const lakeCircles = spec.lakes.map((l) => ({ points: circlePoints(normToWorldLocal(ctx, l.center), l.radius, 24), width: 2 }));
+  const lakeCircles = spec.lakes.map((l) => ({ points: shoreLine(ctx, l), width: 2 }));
   ctx.waterDistance = distanceToPolylinesGrid(ctx.heights, [...waterLines, ...lakeCircles], 400);
   if (Number.isFinite(sea)) {
     // shoreline distance from the flooded cells themselves (bays, headlands)
@@ -50,10 +50,13 @@ export function generateWater(ctx: GenContext): void {
   // lakes: inside radius → negative distance
   for (const l of spec.lakes) {
     const c = normToWorldLocal(ctx, l.center);
+    const shore = lakeShore(ctx, l);
     ctx.waterDistance.map((x, z, v) => {
       const [wx, wz] = ctx.heights.toWorld(x, z);
-      const d = Math.hypot(wx - c[0], wz - c[1]) - l.radius;
-      return Math.min(v, d);
+      const d = Math.hypot(wx - c[0], wz - c[1]);
+      if (d > l.radius * 2.4) return v;
+      const r = shore(Math.atan2(wz - c[1], wx - c[0]));
+      return d < r ? Math.min(v, d - r) : v;
     });
   }
   progress(ctx, "water:done", 1);
@@ -63,13 +66,14 @@ function normToWorldLocal(ctx: GenContext, n: Vec2): Vec2 {
   return [ctx.origin[0] + n[0] * ctx.worldW, ctx.origin[1] + n[1] * ctx.worldD];
 }
 
-function circlePoints(c: Vec2, r: number, n: number): Vec2[] {
-  const out: Vec2[] = [];
-  for (let i = 0; i <= n; i++) {
+function shoreLine(ctx: GenContext, lake: GenContext["spec"]["lakes"][number]): Vec2[] {
+  const c = normToWorldLocal(ctx, lake.center);
+  const shore = lakeShore(ctx, lake);
+  const n = Math.max(24, Math.round(lake.radius / 3));
+  return Array.from({ length: n + 1 }, (_, i): Vec2 => {
     const a = (i / n) * Math.PI * 2;
-    out.push([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]);
-  }
-  return out;
+    return [c[0] + Math.cos(a) * shore(a), c[1] + Math.sin(a) * shore(a)];
+  });
 }
 
 function carveRiver(ctx: GenContext, river: GenContext["spec"]["rivers"][number], rng: Rng, meander: Simplex2D): void {
@@ -187,21 +191,40 @@ export function carveRiverFromPolyline(ctx: GenContext, river: GenContext["spec"
   ctx.paths.push({ id: river.id, kind: "river", type: "river", points: smooth, width: river.width });
 }
 
+/** How far the shore of a lake is in a direction: longer than wide, with bays and points, the same area as asked. */
+function lakeShore(ctx: GenContext, lake: GenContext["spec"]["lakes"][number]): (angle: number) => number {
+  const n = new Simplex2D(deriveSeed(ctx.seed, `lake-${lake.id}`));
+  const turn = n.noise2(3.1, 7.7) * Math.PI;
+  const long = 1.18 + Math.abs(n.noise2(9.3, 1.4)) * 0.3;
+  // points and bays a walker can see: more of them on a larger lake
+  const fine = Math.max(2, Math.min(5, lake.radius / 45));
+  return (angle) => {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const a = angle - turn;
+    const ellipse = 1 / Math.sqrt((Math.cos(a) / long) ** 2 + (Math.sin(a) * long) ** 2);
+    return lake.radius * ellipse * (1 + n.noise2(c * 1.1 + 5, s * 1.1) * 0.22 + n.noise2(c * fine, s * fine + 11) * 0.09);
+  };
+}
+
 function carveLake(ctx: GenContext, lake: GenContext["spec"]["lakes"][number]): void {
   const h = ctx.heights;
   const c = normToWorldLocal(ctx, lake.center);
-  const r = lake.radius;
+  const shore = lakeShore(ctx, lake);
+  const reach = lake.radius * 2.4;
   // rim height = min terrain on the rim ring
   let rim = Infinity;
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
-    rim = Math.min(rim, h.sample(c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r));
+    rim = Math.min(rim, h.sample(c[0] + Math.cos(a) * shore(a), c[1] + Math.sin(a) * shore(a)));
   }
   const level = rim - 1.2;
-  const depth = Math.max(6, r * 0.18);
+  const depth = Math.min(34, Math.max(6, lake.radius * 0.18));
   h.map((x, z, v, i) => {
     const [wx, wz] = h.toWorld(x, z);
     const d = Math.hypot(wx - c[0], wz - c[1]);
+    if (d > reach) return v;
+    const r = shore(Math.atan2(wz - c[1], wx - c[0]));
     if (d > r * 1.35) return v;
     if (d <= r) {
       const prof = 1 - Math.pow(d / r, 2);

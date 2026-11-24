@@ -19,3 +19,4 @@ export { AntigravityProvider } from "./providers/antigravity";
 export { LocalRulesProvider, buildConfigTs } from "./providers/local-rules";
 export * from "./mcp/client";
 export * from "./mcp/studio";
+export { completeSpec } from "./local/complete-spec";

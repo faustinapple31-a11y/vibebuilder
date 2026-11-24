@@ -22,6 +22,7 @@ import {
   type PermissionMode,
   type Plan,
   type TaskState,
+  completeSpec,
 } from "@worldforge/agents";
 import { historyRepo, runsRepo } from "@/lib/db";
 import { getProvider } from "@/lib/agents";
@@ -295,7 +296,9 @@ export const useAgents = create<AgentState>((set, get) => ({
       }
       if (parsed.success) {
         const world = useWorld.getState();
-        world.setSpec(parsed.data);
+        // a model writes what a world looks like; how it is laid out comes from the request
+        const was = before === "null" ? undefined : WorldSpecSchema.safeParse(JSON.parse(before)).data;
+        world.setSpec(completeSpec(parsed.data, text, was));
         let layers: import("@worldforge/world-gen").GenLayer[] | undefined;
         let newSeed = false;
         try {

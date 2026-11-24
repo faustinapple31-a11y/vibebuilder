@@ -23,7 +23,7 @@ or the app does it when the spec file changes). **Never edit WorldBake.json.**
 ```jsonc
 {
   "name": "…", "seed": 1337, "stylePreset": "medieval",          // 34 presets, see below
-  "size": { "width": 1024, "depth": 1024 },                       // studs (512…2048)
+  "size": { "width": 1024, "depth": 1024 },                       // studs (512…16384, 1 km = 3571): what the place needs
   "terrain": {
     "baseHeight": 40, "relief": 0.6, "roughness": 0.4, "erosion": 0.5,
     "features": [                                                 // macro composition, applied in order
@@ -55,6 +55,13 @@ or the app does it when the spec file changes). **Never edit WorldBake.json.**
   "atmosphere": { "fogDensity": 0.3, "fogColor": "#9aa5b8", "haze": 0.4, "skyTint": "#6d7d9a" },
   "layout": { "archetype": "settlement", "count": 12, "extent": 0.45, "intensity": 0.5 },
   "cameraComposition": { "spawnFacing": "church", "spawnZone": "clearing" },
+  "detail": "balanced",                                          // performance | balanced | high | maximum: how it is shown, never how much exists
+  "design": {                                                     // the plan: quarters, facilities, country, places, discoveries
+    "setting": "modern_city", "environment": "urban", "scale": "metropolis", "morphology": "grid", "density": "very_dense",
+    "camera": "third_person", "players": 40, "openness": 0.3, "verticality": 0.8, "discoveries": 12,
+    "facilities": ["town_hall", "hospital", "school", "police_station", "fire_station", "train_station", "market", "park"],
+    "expects": [ { "kind": "facility", "any": ["hospital"], "min": 1, "label": "a hospital" } ]   // checked on the finished map
+  },
   "locks": { "terrain": false, "water": false, "roads": false, "landmarks": false, "buildings": false, "vegetation": false, "props": false, "lighting": false }
 }
 ```

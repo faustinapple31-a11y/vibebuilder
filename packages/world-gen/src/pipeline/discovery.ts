@@ -31,6 +31,10 @@ export function placeDiscoveries(ctx: GenContext): void {
       if (ctx.sites.some((s) => Math.hypot(x - s.center[0], z - s.center[1]) < s.radius * 1.35)) continue;
       if (ctx.occupants.some((o) => Math.hypot(x - o.position[0], z - o.position[2]) < o.radius + 16)) continue;
       if (baseRelief(ctx, x, z, 7) > (ctx.terrainMode === "parts" ? 0.5 : 5)) continue;
+      if (ctx.plateau) {
+        const level = ctx.plateau.sample(x, z);
+        if ([0, 1, 2, 3, 4, 5, 6, 7].some((q) => Math.abs(ctx.plateau!.sample(x + Math.cos(q * 0.785) * 17, z + Math.sin(q * 0.785) * 17) - level) > 0.1)) continue;
+      }
       const y = ctx.heights.sample(x, z);
       const ds = Math.hypot(x - sx, z - sz);
       if (ds < (ctx.islands ? 55 : 90)) continue;

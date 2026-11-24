@@ -171,7 +171,7 @@ FIRST GOAL says what the player does first and where: it sits close to the spawn
 Pick the genre and style ids closest to the player's own words: a farm is the farming genre, not simulator.
 FOCAL and SECONDARY name landmark ids from the catalog, SETTLEMENTS a settlement id, and MOOD is exactly one id from the moods list. Name no object the catalog cannot build. When the player asks for something it cannot build (animals, asteroids…), keep it in INTENT so the agents know, and express it elsewhere through the closest catalog choices.
 Write in English, keeping any names the player gave in their own language. Use the same fields, in the same order, as the examples, and answer with the <brief> block only.
-SETTLEMENTS gives building counts in proportion with the map: about 10 on a small one, 15 to 20 on a normal one, 30 to 40 for a large town, 50 and more for a city district. Say what surrounds the place (fields, woods, a river, a range on one side) and how one comes in.${request.length > LONG_REQUEST ? LONG_RULES : ""}`;
+SETTLEMENTS gives building counts in proportion with the place: 8 to 20 for a village, 40 to 70 for a town, 80 to 120 for a capital, 100 to 250 for a city, and names the facilities this kind of place really has (a hospital and a school in a city, barracks only on a base). On a large world it also says what lies beyond: the quarters, the suburbs, the villages, farms and camps of the country and the roads between them. Never make a world smaller than the player asked. Say what surrounds the place (fields, woods, a river, a range on one side) and how one comes in.${request.length > LONG_REQUEST ? LONG_RULES : ""}`;
 }
 
 const LONG_RULES = `

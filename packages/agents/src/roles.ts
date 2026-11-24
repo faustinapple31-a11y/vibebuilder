@@ -104,7 +104,16 @@ Rules:
 - Every id must be unique; roads.connects must reference "spawn", settlement ids, landmark ids or edges.
 - Exactly one landmark with role "focal".
 - vegetation.species only from the allowed enum; giantMushrooms > 0 only for mystical/dark themes.
-- size.width/depth between 512 and 2048 unless asked otherwise.
+- size.width/depth follow the request and the kind of place, up to 16384 (1 km = 3571 studs): arena 512-1024, village 768-1280, town 1536, city 2048-2560, island 2048,
+  region or RPG world 2560-3072, open world 4096, "several kilometres" 7168. There is no part budget: never shrink, thin out or cut a world to save parts.
+- Keep "design" from the draft, corrected when the request says more: setting, environment, scale, morphology (organic, grid, radial, linear, compound, dispersed), density,
+  openness, discoveries, facilities and expects. From it the generator lays out the quarters, builds the facilities on their lots, peoples the country with villages, farms
+  and camps, fills the empty land with small places and hides what is to be found. List the settlements the request names; do not list the country's own villages.
+- Facilities: town_hall, market, school, hospital, police_station, fire_station, park, parking, train_station, terminal, control_tower, runway, hangar, warehouse, tank_farm,
+  power_plant, barracks, helipad, motor_pool, watch_post, ski_lift, forum, amphitheatre, laboratory, greenhouse, landing_pad, shelter, resource_camp, ruined_block, grandstand.
+- A city is one settlement of 100 to 250 buildings (layout grid, or organic with design.morphology radial), a capital 80 to 120, a town 40 to 70, a village 8 to 20.
+- Four biomes or more on a map of 2000 studs or more become climates from one side to the other: list the biomes the request names.
+- "detail" (performance, balanced, high, maximum) only changes how the world is shown on a device; leave balanced unless asked.
 - Keep the seed stable unless the user asks for a new variation.
 Do NOT place individual objects: the generator does that from the spec.`,
   },

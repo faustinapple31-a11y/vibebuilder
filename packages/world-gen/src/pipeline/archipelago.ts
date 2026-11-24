@@ -65,13 +65,14 @@ export function layoutArchipelago(ctx: GenContext, f: Archipelago): Layout {
     let placed = false;
     for (let attempt = 0; attempt < 120 && !placed; attempt++) {
       const from = islands[rng.int(0, islands.length - 1)]!;
-      const r = size * rng.float(0.07, 0.14);
+      // a few large ones, many small ones
+      const r = size * (rng.chance(0.3) ? rng.float(0.1, 0.14) : rng.float(0.04, 0.085)) * Math.max(0.72, Math.min(1, 1300 / size + 0.1));
       const a = rng.float(0, Math.PI * 2);
       const d = from.radius + r + rng.float(gapMin, gapMax);
       const c: Vec2 = [from.center[0] + Math.cos(a) * d, from.center[1] + Math.sin(a) * d];
       if (!inside(c, r)) continue;
       if (islands.some((o) => Math.hypot(o.center[0] - c[0], o.center[1] - c[1]) < o.radius + r + gapMin * 0.8)) continue;
-      const level = rng.chance(0.4) ? 1 : 0;
+      const level = rng.chance(0.45) ? (rng.chance(0.35) ? 2 : 1) : 0;
       islands.push({ id: `island_${n}`, center: c, radius: r, height: sea + 10 + step * 0.6 + level * step, terraces: [], main: false });
       placed = true;
     }
@@ -84,9 +85,12 @@ export function layoutArchipelago(ctx: GenContext, f: Archipelago): Layout {
     for (let k = 1; k < count; k++) {
       const a = rng.float(0, Math.PI * 2);
       const shift = radius * rng.float(0.1, 0.22);
+      // the wide side of the ledge must hold the stairs that climb to the next level (and the rims wobble)
+      const ledge = step * 1.4 + 20;
+      const inner = Math.min(radius * rng.float(0.62, 0.74), radius * 0.92 + shift - ledge);
+      if (inner < 18) break;
       center = [center[0] + Math.cos(a) * shift, center[1] + Math.sin(a) * shift];
-      radius = radius * rng.float(0.62, 0.74);
-      if (radius < 18) break;
+      radius = inner;
       isl.terraces.push({ center, radius, height: isl.height + step * k, level: k });
     }
   }
